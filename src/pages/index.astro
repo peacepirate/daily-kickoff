@@ -1,0 +1,211 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { fmtDate, dayOfWeekUTC, utcDateKey } from '../utils/date';
+
+const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await Promise.all([
+  getCollection('ai'),
+  getCollection('leadership'),
+  getCollection('mythology'),
+  getCollection('richmond'),
+]);
+
+function latestEntry(entries: typeof aiEntries) {
+  return [...entries].sort((a, b) => b.data.date.getTime() - a.data.date.getTime())[0] ?? null;
+}
+
+const themeCards = [
+  {
+    id: 'ai',
+    label: 'AI Intelligence',
+    latest: latestEntry(aiEntries),
+    emptyNote: 'Set sources on the theme page to begin.',
+    count: aiEntries.length,
+  },
+  {
+    id: 'leadership',
+    label: 'Engineering Leadership',
+    latest: latestEntry(leadershipEntries),
+    emptyNote: 'Set sources on the theme page to begin.',
+    count: leadershipEntries.length,
+  },
+  {
+    id: 'mythology',
+    label: 'Mythology Research',
+    latest: latestEntry(mythologyEntries),
+    emptyNote: 'For Gods of the Future Past source material.',
+    count: mythologyEntries.length,
+  },
+  {
+    id: 'richmond',
+    label: 'Richmond & Family',
+    latest: latestEntry(richmondEntries),
+    emptyNote: 'Local events, family planning, monthly planner.',
+    count: richmondEntries.length,
+  },
+];
+
+// All action items for the watchlist
+interface WatchlistItem {
+  id: string;
+  type: 'try' | 'share' | 'readDeeper';
+  text: string;
+  source: string;
+}
+
+const allItems: WatchlistItem[] = [];
+const allEntries = [
+  ...aiEntries.map(e => ({ ...e, themeId: 'ai', themeLabel: 'AI Intelligence' })),
+  ...leadershipEntries.map(e => ({ ...e, themeId: 'leadership', themeLabel: 'Eng Leadership' })),
+  ...mythologyEntries.map(e => ({ ...e, themeId: 'mythology', themeLabel: 'Mythology' })),
+  ...richmondEntries.map(e => ({ ...e, themeId: 'richmond', themeLabel: 'Richmond & Family' })),
+].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+for (const entry of allEntries) {
+  const slug = entry.id.replace(/\.(md|mdx)$/, '');
+  const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
+  const source = `${entry.themeLabel} · ${dateLabel}`;
+  entry.data.actions.try.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source });
+  });
+  entry.data.actions.share.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source });
+  });
+  entry.data.actions.readDeeper.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source });
+  });
+}
+
+// Reading cadence — last 21 days
+const today = new Date();
+const allDigestDates = new Set(allEntries.map(e => e.id.replace(/\.(md|mdx)$/, '')));
+
+const cadenceDays = Array.from({ length: 21 }, (_, i) => {
+  const d = new Date(today);
+  d.setDate(today.getDate() - (20 - i));
+  const key = utcDateKey(d);
+  return { key, label: fmtDate(d, { month: 'short', day: 'numeric', timeZone: 'America/New_York' }), hasDigest: allDigestDates.has(key) };
+});
+---
+
+<Layout title="Dashboard">
+  <h1 id="greeting">Good morning</h1>
+  <div class="page-meta" id="page-meta">
+    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/New_York' })}
+  </div>
+
+  <!-- Watchlist -->
+  <div class="watchlist-card">
+    <div class="watchlist-header">
+      <span class="watchlist-title">★ Watchlist</span>
+      <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
+    </div>
+    <div id="watchlist-items">
+      {allItems.length === 0 ? (
+        <div class="watchlist-empty">No action items yet. Add digests to a theme to get started.</div>
+      ) : (
+        allItems.map(item => (
+          <div class="watchlist-item" data-wl-id={item.id} data-status="open">
+            <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
+              {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
+            </span>
+            <span class="watchlist-text">
+              {item.text}
+              <span class="watchlist-source"> · {item.source}</span>
+            </span>
+            <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
+            <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⌃ Snooze</button>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+
+  <h2>Latest by theme</h2>
+  <div class="theme-grid">
+    {themeCards.map(({ id, label, latest, emptyNote, count }) => (
+      <a href={`/${id}`} class="theme-card">
+        <div class="theme-card-header">
+          <span style="opacity:0.7;font-size:12px;">◆</span>
+          <span class="theme-card-title">{label}</span>
+          <span class="theme-card-count">
+            {count > 0 ? `${count} digest${count !== 1 ? 's' : ''}` : 'empty'}
+          </span>
+        </div>
+        {latest ? (
+          <>
+            <div class="theme-card-latest">{latest.data.tldr.slice(0, 130)}{latest.data.tldr.length > 130 ? '…' : ''}</div>
+            <div class="theme-card-date">
+              {fmtDate(latest.data.date, { month: 'short', day: 'numeric' })} · {latest.data.format}
+            </div>
+          </>
+        ) : (
+          <div class="theme-card-latest" style="color: var(--text-faint);">{emptyNote}</div>
+        )}
+      </a>
+    ))}
+  </div>
+
+  <h2>Reading cadence</h2>
+  <div class="cadence">
+    <span class="cadence-label" style="margin-right:8px;">Last 21 days:</span>
+    {cadenceDays.map(day => (
+      <span
+        class={`cadence-cell${day.hasDigest ? ' has-digest' : ''}`}
+        title={`${day.label}${day.hasDigest ? ' — digest published' : ''}`}
+        data-cadence-key={day.key}
+      />
+    ))}
+    <span class="cadence-label" style="margin-left:8px;">
+      {cadenceDays.filter(d => d.hasDigest).length} published
+    </span>
+  </div>
+</Layout>
+
+<script>
+  // Greeting
+  const now = new Date();
+  const hour = now.getHours();
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  const greetEl = document.getElementById('greeting');
+  if (greetEl) greetEl.textContent = `${days[now.getDay()]} ${period}`;
+
+  // Watchlist sync
+  function getItemStatus(id: string): 'open' | 'done' | 'snoozed' {
+    try {
+      const v = JSON.parse(localStorage.getItem(id) ?? '{}');
+      if (v.status === 'done' || v.status === 'snoozed') return v.status as 'done' | 'snoozed';
+    } catch {}
+    return 'open';
+  }
+
+  function renderWatchlist() {
+    const items = document.querySelectorAll<HTMLElement>('[data-wl-id]');
+    let open = 0;
+    items.forEach(el => {
+      if (!el.classList.contains('watchlist-item')) return;
+      const id = el.dataset.wlId!;
+      const status = getItemStatus(id);
+      el.dataset.status = status;
+      if (status === 'open') open++;
+    });
+    const sub = document.getElementById('watchlist-subtitle');
+    if (sub) {
+      const total = document.querySelectorAll('.watchlist-item[data-wl-id]').length;
+      sub.textContent = total === 0 ? 'No items' : `${open} open · ${total - open} done`;
+    }
+    document.dispatchEvent(new CustomEvent('watchlist-updated'));
+  }
+
+  document.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
+    if (!btn) return;
+    const id = btn.dataset.wlId!;
+    const action = btn.dataset.wlAction!;
+    localStorage.setItem(id, JSON.stringify({ status: action === 'done' ? 'done' : 'snoozed' }));
+    renderWatchlist();
+  });
+
+  renderWatchlist();
+</script>

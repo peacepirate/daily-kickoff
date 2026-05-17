@@ -1,0 +1,140 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { fmtDate, dayOfWeekUTC } from '../../utils/date';
+
+export async function getStaticPaths() {
+  return [
+    { params: { theme: 'ai' } },
+    { params: { theme: 'leadership' } },
+    { params: { theme: 'mythology' } },
+    { params: { theme: 'richmond' } },
+  ];
+}
+
+const { theme } = Astro.params as { theme: 'ai' | 'leadership' | 'mythology' | 'richmond' };
+
+const themeLabels: Record<string, string> = {
+  ai:         'AI Intelligence',
+  leadership: 'Engineering Leadership',
+  mythology:  'Mythology Research',
+  richmond:   'Richmond & Family',
+};
+
+const scheduleLabels: Record<string, string> = {
+  ai:         'Daily Mon–Sat at 7am ET',
+  leadership: 'Daily Mon–Sat at 7am ET',
+  mythology:  'Weekly on Saturdays',
+  richmond:   'Weekly on Sundays',
+};
+
+const label = themeLabels[theme]!;
+const schedule = scheduleLabels[theme]!;
+
+const entries = await getCollection(theme);
+const sorted = [...entries].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+
+function pendingCount(entry: (typeof sorted)[number]) {
+  const { try: t, share: s, readDeeper: r } = entry.data.actions;
+  return t.length + s.length + r.length;
+}
+---
+
+<Layout
+  title={label}
+  breadcrumb={[{ label: 'Dashboard', href: '/' }, { label: label }]}
+  activeTheme={theme}
+>
+  <h1>{label}</h1>
+  <div class="page-meta">
+    {schedule} · {entries.length} digest{entries.length !== 1 ? 's' : ''}
+    {entries.length === 0 ? '' : ` · ${fmtDate(sorted[0]!.data.date, { month: 'long', day: 'numeric', year: 'numeric' })} latest`}
+  </div>
+
+  {entries.length === 0 ? (
+    <div style="padding: 40px; text-align: center; color: var(--text-faint); border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">◆</div>
+      <div style="font-weight: 500; margin-bottom: 8px;">No digests yet</div>
+      <div style="font-size: 13px;">Once the scheduled digest task runs, entries will appear here automatically.</div>
+    </div>
+  ) : (
+    <>
+      <div class="filters">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="try">Has [TRY]</button>
+        <button class="filter-chip" data-filter="share">Has [SHARE]</button>
+        <button class="filter-chip" data-filter="weekly">Weekly synthesis</button>
+        <button class="filter-chip" data-filter="7d">Last 7 days</button>
+        <button class="filter-chip" data-filter="30d">Last 30 days</button>
+      </div>
+
+      <div class="digest-list" id="digest-list">
+        {sorted.map(entry => {
+          const slug = entry.id.replace(/\.(md|mdx)$/, '');
+          const d = entry.data.date;
+          const pending = pendingCount(entry);
+          const isoDate = d.toISOString();
+          const hasTry = entry.data.actions.try.length > 0;
+          const hasShare = entry.data.actions.share.length > 0;
+          const isWeekly = entry.data.format === 'weekly-synthesis';
+          return (
+            <a
+              href={`/${theme}/${slug}`}
+              class="digest-row"
+              data-date={isoDate}
+              data-has-try={hasTry ? 'true' : 'false'}
+              data-has-share={hasShare ? 'true' : 'false'}
+              data-format={entry.data.format}
+            >
+              <div class="digest-date">
+                {d.toISOString().split('T')[0]}
+                <span class="day-name">{dayOfWeekUTC(d)}</span>
+              </div>
+              <div>
+                <div class="digest-headline">{entry.data.title}</div>
+                <div class="digest-tldr">{entry.data.tldr.slice(0, 200)}{entry.data.tldr.length > 200 ? '…' : ''}</div>
+              </div>
+              <div class="digest-meta-col">
+                <span class="pill">{isWeekly ? 'weekly' : 'daily'} · {entry.data.itemCount} items</span>
+                {pending > 0 && <span>{pending} action{pending !== 1 ? 's' : ''} pending</span>}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </>
+  )}
+</Layout>
+
+<script>
+  const chips = document.querySelectorAll<HTMLButtonElement>('.filter-chip');
+  const rows  = document.querySelectorAll<HTMLElement>('.digest-row');
+  const now   = Date.now();
+  const MS7D  = 7  * 24 * 60 * 60 * 1000;
+  const MS30D = 30 * 24 * 60 * 60 * 1000;
+
+  function applyFilter(filter: string) {
+    rows.forEach(row => {
+      const date    = new Date(row.dataset.date!).getTime();
+      const hasTry  = row.dataset.hasTry  === 'true';
+      const hasShare= row.dataset.hasShare === 'true';
+      const format  = row.dataset.format;
+      let show = true;
+      if (filter === 'try')    show = hasTry;
+      if (filter === 'share')  show = hasShare;
+      if (filter === 'weekly') show = format === 'weekly-synthesis';
+      if (filter === '7d')     show = now - date <= MS7D;
+      if (filter === '30d')    show = now - date <= MS30D;
+      row.style.display = show ? '' : 'none';
+    });
+  }
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      applyFilter(chip.dataset.filter!);
+    });
+  });
+</script>

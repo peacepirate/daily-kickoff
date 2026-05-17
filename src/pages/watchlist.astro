@@ -1,0 +1,135 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { fmtDate } from '../utils/date';
+
+const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await Promise.all([
+  getCollection('ai'),
+  getCollection('leadership'),
+  getCollection('mythology'),
+  getCollection('richmond'),
+]);
+
+interface WatchlistItem {
+  id: string;
+  type: 'try' | 'share' | 'readDeeper';
+  text: string;
+  source: string;
+  digestHref: string;
+}
+
+const allItems: WatchlistItem[] = [];
+const allEntries = [
+  ...aiEntries.map(e => ({ ...e, themeId: 'ai', themeLabel: 'AI Intelligence' })),
+  ...leadershipEntries.map(e => ({ ...e, themeId: 'leadership', themeLabel: 'Eng Leadership' })),
+  ...mythologyEntries.map(e => ({ ...e, themeId: 'mythology', themeLabel: 'Mythology' })),
+  ...richmondEntries.map(e => ({ ...e, themeId: 'richmond', themeLabel: 'Richmond & Family' })),
+].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+for (const entry of allEntries) {
+  const slug = entry.id.replace(/\.(md|mdx)$/, '');
+  const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
+  const source = `${entry.themeLabel} · ${dateLabel}`;
+  const digestHref = `/${entry.themeId}/${slug}`;
+  entry.data.actions.try.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref });
+  });
+  entry.data.actions.share.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref });
+  });
+  entry.data.actions.readDeeper.forEach((item, i) => {
+    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref });
+  });
+}
+---
+
+<Layout title="Watchlist" breadcrumb={[{ label: 'Watchlist' }]} activeTheme="watchlist">
+  <h1>★ Watchlist</h1>
+  <div class="page-meta" id="wl-page-meta">All action items across themes</div>
+
+  {allItems.length === 0 ? (
+    <div style="padding: 40px; text-align: center; color: var(--text-faint); border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">★</div>
+      <div style="font-weight: 500; margin-bottom: 8px;">No items yet</div>
+      <div style="font-size: 13px;">Action items from digests will appear here.</div>
+    </div>
+  ) : (
+    <div class="watchlist-card">
+      <div class="watchlist-header">
+        <span class="watchlist-title">All items</span>
+        <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
+        <button class="quick-action" id="clear-done" style="margin-left:auto;">Clear done</button>
+      </div>
+      <div id="watchlist-all">
+        {allItems.map(item => (
+          <div class="watchlist-item" data-wl-id={item.id} data-status="open">
+            <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
+              {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
+            </span>
+            <span class="watchlist-text">
+              {item.text}
+              <span class="watchlist-source">
+                · <a href={item.digestHref}>{item.source}</a>
+              </span>
+            </span>
+            <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
+            <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⌃ Snooze</button>
+            <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</Layout>
+
+<script>
+  function getStatus(id: string): 'open' | 'done' | 'snoozed' {
+    try {
+      const v = JSON.parse(localStorage.getItem(id) ?? '{}');
+      if (v.status === 'done' || v.status === 'snoozed') return v.status as 'done' | 'snoozed';
+    } catch {}
+    return 'open';
+  }
+
+  function renderAll() {
+    const items = document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]');
+    let open = 0, done = 0;
+    items.forEach(el => {
+      const id = el.dataset.wlId!;
+      const status = getStatus(id);
+      el.dataset.status = status;
+      const reopenBtn = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
+      const doneBtn   = el.querySelector<HTMLElement>('[data-wl-action="done"]');
+      const snoozeBtn = el.querySelector<HTMLElement>('[data-wl-action="snooze"]');
+      if (reopenBtn) reopenBtn.style.display = status !== 'open' ? '' : 'none';
+      if (doneBtn)   doneBtn.style.display   = status === 'open' ? '' : 'none';
+      if (snoozeBtn) snoozeBtn.style.display = status === 'open' ? '' : 'none';
+      if (status === 'open') open++;
+      else done++;
+    });
+    const sub = document.getElementById('watchlist-subtitle');
+    if (sub) sub.textContent = `${open} open · ${done} done`;
+    document.dispatchEvent(new CustomEvent('watchlist-updated'));
+  }
+
+  document.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
+    if (!btn) return;
+    const id = btn.dataset.wlId!;
+    const action = btn.dataset.wlAction!;
+    if (action === 'done')   localStorage.setItem(id, JSON.stringify({ status: 'done' }));
+    if (action === 'snooze') localStorage.setItem(id, JSON.stringify({ status: 'snoozed' }));
+    if (action === 'reopen') localStorage.removeItem(id);
+    renderAll();
+  });
+
+  document.getElementById('clear-done')?.addEventListener('click', () => {
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      const id = el.dataset.wlId!;
+      if (getStatus(id) === 'done') localStorage.removeItem(id);
+    });
+    renderAll();
+  });
+
+  renderAll();
+</script>

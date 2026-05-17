@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Preferences" breadcrumb={[{ label: 'Preferences' }]} activeTheme="preferences">
+  <h1>⚙ Preferences</h1>
+  <div class="page-meta">Manage your digest schedule, sources, and notification settings.</div>
+
+  <div style="border: 1px solid var(--border); border-radius: 8px; padding: 32px; text-align: center; color: var(--text-faint); margin-top: 24px;">
+    <div style="font-size: 20px; margin-bottom: 12px;">⚙</div>
+    <div style="font-weight: 500; font-size: 14px; margin-bottom: 8px; color: var(--text-muted);">Coming in Phase 2</div>
+    <div style="font-size: 13px; max-width: 420px; margin: 0 auto; line-height: 1.7;">
+      The Preferences page will let you edit your scheduled task prompt — sources, filter rules,
+      colleague names for [SHARE] tagging, and output format — and generate an updated prompt to
+      paste into your Cowork workflow.
+    </div>
+  </div>
+</Layout>
