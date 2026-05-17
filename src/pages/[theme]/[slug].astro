@@ -76,33 +76,30 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
         </div>
       )}
 
-      {totalActionCount > 0 && (
+      {tryItems.length > 0 && (
         <div class="rail-block">
-          <div class="rail-title">Action buckets</div>
-          {tryItems.length > 0 && (
-            <span class="rail-action">
-              <span class="tag tag-try" style="font-size:9px;">TRY</span>
-              <span class="rail-count">· {tryItems.length} item{tryItems.length !== 1 ? 's' : ''}</span>
-            </span>
-          )}
-          {shareItems.length > 0 && (
-            <span class="rail-action">
-              <span class="tag tag-share" style="font-size:9px;">SHARE</span>
-              <span class="rail-count">· {shareItems.length} item{shareItems.length !== 1 ? 's' : ''}</span>
-            </span>
-          )}
-          {readDeeper.length > 0 && (
-            <span class="rail-action">
-              <span class="tag tag-read" style="font-size:9px;">READ DEEPER</span>
-              <span class="rail-count">· {readDeeper.length} item{readDeeper.length !== 1 ? 's' : ''}</span>
-            </span>
-          )}
-          {skip.length > 0 && (
-            <span class="rail-action">
-              <span class="tag tag-skip" style="font-size:9px;">SKIP</span>
-              <span class="rail-count">· {skip.length} item{skip.length !== 1 ? 's' : ''}</span>
-            </span>
-          )}
+          <div class="rail-title"><span class="tag tag-try" style="font-size:9px;">TRY</span></div>
+          {tryItems.map(item => (
+            <span class="rail-action rail-item">{item}</span>
+          ))}
+        </div>
+      )}
+
+      {shareItems.length > 0 && (
+        <div class="rail-block">
+          <div class="rail-title"><span class="tag tag-share" style="font-size:9px;">SHARE</span></div>
+          {shareItems.map(item => (
+            <span class="rail-action rail-item">{item.what} <span style="color:var(--text-faint);">→ {item.who}</span></span>
+          ))}
+        </div>
+      )}
+
+      {readDeeper.length > 0 && (
+        <div class="rail-block">
+          <div class="rail-title"><span class="tag tag-read" style="font-size:9px;">READ DEEPER</span></div>
+          {readDeeper.map(item => (
+            <span class="rail-action rail-item">{item}</span>
+          ))}
         </div>
       )}
 

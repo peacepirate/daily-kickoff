@@ -568,6 +568,15 @@ h3 {
 .digest-body strong {
   font-weight: 600;
 }
+.digest-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 2px;
+}
+.digest-body a:hover {
+  text-decoration-color: var(--accent);
+}
 .digest-body details {
   margin-top: 24px;
   padding: 12px 16px;
@@ -627,4 +636,11 @@ h3 {
 .rail-count {
   font-size: 11px;
   color: var(--text-faint);
+}
+.rail-item {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  cursor: default;
 }
