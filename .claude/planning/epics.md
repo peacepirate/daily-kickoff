@@ -1,9 +1,10 @@
 ---
-stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories"]
+stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation"]
 inputDocuments:
   - ".claude/planning/prd.md"
   - ".claude/planning/architecture.md"
   - ".claude/planning/project-context.md"
+  - ".claude/plans/daily-kickoff/daily-kickkoff-generator-routine/RICHMOND_EVENTS_PROPOSAL.md"
 ---
 
 # Daily Kickoff — Multi-Topic Digest Pipeline - Epic Breakdown
@@ -95,6 +96,35 @@ Not applicable — no UX design specification. Site changes are additive (~15 li
 | FR14 | 3 | 3.2 + 3.3 — Astro collection + site pages |
 | FR15 | 4 | 4.1 — .claude/settings.json |
 | NFR1–NFR6 | 4 | 4.2 — E2E live test validates all NFRs |
+| FR-E01–FR-E13 | 5 | 5.1–5.3 — Richmond Events pipeline + site wiring + E2E test |
+
+### Richmond Events FR Inventory (Epic 5)
+
+FR-E01: A 30-day forward window must be applied from the Saturday run date. Events occurring in the past must never appear in the digest. Events occurring on TODAY or TODAY+1 belong in the `richmond` news digest, not `rva-events`.
+
+FR-E02: Sources and synthesis must apply distance weighting in priority order: (1) RVA — Richmond city proper + Henrico, Chesterfield, Midlothian; (2) Metro — Hanover, Colonial Heights, Petersburg, Hopewell; (3) Extended Metro — Charlottesville, Williamsburg, Fredericksburg (≤60 min drive + exceptional events only); (4) VA-Wide — only if Capital One community or major RVA tech significance, noting distance explicitly.
+
+FR-E03: In-scope event categories: family/kids, arts/culture, food/dining events, tech meetups, outdoor/parks, community festivals, civic/political events with direct access to elected officials (hackathons, listening sessions, public forums) — capped at 1–2 items per digest.
+
+FR-E04: Out-of-scope (drop silently): sports scores/schedules, pure partisan fundraisers (campaign rallies, party galas), generic charity 5Ks with no community draw, events outside the distance zones, past events.
+
+FR-E05: Sparsity fallback: if RVA events total < 4, expand to Metro zone; if < 2 RVA events, lead TL;DR with "Light event calendar" and pull in Extended Metro exceptional events; if < 2 of any zone, note "Quiet month for events" and output VA-wide tech/Capital One items if any.
+
+FR-E06: The `richmond-events` topic must run on Saturdays only (`schedule: weekly`). The orchestrator's existing weekly schedule logic handles this automatically.
+
+FR-E07: Output must be structured chronologically within week buckets (This Week, Next Weekend, Coming Up weeks 3–4) — NOT organized by event category.
+
+FR-E08: A separate Astro content collection `rva-events` must be created, distinct from the existing `richmond` collection. The nav label is "RVA Events".
+
+FR-E09: The existing `digestSchema` must be used unchanged. Action semantics: `try[]` ← ATTEND / BRING FAMILY items; `share[]` ← SHARE items (`{what, who}` shape, `who` = "team" or "family"); `readDeeper[]` ← BOOK NOW urgency items; `skip[]` ← SKIP items.
+
+FR-E10: Deduplication boundary: events occurring on the Saturday run date (TODAY) or Sunday (TODAY+1) belong in the `richmond` news digest and must be excluded from `rva-events`.
+
+FR-E11: `scripts/topics/richmond-events.yaml` must define 14 sources across 3 tiers: tier1 (3 RVA RSS feeds with event `filter_regex`), tier2 (7 venue HTML calendars: VMFA, Maymont, The Valentine, SMV, Hardywood, Strangeways, Capital One Hall), tier3 (4 community aggregators: Visit Richmond, Richmond Family, RVAtech, Startup Virginia).
+
+FR-E12: Six Astro files must be updated to wire the `rva-events` collection into the site: `src/content.config.ts`, `src/layouts/Layout.astro`, `src/pages/index.astro`, `src/pages/watchlist.astro`, `src/pages/[theme]/index.astro`, `src/pages/[theme]/[slug].astro`.
+
+FR-E13: `scripts/prompts/richmond-events.md` must contain: WHO PRIYESH IS context, distance weighting rules, category include/exclude rules (with civic/political at ≤2 cap), sparsity fallback rules, date-primary chronological output structure, item format (`**[Name](url)** — what | Day Mon DD, TIME | Venue, Neighborhood | cost | why. [TAG]`), action tag definitions, required frontmatter template, and STEP 1–3 (no git operations).
 
 ---
 
@@ -115,6 +145,10 @@ Add the Local LLM topic and wire it into the Astro site. After this epic, all fo
 ### Epic 4: Autonomous Release
 Update permissions, reinstall the schedule, and run the full E2E live test. After this epic, the system runs autonomously every night with zero manual intervention required.
 **FRs covered:** FR15, NFR1–NFR6
+
+### Epic 5: RVA Events — Forward-Looking Event Calendar
+Add a new `rva-events` topic that publishes a weekly 30-day forward event calendar for Richmond, VA — family activities, tech meetups, arts/dining, and civic events with direct access to city leadership. After this epic, Priyesh receives a Saturday digest of upcoming RVA events alongside the existing news/professional feeds.
+**FRs covered:** FR-E01 through FR-E13
 
 ---
 
@@ -593,3 +627,160 @@ So that all four topics run automatically every night without any manual action.
 - The log file path is `scripts/logs/$(date +%Y-%m-%d).log` — check it the morning after the first autonomous run
 - If the agent fires but fails: check `scripts/logs/DATE.log` for errors; common issues are PATH not including claude binary or git credentials not configured
 - After a successful autonomous weekday run, Story 4.3 is complete — the system is in production
+
+---
+
+## Epic 5: RVA Events — Forward-Looking Event Calendar
+
+**Goal:** Add a new `rva-events` pipeline topic and Astro collection delivering a weekly 30-day forward calendar of Richmond-area events. After this epic, Priyesh automatically receives a Saturday digest of upcoming events — family activities, tech meetups, arts/dining, and civic events — organized chronologically by week and distance zone, as a distinct feed from the Richmond news digest.
+
+### Story 5.1: RVA Events — Source Config & Synthesis Prompt
+
+As Priyesh,
+I want a `richmond-events` pipeline topic with 14 curated sources and a forward-looking synthesis prompt,
+So that every Saturday I automatically receive a 30-day calendar of upcoming RVA events without any manual curation.
+
+**Acceptance Criteria:**
+
+**Given** `scripts/topics/richmond-events.yaml` is created
+**When** parsed as YAML
+**Then** it contains `name: richmond-events`, `theme: rva-events`, `schedule: weekly`, `output_collection: rva-events`, `prompt: scripts/prompts/richmond-events.md`
+**And** `sources.tier1` includes 3 RVA RSS sources each with an event-focused `filter_regex`: Style Weekly Events, RICtoday Events, Richmond Magazine Events
+**And** `sources.tier2` includes 7 venue HTML calendar pages: VMFA, Maymont, The Valentine, Science Museum of Virginia, Hardywood, Strangeways, Capital One Hall
+**And** `sources.tier3` includes 4 community aggregators: Visit Richmond Events (html), Richmond Family Magazine Calendar (html), RVAtech Events (html), Startup Virginia Events (html)
+**And** every source entry has `name`, `kind`, `url`, `max_items`
+
+**Given** `scripts/prompts/richmond-events.md` is created
+**When** its content is reviewed
+**Then** it contains a WHO PRIYESH IS section with Richmond/family/tech/Capital One context
+**And** it contains the 4-zone distance weighting rule (RVA → Metro → Extended Metro → VA-Wide) with explicit priority order
+**And** it contains CATEGORIES — INCLUDE list: family/kids, arts/culture, food/dining, tech/professional, outdoor/parks, civic/political (at ≤2 items cap with "direct access to elected officials" qualifier)
+**And** it contains CATEGORIES — DROP SILENTLY list: sports, pure partisan fundraisers, generic charity runs, out-of-zone events, past events
+**And** it contains the deduplication rule: events on TODAY or TODAY+1 belong in `richmond` digest, not here
+**And** it contains sparsity fallback rules (<4 RVA → expand to Metro; <2 → lead with "Light event calendar")
+**And** it specifies date-primary chronological output with week buckets: "This Week", "Next Weekend", "Coming Up"
+**And** it specifies item format: `**[Event Name](url)** — what | Day Mon DD, TIME | Venue, Neighborhood | cost | why. [TAG]`
+**And** it defines action tags: [ATTEND] → `try[]`, [BRING FAMILY] → `try[]`, [BOOK NOW] → `readDeeper[]`, [SHARE w/ team] → `share[]` (who: "team"), [SHARE w/ family] → `share[]` (who: "family"), [SKIP] → `skip[]`
+**And** it includes a required frontmatter template with all `digestSchema` fields and `theme: rva-events`
+**And** STEP 3 instructs Claude to write the file only — no git operations
+
+**Given** `src/content/rva-events/.gitkeep` is created
+**When** `git status` is checked
+**Then** the empty directory is tracked by git
+
+**Given** `.claude/settings.json` is updated
+**When** the `permissions.allow` array is inspected
+**Then** it contains `"Write(src/content/rva-events/*)"` alongside existing entries
+
+**Dev Notes:**
+- YAML source structure: follow exact same pattern as `scripts/topics/richmond.yaml` — same tier structure, same field names
+- The tier1 `filter_regex` for event filtering: `\b(event|concert|festival|exhibit|opening|workshop|market|fair|show|performance)\b` — adjust per-source as needed
+- Tier2 venue pages are pure HTML event calendars — set `kind: html`, no filter needed (they only publish events)
+- No Eventbrite: removed public RSS in 2023; Visit Richmond and Richmond Family already aggregate from Eventbrite
+- Prompt distance weighting verbatim zones: RVA (Richmond city + Henrico, Chesterfield, Midlothian) — always; Metro (Hanover, Colonial Heights, Petersburg, Hopewell) — include if 4+ RVA; Extended Metro (Charlottesville, Williamsburg, Fredericksburg) — only ≤60 min AND exceptional; VA-Wide — Capital One/RVA tech only, state distance explicitly
+- Civic/political rule: cap at 1–2 items; require "direct community access to elected officials" justification; [ATTEND] only if genuine networking or civic-influence angle exists
+- Test: `scripts/.venv/bin/python3 scripts/fetch_sources.py --topic richmond-events --weekly 2>&1 | grep "###"` — should show all 14 source headers (some HTML sources may return 0 items if pages are JS-rendered — that's expected; the test is that headers appear)
+- Reference: RICHMOND_EVENTS_PROPOSAL.md §3.2 for full YAML, §5 for complete prompt template
+
+---
+
+### Story 5.2: RVA Events — Astro Site Wiring
+
+As a developer,
+I want the `rva-events` collection registered in the Astro site with nav entry, theme card, and watchlist support,
+So that Richmond Events digests are visible and accessible on priyesh.fyi alongside the other four feeds.
+
+**Acceptance Criteria:**
+
+**Given** `src/content.config.ts` is updated
+**When** the file is inspected
+**Then** the theme enum contains `'rva-events'` alongside the existing 5 values: `z.enum(['ai', 'leadership', 'local-llm', 'mythology', 'richmond', 'rva-events'])`
+**And** a new collection is defined: `'rva-events': defineCollection({ loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/rva-events' }), schema: digestSchema })`
+
+**Given** `src/layouts/Layout.astro` is updated
+**When** the nav sidebar renders
+**Then** "RVA Events" appears as a nav item in the Themes section with correct href (`${B}rva-events`)
+**And** the entry count badge shows the number of `rva-events` collection entries (0 when empty)
+**And** `activeTheme === 'rva-events'` correctly highlights the nav item
+
+**Given** `src/pages/index.astro` is updated
+**When** the dashboard home page is built
+**Then** an "RVA Events" theme card appears with `id: 'rva-events'`, label, and `emptyNote: 'Upcoming events in Richmond — family activities, tech meetups, arts & dining.'`
+**And** when entries exist, the card shows the latest entry's `tldr` and date
+**And** rva-events `try[]` and `readDeeper[]` items appear in the Watchlist section of the dashboard
+
+**Given** `src/pages/watchlist.astro` is updated
+**When** the watchlist page is built
+**Then** rva-events action items appear with source labeled `"RVA Events · [date]"`
+**And** done/snooze localStorage state works for rva-events items (same key pattern as other topics)
+
+**Given** `src/pages/[theme]/index.astro` is updated
+**When** `getStaticPaths` is inspected
+**Then** `{ params: { theme: 'rva-events' } }` is present in the returned array
+**And** `themeLabels['rva-events']` is `'Richmond Events'`
+**And** `scheduleLabels['rva-events']` is `'Weekly on Saturdays'`
+
+**Given** `src/pages/[theme]/[slug].astro` is updated
+**When** `getStaticPaths` is inspected
+**Then** `'rva-events'` is present in the `themes` const array
+**And** `themeLabels['rva-events']` is `'Richmond Events'`
+
+**Given** `npm run build` is run with an empty `src/content/rva-events/` directory
+**When** the build completes
+**Then** it succeeds with zero TypeScript or Zod errors
+**And** the `/rva-events` route is present in the build output
+
+**Dev Notes:**
+- All 6 file changes follow the exact same pattern used to add `local-llm` in Stories 3.2 and 3.3 — diff those stories for the template
+- `content.config.ts`: two changes only — add to enum, add collection. `digestSchema` is reused unchanged.
+- `Layout.astro`: add `getCollection('rva-events')` to the existing `Promise.all`, destructure as `rvaEventsEntries`, add `'rva-events': rvaEventsEntries.length` to `themeCounts`, add `{ id: 'rva-events', label: 'RVA Events', count: themeCounts['rva-events'] }` to `themeNav`
+- `[theme]/index.astro` type cast: update the `as { theme: '...' }` assertion to include `'rva-events'`
+- Test: add a dummy `src/content/rva-events/2026-01-01.md` with valid `digestSchema` frontmatter (theme: rva-events), run `npm run build`, confirm the `/rva-events/2026-01-01` route is built and nav shows count: 1, then delete the dummy file
+
+---
+
+### Story 5.3: RVA Events — E2E Live Test & Release
+
+As Priyesh,
+I want to run the complete `richmond-events` topic end-to-end and verify the output deploys correctly,
+So that I can confirm the new feed works autonomously before relying on the Saturday schedule.
+
+**Acceptance Criteria:**
+
+**Given** Stories 5.1 and 5.2 are complete and `bash scripts/run-topic.sh richmond-events` is run with `--weekly` flag
+**When** the run completes successfully
+**Then** `src/content/rva-events/YYYY-MM-DD.md` exists
+
+**Given** the generated file is inspected
+**When** its frontmatter is parsed
+**Then** it contains all required `digestSchema` fields: `title`, `date`, `theme: rva-events`, `format: weekly-synthesis`, `tldr`, `itemCount`, `readTimeMinutes`, `sources`, `actions`
+**And** `actions.try[]` contains at least 1 event item (ATTEND or BRING FAMILY)
+**And** `actions.skip[]` may be empty (acceptable if all items are high-signal)
+**And** all event dates in the body are in the future relative to the run date (no past events)
+
+**Given** `npm run build` is run after the file is generated
+**When** it completes
+**Then** the build succeeds with no Zod schema validation errors
+**And** the `/rva-events/YYYY-MM-DD` route is present in the build output
+
+**Given** the file is committed and pushed to origin main
+**When** the GitHub Actions `deploy.yml` workflow completes
+**Then** the deployed site at `https://peacepirate.github.io/daily-kickoff/rva-events` shows the new RVA Events page
+**And** the "RVA Events" nav item appears in the sidebar with count: 1
+
+**Given** `run-topic.sh richmond-events` is run a second time on the same date
+**When** it completes
+**Then** no duplicate file is created (idempotency — orchestrator skips existing output)
+
+**Given** `run-all-topics.sh` is run on a Saturday
+**When** it discovers `scripts/topics/richmond-events.yaml` (schedule: weekly)
+**Then** it includes `richmond-events` in the Saturday run alongside leadership, richmond, and local-llm
+**And** the single git commit contains `src/content/rva-events/DATE.md` alongside the other topic files
+
+**Dev Notes:**
+- Run manually: `bash scripts/run-topic.sh richmond-events` — on a non-Saturday, the orchestrator would skip it (weekly); bypass for testing by invoking `run-topic.sh` directly (it doesn't enforce schedule — that's the orchestrator's job)
+- If today is not Saturday, pass weekly flag explicitly: inspect `run-topic.sh` source and check if `WEEKLY_FLAG` is set conditionally — if so, run: `WEEKLY_FLAG=--weekly bash scripts/run-topic.sh richmond-events` or equivalent
+- HTML source reliability: tier2 venue pages (VMFA, Maymont, etc.) use React/Next.js. If `fetch_html` returns 0 items for a source, that's expected — the RSS tier1 sources will provide the bulk of content. Verify at least 3 items from tier1 RSS sources.
+- Validate frontmatter quickly: `python3 -c "import yaml; f=open('src/content/rva-events/$(date +%Y-%m-%d).md'); content=f.read(); fm=content.split('---')[1]; yaml.safe_load(fm); print('OK')"`
+- If the body contains past-dated events (common if source data is stale), add an explicit note to the prompt: "Double-check: today is [DATE]. Remove any events whose date has already passed."
+- Saturday orchestrator integration: `run-all-topics.sh` auto-discovers all `scripts/topics/*.yaml` — `richmond-events.yaml` will be picked up automatically; no orchestrator changes needed

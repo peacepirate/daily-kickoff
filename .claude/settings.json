@@ -11,7 +11,8 @@
       "Write(src/content/ai/*)",
       "Write(src/content/leadership/*)",
       "Write(src/content/richmond/*)",
-      "Write(src/content/local-llm/*)"
+      "Write(src/content/local-llm/*)",
+      "Write(src/content/rva-events/*)"
     ]
   }
 }

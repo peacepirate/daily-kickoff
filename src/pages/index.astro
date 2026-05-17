@@ -4,12 +4,13 @@ import { getCollection } from 'astro:content';
 import { fmtDate, dayOfWeekUTC, utcDateKey } from '../utils/date';
 const B = import.meta.env.BASE_URL;
 
-const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
   getCollection('local-llm'),
   getCollection('mythology'),
   getCollection('richmond'),
+  getCollection('rva-events'),
 ]);
 
 function latestEntry(entries: typeof aiEntries) {
@@ -52,6 +53,13 @@ const themeCards = [
     emptyNote: 'Local inference stack updates and Gods project tooling.',
     count: localLlmEntries.length,
   },
+  {
+    id: 'rva-events',
+    label: 'RVA Events',
+    latest: latestEntry(rvaEventsEntries),
+    emptyNote: 'Upcoming events in Richmond — family activities, tech meetups, arts & dining.',
+    count: rvaEventsEntries.length,
+  },
 ];
 
 // All action items for the watchlist
@@ -69,6 +77,7 @@ const allEntries = [
   ...mythologyEntries.map(e => ({ ...e, themeId: 'mythology', themeLabel: 'Mythology' })),
   ...richmondEntries.map(e => ({ ...e, themeId: 'richmond', themeLabel: 'Richmond & Family' })),
   ...localLlmEntries.map(e => ({ ...e, themeId: 'local-llm', themeLabel: 'Local LLM' })),
+  ...rvaEventsEntries.map(e => ({ ...e, themeId: 'rva-events', themeLabel: 'RVA Events' })),
 ].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 for (const entry of allEntries) {

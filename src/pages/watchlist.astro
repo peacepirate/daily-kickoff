@@ -4,12 +4,13 @@ import { getCollection } from 'astro:content';
 import { fmtDate } from '../utils/date';
 const B = import.meta.env.BASE_URL;
 
-const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
   getCollection('local-llm'),
   getCollection('mythology'),
   getCollection('richmond'),
+  getCollection('rva-events'),
 ]);
 
 interface WatchlistItem {
@@ -27,6 +28,7 @@ const allEntries = [
   ...mythologyEntries.map(e => ({ ...e, themeId: 'mythology', themeLabel: 'Mythology' })),
   ...richmondEntries.map(e => ({ ...e, themeId: 'richmond', themeLabel: 'Richmond & Family' })),
   ...localLlmEntries.map(e => ({ ...e, themeId: 'local-llm', themeLabel: 'Local LLM' })),
+  ...rvaEventsEntries.map(e => ({ ...e, themeId: 'rva-events', themeLabel: 'RVA Events' })),
 ].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 for (const entry of allEntries) {

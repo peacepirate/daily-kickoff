@@ -10,17 +10,18 @@ interface BreadcrumbItem {
 interface Props {
   title?: string;
   breadcrumb?: BreadcrumbItem[];
-  activeTheme?: 'ai' | 'leadership' | 'local-llm' | 'mythology' | 'richmond' | 'watchlist' | 'preferences';
+  activeTheme?: 'ai' | 'leadership' | 'local-llm' | 'mythology' | 'richmond' | 'rva-events' | 'watchlist' | 'preferences';
 }
 
 const { title = 'priyesh.fyi', breadcrumb = [], activeTheme } = Astro.props;
 
-const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
   getCollection('local-llm'),
   getCollection('mythology'),
   getCollection('richmond'),
+  getCollection('rva-events'),
 ]);
 
 const themeCounts = {
@@ -29,14 +30,16 @@ const themeCounts = {
   'local-llm': localLlmEntries.length,
   mythology: mythologyEntries.length,
   richmond: richmondEntries.length,
+  'rva-events': rvaEventsEntries.length,
 };
 
 const themeNav = [
-  { id: 'ai',         label: 'AI Intelligence',    count: themeCounts.ai },
-  { id: 'leadership', label: 'Eng Leadership',      count: themeCounts.leadership },
-  { id: 'mythology',  label: 'Mythology Research',  count: themeCounts.mythology },
-  { id: 'richmond',   label: 'Richmond & Family',   count: themeCounts.richmond },
-  { id: 'local-llm',  label: 'Local LLM',           count: themeCounts['local-llm'] },
+  { id: 'ai',          label: 'AI Intelligence',    count: themeCounts.ai },
+  { id: 'leadership',  label: 'Eng Leadership',      count: themeCounts.leadership },
+  { id: 'mythology',   label: 'Mythology Research',  count: themeCounts.mythology },
+  { id: 'richmond',    label: 'Richmond & Family',   count: themeCounts.richmond },
+  { id: 'local-llm',   label: 'Local LLM',           count: themeCounts['local-llm'] },
+  { id: 'rva-events',  label: 'RVA Events',          count: themeCounts['rva-events'] },
 ];
 
 const B = import.meta.env.BASE_URL; // '/daily-kickoff/' or '/'

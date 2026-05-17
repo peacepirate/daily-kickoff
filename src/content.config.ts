@@ -4,7 +4,7 @@ import { glob } from 'astro/loaders';
 const digestSchema = z.object({
   title: z.string(),
   date: z.coerce.date(),
-  theme: z.enum(['ai', 'leadership', 'local-llm', 'mythology', 'richmond']),
+  theme: z.enum(['ai', 'leadership', 'local-llm', 'mythology', 'richmond', 'rva-events']),
   format: z.enum(['daily', 'weekly-synthesis']).default('daily'),
   tldr: z.string(),
   itemCount: z.number(),
@@ -43,6 +43,10 @@ export const collections = {
   }),
   'local-llm': defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/local-llm' }),
+    schema: digestSchema,
+  }),
+  'rva-events': defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/rva-events' }),
     schema: digestSchema,
   }),
 };

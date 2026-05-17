@@ -1,0 +1,73 @@
+name: richmond-events
+theme: rva-events
+schedule: weekly
+output_collection: rva-events
+prompt: scripts/prompts/richmond-events.md
+
+sources:
+  tier1:
+    - name: "Style Weekly Events"
+      kind: rss
+      url: "https://www.styleweekly.com/richmond/EventsCategory/Events"
+      max_items: 15
+      filter_regex: "\\b(event|concert|festival|exhibit|opening|workshop|market|fair|show)\\b"
+      filter_cap: 10
+    - name: "RICtoday Events"
+      kind: rss
+      url: "https://rictoday.6amcity.com/latest-news-rss"
+      max_items: 15
+      filter_regex: "\\b(event|festival|exhibit|market|fair|show|performance|opening)\\b"
+      filter_cap: 8
+    - name: "Richmond Magazine Events"
+      kind: rss
+      url: "https://richmondmagazine.com/api/rss/content.rss"
+      max_items: 10
+      filter_regex: "\\b(event|calendar|festival|exhibit|opening|fair|show|market)\\b"
+      filter_cap: 6
+
+  tier2:
+    - name: "VMFA Events"
+      kind: html
+      url: "https://www.vmfa.museum/events/"
+      max_items: 8
+    - name: "Maymont Events"
+      kind: html
+      url: "https://maymont.org/explore/events/"
+      max_items: 6
+    - name: "The Valentine Events"
+      kind: html
+      url: "https://thevalentine.org/events/"
+      max_items: 5
+    - name: "Science Museum of Virginia"
+      kind: html
+      url: "https://smv.org/plan-your-visit/calendar-of-events/"
+      max_items: 5
+    - name: "Hardywood Events"
+      kind: html
+      url: "https://www.hardywood.com/events/"
+      max_items: 4
+    - name: "Strangeways Events"
+      kind: html
+      url: "https://strangewaysbrewing.com/events/"
+      max_items: 4
+  tier3:
+    - name: "Visit Richmond Events"
+      kind: html
+      url: "https://www.visitrichmondva.com/events/"
+      max_items: 10
+    - name: "Richmond Family Magazine Calendar"
+      kind: html
+      url: "https://richmondfamilymagazine.com/calendar/"
+      max_items: 8
+    - name: "RVAtech Events"
+      kind: html
+      url: "https://rvatech.com/user-groups-meetups/"
+      max_items: 6
+    - name: "Startup Virginia Events"
+      kind: html
+      url: "https://startupva.com/events/"
+      max_items: 5
+    - name: "Capital One Hall Events"
+      kind: html
+      url: "https://www.capitalonehall.com/events/"
+      max_items: 4
