@@ -5,7 +5,7 @@ import mdx from '@astrojs/mdx';
 
 export default defineConfig({
   site: 'https://priyesh.fyi',
-  base: '/daily-kickoff',
+  base: '/daily-kickoff/',
   output: 'static',
   vite: {
     plugins: [tailwindcss()],

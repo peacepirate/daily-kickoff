@@ -1,0 +1,61 @@
+# generated: 2026-05-17
+# last_updated: 2026-05-17
+# project: Daily Kickoff — Multi-Topic Digest Pipeline
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: .claude/stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-05-17
+last_updated: 2026-05-17
+project: "Daily Kickoff — Multi-Topic Digest Pipeline"
+project_key: NOKEY
+tracking_system: file-system
+story_location: .claude/stories
+
+development_status:
+  # ─── Epic 1: AI Digest Config-Driven — Zero Regression ───────────────────
+  epic-1: done
+  1-1-create-ai-topic-yaml-config-and-migrate-prompt: done
+  1-2-update-fetch-sources-py-for-config-driven-sources: done
+  1-3-create-run-topic-sh-parameterized-single-topic-runner: done
+  1-4-create-run-all-topics-sh-master-orchestrator: done
+  1-5-update-install-schedule-sh-to-point-to-run-all-topics-sh: done
+  epic-1-retrospective: optional
+
+  # ─── Epic 2: Weekend Briefing — Leadership + Richmond Live ───────────────
+  epic-2: done
+  2-1-leadership-topic-config-and-synthesis-prompt: done
+  2-2-richmond-topic-config-and-synthesis-prompt: done
+  epic-2-retrospective: optional
+
+  # ─── Epic 3: Full Dashboard — Local LLM Digest + Site Complete ───────────
+  epic-3: done
+  3-1-local-llm-topic-config-and-synthesis-prompt: done
+  3-2-add-local-llm-astro-content-collection: done
+  3-3-add-local-llm-theme-card-to-index-astro-and-watchlist-astro: done
+  epic-3-retrospective: optional
+
+  # ─── Epic 4: Autonomous Release ──────────────────────────────────────────
+  epic-4: done
+  4-1-update-claude-settings-json-permissions: done
+  4-2-end-to-end-live-test-all-four-topics: done
+  4-3-reinstall-launchd-schedule-and-validate-autonomous-operation: done
+  epic-4-retrospective: optional

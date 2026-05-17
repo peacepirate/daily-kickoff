@@ -1,0 +1,54 @@
+name: "Engineering Leadership"
+theme: leadership
+schedule: weekly
+output_collection: leadership
+prompt: scripts/prompts/leadership.md
+
+sources:
+  tier1:
+    - name: "LeadDev"
+      kind: rss
+      url: "https://leaddev.com/feed/"
+      max_items: 8
+    - name: "Will Larson"
+      kind: rss
+      url: "https://lethain.com/feeds.xml"
+      max_items: 5
+    - name: "Charity Majors"
+      kind: rss
+      url: "https://charity.wtf/feed/"
+      max_items: 5
+
+  tier2:
+    - name: "The Pragmatic Engineer"
+      kind: rss
+      url: "https://newsletter.pragmaticengineer.com/feed"
+      max_items: 5
+    - name: "Lara Hogan"
+      kind: rss
+      url: "https://larahogan.me/feed.xml"
+      max_items: 5
+    - name: "First Round Review"
+      kind: rss
+      url: "https://review.firstround.com/feed.xml"
+      max_items: 5
+    - name: "Manager Tools"
+      kind: rss
+      url: "https://feeds.feedburner.com/ManagerToolsPodcast"
+      max_items: 3
+
+  tier3:
+    - name: "Hacker News"
+      kind: rss
+      url: "https://hnrss.org/frontpage"
+      max_items: 30
+      filter_regex: "\\b(engineering.?manager|EM\\b|1:1|staff.?meeting|team.?lead|agentic|SDLC|sprint|retro\\b|retrospective|hiring|performance.?review|org.?design|skip.?level|platform.?engineering|tech.?lead|people.?manager|management)\\b"
+      filter_cap: 3
+    - name: "r/ExperiencedDevs"
+      kind: rss
+      url: "https://www.reddit.com/r/ExperiencedDevs.rss"
+      max_items: 10
+    - name: "r/Engineering_Manager"
+      kind: rss
+      url: "https://www.reddit.com/r/Engineering_Manager.rss"
+      max_items: 10

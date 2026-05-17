@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(*)",
+      "Bash(date *)",
+      "Bash(ls src/content/**)",
+      "Bash(git add src/content/**)",
+      "Bash(git commit *)",
+      "Bash(git push origin main)",
+      "Bash(git status)",
+      "Write(src/content/ai/*)",
+      "Write(src/content/leadership/*)",
+      "Write(src/content/richmond/*)",
+      "Write(src/content/local-llm/*)"
+    ]
+  }
+}

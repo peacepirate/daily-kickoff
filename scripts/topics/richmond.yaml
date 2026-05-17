@@ -1,0 +1,60 @@
+name: "Richmond & Virginia"
+theme: richmond
+schedule: weekly
+output_collection: richmond
+prompt: scripts/prompts/richmond.md
+
+sources:
+  tier1:
+    - name: "Richmond BizSense"
+      kind: rss
+      url: "https://richmondbizsense.com/feed"
+      max_items: 10
+    - name: "Richmond Magazine"
+      kind: rss
+      url: "https://richmondmagazine.com/api/rss/content.rss"
+      max_items: 8
+    - name: "Style Weekly"
+      kind: rss
+      url: "https://www.styleweekly.com/feed"
+      max_items: 8
+    - name: "RICtoday"
+      kind: rss
+      url: "https://rictoday.6amcity.com/latest-news-rss"
+      max_items: 8
+
+  tier2:
+    - name: "Richmond Times-Dispatch"
+      kind: rss
+      url: "https://richmond.com/search/?f=rss&t=article&c=news&l=50&s=start_time&sd=desc"
+      max_items: 8
+    - name: "Small Richmond"
+      kind: rss
+      url: "https://smallrichmond.com/feed"
+      max_items: 5
+    - name: "WRIC News"
+      kind: rss
+      url: "https://www.wric.com/feed/"
+      max_items: 6
+    - name: "Virginia Mercury"
+      kind: rss
+      url: "https://virginiamercury.com/feed/"
+      max_items: 6
+    - name: "Virginia Business"
+      kind: rss
+      url: "https://www.virginiabusiness.com/feed/"
+      max_items: 5
+
+  tier3:
+    - name: "Visit Richmond VA"
+      kind: html
+      url: "https://www.visitrichmondva.com/things-to-do/events/"
+      max_items: 8
+    - name: "Richmond Family Magazine"
+      kind: html
+      url: "https://richmondfamilymagazine.com/events/"
+      max_items: 6
+    - name: "RVAtech Events"
+      kind: html
+      url: "https://rvatech.com/events/"
+      max_items: 5

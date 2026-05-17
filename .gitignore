@@ -22,3 +22,8 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Python venv and runtime logs
+scripts/.venv/
+scripts/logs/*.log
+scripts/logs/fetched-*.txt

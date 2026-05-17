@@ -8,25 +8,28 @@ export async function getStaticPaths() {
   return [
     { params: { theme: 'ai' } },
     { params: { theme: 'leadership' } },
+    { params: { theme: 'local-llm' } },
     { params: { theme: 'mythology' } },
     { params: { theme: 'richmond' } },
   ];
 }
 
-const { theme } = Astro.params as { theme: 'ai' | 'leadership' | 'mythology' | 'richmond' };
+const { theme } = Astro.params as { theme: 'ai' | 'leadership' | 'local-llm' | 'mythology' | 'richmond' };
 
 const themeLabels: Record<string, string> = {
   ai:         'AI Intelligence',
   leadership: 'Engineering Leadership',
+  'local-llm': 'Local LLM',
   mythology:  'Mythology Research',
   richmond:   'Richmond & Family',
 };
 
 const scheduleLabels: Record<string, string> = {
-  ai:         'Daily Mon–Sat at 7am ET',
-  leadership: 'Daily Mon–Sat at 7am ET',
-  mythology:  'Weekly on Saturdays',
-  richmond:   'Weekly on Sundays',
+  ai:         'Daily Mon–Sat',
+  leadership: 'Weekly on Saturdays',
+  'local-llm': 'Weekly on Saturdays',
+  mythology:  'Manual',
+  richmond:   'Weekly on Saturdays',
 };
 
 const label = themeLabels[theme]!;

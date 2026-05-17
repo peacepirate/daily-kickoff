@@ -10,14 +10,15 @@ interface BreadcrumbItem {
 interface Props {
   title?: string;
   breadcrumb?: BreadcrumbItem[];
-  activeTheme?: 'ai' | 'leadership' | 'mythology' | 'richmond' | 'watchlist' | 'preferences';
+  activeTheme?: 'ai' | 'leadership' | 'local-llm' | 'mythology' | 'richmond' | 'watchlist' | 'preferences';
 }
 
 const { title = 'priyesh.fyi', breadcrumb = [], activeTheme } = Astro.props;
 
-const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
+  getCollection('local-llm'),
   getCollection('mythology'),
   getCollection('richmond'),
 ]);
@@ -25,6 +26,7 @@ const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await 
 const themeCounts = {
   ai: aiEntries.length,
   leadership: leadershipEntries.length,
+  'local-llm': localLlmEntries.length,
   mythology: mythologyEntries.length,
   richmond: richmondEntries.length,
 };
@@ -34,6 +36,7 @@ const themeNav = [
   { id: 'leadership', label: 'Eng Leadership',      count: themeCounts.leadership },
   { id: 'mythology',  label: 'Mythology Research',  count: themeCounts.mythology },
   { id: 'richmond',   label: 'Richmond & Family',   count: themeCounts.richmond },
+  { id: 'local-llm',  label: 'Local LLM',           count: themeCounts['local-llm'] },
 ];
 
 const B = import.meta.env.BASE_URL; // '/daily-kickoff/' or '/'

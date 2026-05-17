@@ -1,0 +1,70 @@
+name: "AI Intelligence"
+theme: ai
+schedule: daily
+output_collection: ai
+prompt: scripts/prompts/ai.md
+
+sources:
+  tier1:
+    - name: "Claude Code Releases"
+      kind: releasebot
+      url: "https://releasebot.io/updates/anthropic/claude-code"
+      max_items: 10
+    - name: "Anthropic Releases"
+      kind: releasebot
+      url: "https://releasebot.io/updates/anthropic"
+      max_items: 5
+    - name: "OpenAI Releases"
+      kind: releasebot
+      url: "https://releasebot.io/updates/openai"
+      max_items: 5
+    - name: "AWS ML Blog"
+      kind: rss
+      url: "https://aws.amazon.com/blogs/machine-learning/feed/"
+      max_items: 10
+    - name: "Google AI Blog"
+      kind: rss
+      url: "https://blog.google/technology/ai/rss/"
+      max_items: 8
+    - name: "DeepMind Blog"
+      kind: html
+      url: "https://deepmind.google/discover/blog/"
+      max_items: 5
+    - name: "Mistral News"
+      kind: html
+      url: "https://mistral.ai/news/"
+      max_items: 5
+    - name: "DeepSeek"
+      kind: html
+      url: "https://www.deepseek.com/"
+      max_items: 3
+
+  tier2:
+    - name: "Simon Willison"
+      kind: rss
+      url: "https://simonwillison.net/atom/everything/"
+      max_items: 15
+    - name: "Import AI"
+      kind: rss
+      url: "https://jack-clark.net/feed/"
+      max_items: 5
+    - name: "Latent Space"
+      kind: rss
+      url: "https://www.latent.space/feed"
+      max_items: 8
+    - name: "The Batch"
+      kind: html
+      url: "https://www.deeplearning.ai/the-batch/"
+      max_items: 8
+
+  tier3:
+    - name: "Hacker News"
+      kind: rss
+      url: "https://hnrss.org/frontpage"
+      max_items: 30
+      filter_regex: "\\b(AI|LLM|GPT|Claude|Gemini|Grok|agent|MCP|RAG|embedding|fine.?tun|Anthropic|OpenAI|DeepSeek|Mistral|llama|copilot|diffusion|transformer|Bedrock|model|inference|vector|multimodal)\\b"
+      filter_cap: 3
+    - name: "GitHub Trending"
+      kind: github
+      url: "https://github.com/trending"
+      max_items: 15

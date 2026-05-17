@@ -1,0 +1,53 @@
+name: "Local LLM Ecosystem"
+theme: local-llm
+schedule: weekly
+output_collection: local-llm
+prompt: scripts/prompts/local-llm.md
+
+sources:
+  tier1:
+    - name: "r/LocalLLaMA"
+      kind: rss
+      url: "https://www.reddit.com/r/LocalLLaMA.rss"
+      max_items: 25
+      filter_cap: 5
+    - name: "Ollama Releases"
+      kind: rss
+      url: "https://github.com/ollama/ollama/releases.atom"
+      max_items: 5
+    - name: "llama.cpp Releases"
+      kind: rss
+      url: "https://github.com/ggerganov/llama.cpp/releases.atom"
+      max_items: 5
+    - name: "Open WebUI Releases"
+      kind: rss
+      url: "https://github.com/open-webui/open-webui/releases.atom"
+      max_items: 5
+
+  tier2:
+    - name: "Simon Willison"
+      kind: rss
+      url: "https://simonwillison.net/atom/everything/"
+      max_items: 20
+      filter_regex: "\\b(local.?llm|llama\\.cpp|ollama|gguf|ggml|lm.?studio|open.?webui|mlx|quantiz|consumer.?gpu|96GB|apple.?silicon|inference.?speed|tokens.?per.?second|local.?inference|on.?device)\\b"
+    - name: "HuggingFace Blog"
+      kind: rss
+      url: "https://huggingface.co/blog/feed.xml"
+      max_items: 20
+      filter_regex: "\\b(local.?llm|llama\\.cpp|ollama|gguf|ggml|lm.?studio|open.?webui|mlx|quantiz|consumer.?gpu|apple.?silicon|inference|on.?device|GGUF|Q[2-8]_[KM])\\b"
+    - name: "LM Studio Blog"
+      kind: html
+      url: "https://lmstudio.ai/blog"
+      max_items: 5
+
+  tier3:
+    - name: "GitHub Trending Python"
+      kind: html
+      url: "https://github.com/trending/python?since=weekly"
+      max_items: 10
+    - name: "Hacker News"
+      kind: rss
+      url: "https://hnrss.org/frontpage"
+      max_items: 30
+      filter_regex: "\\b(local.?llm|llama\\.cpp|ollama|gguf|ggml|lm.?studio|open.?webui|mlx|quantiz|consumer.?gpu|96GB|apple.?silicon|inference.?speed|local.?inference|on.?device)\\b"
+      filter_cap: 3

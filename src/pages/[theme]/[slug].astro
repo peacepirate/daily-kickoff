@@ -4,7 +4,7 @@ import { getCollection, render } from 'astro:content';
 import { fmtDate } from '../../utils/date';
 
 export async function getStaticPaths() {
-  const themes = ['ai', 'leadership', 'mythology', 'richmond'] as const;
+  const themes = ['ai', 'leadership', 'local-llm', 'mythology', 'richmond'] as const;
   const paths = [];
 
   for (const theme of themes) {
@@ -22,10 +22,11 @@ const { Content } = await render(entry);
 const B = import.meta.env.BASE_URL;
 
 const themeLabels: Record<string, string> = {
-  ai:         'AI Intelligence',
-  leadership: 'Engineering Leadership',
-  mythology:  'Mythology Research',
-  richmond:   'Richmond & Family',
+  ai:          'AI Intelligence',
+  leadership:  'Engineering Leadership',
+  'local-llm': 'Local LLM',
+  mythology:   'Mythology Research',
+  richmond:    'Richmond & Family',
 };
 
 const label = themeLabels[theme]!;
