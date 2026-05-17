@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
 import { fmtDate, dayOfWeekUTC, utcDateKey } from '../utils/date';
+const B = import.meta.env.BASE_URL;
 
 const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await Promise.all([
   getCollection('ai'),
@@ -124,7 +125,7 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
   <h2>Latest by theme</h2>
   <div class="theme-grid">
     {themeCards.map(({ id, label, latest, emptyNote, count }) => (
-      <a href={`/${id}`} class="theme-card">
+      <a href={`${B}${id}`} class="theme-card">
         <div class="theme-card-header">
           <span style="opacity:0.7;font-size:12px;">◆</span>
           <span class="theme-card-title">{label}</span>

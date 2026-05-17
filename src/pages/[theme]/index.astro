@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
 import { fmtDate, dayOfWeekUTC } from '../../utils/date';
+const B = import.meta.env.BASE_URL;
 
 export async function getStaticPaths() {
   return [
@@ -43,7 +44,7 @@ function pendingCount(entry: (typeof sorted)[number]) {
 
 <Layout
   title={label}
-  breadcrumb={[{ label: 'Dashboard', href: '/' }, { label: label }]}
+  breadcrumb={[{ label: 'Dashboard', href: B }, { label: label }]}
   activeTheme={theme}
 >
   <h1>{label}</h1>
@@ -80,7 +81,7 @@ function pendingCount(entry: (typeof sorted)[number]) {
           const isWeekly = entry.data.format === 'weekly-synthesis';
           return (
             <a
-              href={`/${theme}/${slug}`}
+              href={`${B}${theme}/${slug}`}
               class="digest-row"
               data-date={isoDate}
               data-has-try={hasTry ? 'true' : 'false'}

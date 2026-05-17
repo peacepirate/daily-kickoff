@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
 import { fmtDate } from '../utils/date';
+const B = import.meta.env.BASE_URL;
 
 const [aiEntries, leadershipEntries, mythologyEntries, richmondEntries] = await Promise.all([
   getCollection('ai'),
@@ -30,7 +31,7 @@ for (const entry of allEntries) {
   const slug = entry.id.replace(/\.(md|mdx)$/, '');
   const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
   const source = `${entry.themeLabel} · ${dateLabel}`;
-  const digestHref = `/${entry.themeId}/${slug}`;
+  const digestHref = `${B}${entry.themeId}/${slug}`;
   entry.data.actions.try.forEach((item, i) => {
     allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref });
   });

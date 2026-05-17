@@ -19,6 +19,7 @@ export async function getStaticPaths() {
 
 const { entry, theme } = Astro.props;
 const { Content } = await render(entry);
+const B = import.meta.env.BASE_URL;
 
 const themeLabels: Record<string, string> = {
   ai:         'AI Intelligence',
@@ -32,7 +33,6 @@ const d = entry.data.date;
 const dateLabel = fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const slug = entry.id.replace(/\.(md|mdx)$/, '');
 
-// Related digests in same theme
 const allThemeEntries = await getCollection(theme);
 const related = [...allThemeEntries]
   .filter(e => e.id !== entry.id)
@@ -46,18 +46,17 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
 <Layout
   title={entry.data.title}
   breadcrumb={[
-    { label: 'Dashboard', href: '/' },
-    { label: label, href: `/${theme}` },
+    { label: 'Dashboard', href: B },
+    { label: label, href: `${B}${theme}` },
     { label: fmtDate(d, { month: 'short', day: 'numeric', year: 'numeric' }) },
   ]}
   activeTheme={theme}
 >
   <div class="digest-page">
 
-    <!-- Body -->
     <article class="digest-body">
       <div style="margin-bottom: 16px;">
-        <a href={`/${theme}`} style="color: var(--text-muted); font-size: 13px;">← {label}</a>
+        <a href={`${B}${theme}`} style="color: var(--text-muted); font-size: 13px;">← {label}</a>
       </div>
       <h1>{entry.data.title}</h1>
       <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 13px;">
@@ -67,14 +66,12 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
       <Content />
     </article>
 
-    <!-- Rail -->
     <aside class="digest-rail">
 
       {totalActionCount > 0 && (
         <div class="rail-block">
           <div class="rail-title">Quick actions</div>
           <a class="rail-action" href="#" id="mark-all-read" style="cursor:pointer;">✓ Mark all read</a>
-          <a class="rail-action" href={`/${theme}/${slug}`} download style="cursor:pointer;">↓ Download as .md</a>
         </div>
       )}
 
@@ -128,7 +125,7 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
           {related.map(rel => {
             const relSlug = rel.id.replace(/\.(md|mdx)$/, '');
             return (
-              <a class="rail-action" href={`/${theme}/${relSlug}`} style="cursor:pointer; font-size:12px;">
+              <a class="rail-action" href={`${B}${theme}/${relSlug}`} style="cursor:pointer; font-size:12px;">
                 {fmtDate(rel.data.date, { month: 'short', day: 'numeric' })} · {rel.data.title.slice(0, 35)}{rel.data.title.length > 35 ? '…' : ''}
               </a>
             );
@@ -143,8 +140,9 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
 <script>
   document.getElementById('mark-all-read')?.addEventListener('click', e => {
     e.preventDefault();
-    const slug = window.location.pathname.split('/').at(-1)!;
-    // Mark all watchlist items for this digest as done
+    // Extract slug robustly (strip trailing slash, take last segment)
+    const parts = window.location.pathname.replace(/\/$/, '').split('/');
+    const slug = parts.at(-1)!;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key?.includes(`:${slug}:`)) {
@@ -153,6 +151,6 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
     }
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
     const btn = document.getElementById('mark-all-read');
-    if (btn) { btn.textContent = '✓ Marked all done'; }
+    if (btn) btn.textContent = '✓ Marked all done';
   });
 </script>
