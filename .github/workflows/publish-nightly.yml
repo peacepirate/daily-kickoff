@@ -5,9 +5,9 @@ name: Nightly content publish
 
 on:
   schedule:
-    # 11:59 PM EDT (UTC-4) Mon–Sat ET
+    # 11:59 PM EDT (UTC-4) Mon-Sat ET
     - cron: '59 3 * * 2-7'
-    # 11:59 PM EST (UTC-5) Mon–Sat ET — both entries run year-round;
+    # 11:59 PM EST (UTC-5) Mon-Sat ET -- both entries run year-round;
     # the "new files" check below prevents double-publishing on the same night.
     - cron: '59 4 * * 2-7'
   workflow_dispatch:
@@ -40,12 +40,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Copy only content/ files — avoids picking up any other staging changes
+          # Copy only content/ files - avoids picking up any other staging changes
           git checkout origin/content-staging -- src/content/
           git commit -m "chore: nightly content publish $(date -u +%Y-%m-%d)"
           git push origin main
           echo "Published $(date -u +%Y-%m-%d) content to main."
 
-      - name: No new content — skip
+      - name: No new content - skip
         if: steps.check.outputs.new_files == '0'
         run: echo "No new content files on content-staging. Nothing to publish tonight."
