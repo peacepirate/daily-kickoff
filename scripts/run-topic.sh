@@ -35,8 +35,16 @@ PYTHON_BIN="$VENV/bin/python3"
 
 # ── Schedule / weekly flag ────────────────────────────────────────────────────
 DAY_OF_WEEK=$(date +%u)  # 1=Mon … 6=Sat … 7=Sun
+TOPIC_SCHEDULE=""
+CONFIG_FILE="$REPO_DIR/scripts/topics/$TOPIC.yaml"
+[ -f "$CONFIG_FILE" ] && TOPIC_SCHEDULE=$("$VENV/bin/python3" -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c.get('schedule','daily'))" 2>/dev/null || true)
+
+# Weekly topics always fetch with --weekly (full window) regardless of day.
+# Daily topics use --weekly only on Saturdays (catchup window for the week).
 WEEKLY_FLAG=""
-[ "$DAY_OF_WEEK" = "6" ] && WEEKLY_FLAG="--weekly"
+if [ "$TOPIC_SCHEDULE" = "weekly" ] || [ "$DAY_OF_WEEK" = "6" ]; then
+  WEEKLY_FLAG="--weekly"
+fi
 
 # ── Fetch sources ─────────────────────────────────────────────────────────────
 log "Fetching sources for topic: $TOPIC ($([ -n "$WEEKLY_FLAG" ] && echo 'weekly — last 7 days' || echo 'daily — last 24 hours'))..."
