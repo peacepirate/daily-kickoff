@@ -113,6 +113,12 @@ If light: "Light calendar this month — nothing requiring advance booking." No 
 [same category structure]
 
 ---
+
+## Dates TBC
+[Events where DATE: UNKNOWN — no parseable date found. Include with "check website to confirm date." Omit this section if all events have confirmed dates.]
+- **[Event Name](url)** — [what] | *check website to confirm date* | [Venue] | [cost] | [why]. [TAG]
+
+---
 *Source performance: [which sources returned events vs. 0 items vs. errors]*
 ```
 
@@ -141,12 +147,21 @@ If light: "Light calendar this month — nothing requiring advance booking." No 
 - `actions.readDeeper[]` ← BOOK NOW urgency items (deadline-sensitive; state deadline in text)
 - `actions.skip[]` ← SKIP items (title only)
 
+## DATE FIELD RULES
+
+Each HTML-sourced event in the fetched content carries a `DATE:` field:
+
+- `DATE: YYYY-MM-DD` — date was mathematically extracted from the HTML and confirmed to fall within the 30-day window. Use this date exactly as written when placing the event in its week bucket.
+- `DATE: UNKNOWN` — the fetcher could not find a parseable date in the HTML. Include the event but write "check website to confirm date" in the entry. Do NOT place it in any specific week bucket — instead collect all UNKNOWN-date events in a final section called `## Dates TBC`.
+- RSS items carry `Date: YYYY-MM-DD` (lowercase) — these are publication dates, not necessarily event dates. Use the RSS summary to determine the actual event date; if the summary doesn't confirm a future date, treat as UNKNOWN.
+
+**Never infer, guess, or assume an event date based on its name or category.** If the date is not explicitly provided by a `DATE:` field or stated clearly in the summary, it is UNKNOWN. The Python fetcher has already dropped all HTML events with confirmed past or future-beyond-30-days dates — do not second-guess this filtering.
+
 ## IMPORTANT
 
 - Every event title MUST be a markdown hyperlink using the exact URL from the source data
 - Do not invent, guess, or construct URLs
 - Apply distance weighting strictly — RVA items always appear before non-RVA items in each section
-- HTML venue sources (VMFA, Maymont, etc.) may return imprecise or missing event times — note "check website for times" in those cases
 - If a source returned 0 items, note it in source performance but do not pad with invented content
 - Civic/political cap: include at most 1–2 civic events per digest; drop if no genuine community-access angle
 - Category sub-sections without any events for a given week should be omitted entirely — do not include empty headers

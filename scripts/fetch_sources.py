@@ -8,13 +8,14 @@ Usage:
   python3 scripts/fetch_sources.py --topic ai --weekly  # last 7 days (Saturday)
   python3 scripts/fetch_sources.py --topic leadership --weekly
 """
+from __future__ import annotations
 
 import argparse
 import calendar
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date as Date, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -35,6 +36,9 @@ args = parser.parse_args()
 IS_WEEKLY = args.weekly
 LOOKBACK  = timedelta(days=7 if IS_WEEKLY else 1)
 SINCE     = datetime.now(tz=timezone.utc) - LOOKBACK
+TODAY     = datetime.now(tz=timezone.utc).date()
+EVENT_WINDOW_START = TODAY + timedelta(days=2)   # Monday after Saturday run
+EVENT_WINDOW_END   = TODAY + timedelta(days=30)
 
 SCRIPT_DIR = Path(__file__).parent
 CONFIG_PATH = SCRIPT_DIR / "topics" / f"{args.topic}.yaml"
@@ -63,15 +67,126 @@ def print_item(source: str, title: str, url: str, date: str, summary: str) -> No
     print(f"**{title}**")
     print(f"URL: {url}")
     if date and date != "recent":
-        print(f"Date: {date}")
+        # Use uppercase DATE: for event-mode values (ISO dates and UNKNOWN),
+        # legacy lowercase Date: for RSS publication dates.
+        label = "DATE" if (date == "UNKNOWN" or re.match(r"\d{4}-\d{2}-\d{2}$", date)) else "Date"
+        print(f"{label}: {date}")
     if summary:
         print(f"Summary: {summary}")
     print()
 
 
+# ── Event date extraction ─────────────────────────────────────────────────────
+
+def parse_date_text(text: str) -> Date | None:
+    """
+    Try to extract the earliest date in `text` using stdlib regex + strptime.
+    Returns a date object on first match, or None.
+    Handles: ISO (2026-05-25), "May 25, 2026", "May 25–27, 2026" (start date),
+    "Sunday May 25 2026", "5/25/2026".
+    """
+    if not text:
+        return None
+
+    # 1. ISO YYYY-MM-DD (also catches datetime attributes like "2026-05-25T10:00:00")
+    # Use negative lookahead (?!\d) instead of \b so "25T" still matches.
+    m = re.search(r'\b(20\d{2})-(\d{2})-(\d{2})(?!\d)', text)
+    if m:
+        try:
+            return Date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
+
+    # 2. "Month DD, YYYY" — handles ranges "May 25–27, 2026" by taking start day
+    m = re.search(
+        r'\b(January|February|March|April|May|June|July|August|September|October|November|December'
+        r'|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)'
+        r'\s+(\d{1,2})(?:\s*[–\-]\s*\d{1,2})?,\s*(20\d{2})\b',
+        text, re.I,
+    )
+    if m:
+        try:
+            return datetime.strptime(f"{m.group(1)[:3].capitalize()} {m.group(2)} {m.group(3)}", "%b %d %Y").date()
+        except ValueError:
+            pass
+
+    # 3. "Weekday, Month DD, YYYY" or "Weekday Month DD YYYY"
+    m = re.search(
+        r'\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)'
+        r'[,\s]+'
+        r'(January|February|March|April|May|June|July|August|September|October|November|December'
+        r'|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)'
+        r'\s+(\d{1,2}),?\s+(20\d{2})\b',
+        text, re.I,
+    )
+    if m:
+        try:
+            return datetime.strptime(f"{m.group(1)[:3].capitalize()} {m.group(2)} {m.group(3)}", "%b %d %Y").date()
+        except ValueError:
+            pass
+
+    # 4. MM/DD/YYYY
+    m = re.search(r'\b(\d{1,2})/(\d{1,2})/(20\d{2})\b', text)
+    if m:
+        try:
+            return datetime.strptime(f"{m.group(1)}/{m.group(2)}/{m.group(3)}", "%m/%d/%Y").date()
+        except ValueError:
+            pass
+
+    return None
+
+
+# CSS class pattern for date-hinting elements
+_DATE_CLASS_RE = re.compile(
+    r'event.?date|start.?date|end.?date|tribe.event|event.?time'
+    r'|event.?schedule|event.?when|(?:^|\s)when(?:\s|$)|(?:^|\s)date(?:\s|$)',
+    re.I,
+)
+
+
+def extract_event_date(container) -> Date | None:
+    """
+    Walk an HTML container (BeautifulSoup element) and return the best date found,
+    or None if no parseable date is present.
+
+    Priority:
+    1. <time datetime="..."> attribute (ISO — most reliable)
+    2. <time> inner text
+    3. Elements whose CSS class matches date-hinting patterns
+    4. data-date / data-start / data-start-date attributes
+    5. Full container text scan (lowest confidence)
+    """
+    # 1 & 2 — <time> tags
+    for t in container.find_all("time"):
+        dt_attr = t.get("datetime", "")
+        if dt_attr:
+            d = parse_date_text(dt_attr[:20])
+            if d:
+                return d
+        d = parse_date_text(t.get_text(" ", strip=True))
+        if d:
+            return d
+
+    # 3 — date-hinting CSS classes
+    for el in container.find_all(class_=_DATE_CLASS_RE):
+        d = parse_date_text(el.get_text(" ", strip=True))
+        if d:
+            return d
+
+    # 4 — data attributes
+    for el in container.find_all(True):
+        for attr in ("data-date", "data-start", "data-start-date", "data-event-date"):
+            val = el.get(attr, "")
+            if val:
+                d = parse_date_text(val)
+                if d:
+                    return d
+
+    # 5 — full container text (broadest scan, risk of false positives)
+    return parse_date_text(container.get_text(" ", strip=True))
+
+
 # ── Releasebot.io ─────────────────────────────────────────────────────────────
-# Targets <h2 class="text-h2 ..."> version headings; grabs release notes from
-# the sibling .prose div.
 
 def fetch_releasebot(name: str, url: str, max_items: int) -> list[dict]:
     try:
@@ -135,7 +250,19 @@ def fetch_rss(name: str, url: str, max_items: int) -> list[dict]:
 
 def fetch_html(name: str, url: str, max_items: int,
                container_sel=None,
-               title_sel=None) -> list[dict]:
+               title_sel=None,
+               event_mode: bool = False) -> list[dict]:
+    """
+    Scrape an HTML page for article/event items.
+
+    When event_mode=True, each container is inspected for an event date:
+    - Date found and within EVENT_WINDOW_START..EVENT_WINDOW_END → include with DATE: YYYY-MM-DD
+    - Date found and outside that window (past OR too far future) → silently drop
+    - No date found → include with DATE: UNKNOWN (Claude adds "check website" note)
+
+    When event_mode=False (default, used by non-event topics), all items pass
+    through unchanged with date="recent" as before.
+    """
     try:
         with client() as c:
             r = c.get(url)
@@ -180,7 +307,21 @@ def fetch_html(name: str, url: str, max_items: int,
                 if len(t) > 40:
                     summary = t[:400]
                     break
-            items.append({"title": title, "url": href, "date": "recent", "summary": summary})
+
+            if event_mode:
+                event_date = extract_event_date(block)
+                if event_date is None:
+                    # No date found — include but flag for Claude to verify
+                    ev_date_str = "UNKNOWN"
+                elif event_date < EVENT_WINDOW_START or event_date > EVENT_WINDOW_END:
+                    # Outside the 30-day forward window (past or too far future) — drop
+                    continue
+                else:
+                    ev_date_str = event_date.strftime("%Y-%m-%d")
+                items.append({"title": title, "url": href, "date": ev_date_str, "summary": summary})
+            else:
+                items.append({"title": title, "url": href, "date": "recent", "summary": summary})
+
             if len(items) >= max_items:
                 break
         return items
@@ -219,7 +360,8 @@ def fetch_github_trending(max_items: int) -> list[dict]:
         return []
 
 
-def fetch(name: str, kind: str, url: str, max_items: int) -> list[dict]:
+def fetch(name: str, kind: str, url: str, max_items: int,
+          event_mode: bool = False) -> list[dict]:
     print(f"  {name}", file=sys.stderr)
     if kind == "releasebot":
         return fetch_releasebot(name, url, max_items)
@@ -227,7 +369,7 @@ def fetch(name: str, kind: str, url: str, max_items: int) -> list[dict]:
         return fetch_github_trending(max_items)
     if kind in ("rss", "atom"):
         return fetch_rss(name, url, max_items)
-    return fetch_html(name, url, max_items)
+    return fetch_html(name, url, max_items, event_mode=event_mode)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -252,14 +394,15 @@ def main() -> None:
         print(f"Fetching {tier_label}…", file=sys.stderr)
 
         for src in tier_sources:
-            name      = src["name"]
-            kind      = src["kind"]
-            url       = src["url"]
-            max_items = src.get("max_items", 10)
-            filter_re = src.get("filter_regex")
+            name       = src["name"]
+            kind       = src["kind"]
+            url        = src["url"]
+            max_items  = src.get("max_items", 10)
+            filter_re  = src.get("filter_regex")
             filter_cap = src.get("filter_cap")
+            event_mode = src.get("event_mode", False)
 
-            items = fetch(name, kind, url, max_items)
+            items = fetch(name, kind, url, max_items, event_mode=event_mode)
 
             if filter_re:
                 pattern = re.compile(filter_re, re.I)

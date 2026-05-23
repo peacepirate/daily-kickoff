@@ -28,46 +28,57 @@ sources:
   tier2:
     - name: "VMFA Events"
       kind: html
+      event_mode: true
       url: "https://www.vmfa.museum/events/"
       max_items: 8
     - name: "Maymont Events"
       kind: html
+      event_mode: true
       url: "https://maymont.org/explore/events/"
       max_items: 6
     - name: "The Valentine Events"
       kind: html
+      event_mode: true
       url: "https://thevalentine.org/events/"
       max_items: 5
     - name: "Science Museum of Virginia"
       kind: html
+      event_mode: true
       url: "https://smv.org/plan-your-visit/calendar-of-events/"
       max_items: 5
     - name: "Hardywood Events"
       kind: html
+      event_mode: true
       url: "https://www.hardywood.com/events/"
       max_items: 4
     - name: "Strangeways Events"
       kind: html
+      event_mode: true
       url: "https://strangewaysbrewing.com/events/"
       max_items: 4
   tier3:
     - name: "Visit Richmond Events"
       kind: html
+      event_mode: true
       url: "https://www.visitrichmondva.com/events/"
       max_items: 10
     - name: "Richmond Family Magazine Calendar"
       kind: html
+      event_mode: true
       url: "https://richmondfamilymagazine.com/calendar/"
       max_items: 8
     - name: "RVAtech Events"
       kind: html
+      event_mode: true
       url: "https://rvatech.com/user-groups-meetups/"
       max_items: 6
     - name: "Startup Virginia Events"
       kind: html
+      event_mode: true
       url: "https://startupva.com/events/"
       max_items: 5
     - name: "Capital One Hall Events"
       kind: html
+      event_mode: true
       url: "https://www.capitalonehall.com/events/"
       max_items: 4
