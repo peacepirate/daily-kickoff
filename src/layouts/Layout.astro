@@ -57,6 +57,7 @@ const isHome = !activeTheme && Astro.url.pathname === B;
 </head>
 <body>
 <div class="app">
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
 
   <aside class="sidebar">
     <div class="profile">
@@ -95,6 +96,13 @@ const isHome = !activeTheme && Astro.url.pathname === B;
 
   <div class="main">
     <div class="topbar">
+      <button class="menu-btn" id="sidebar-toggle" aria-label="Open navigation">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <line x1="2" y1="5" x2="16" y2="5"/>
+          <line x1="2" y1="9" x2="16" y2="9"/>
+          <line x1="2" y1="13" x2="16" y2="13"/>
+        </svg>
+      </button>
       <div class="breadcrumb">
         {breadcrumb.length === 0 ? (
           <span style="color: var(--text);">Dashboard</span>
@@ -130,6 +138,29 @@ const isHome = !activeTheme && Astro.url.pathname === B;
 </div>
 
 <script>
+  // Mobile sidebar toggle
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebarEl = document.querySelector('.sidebar');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+  function openSidebar() {
+    sidebarEl?.classList.add('open');
+    sidebarOverlay?.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    sidebarEl?.classList.remove('open');
+    sidebarOverlay?.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+  sidebarToggle?.addEventListener('click', () => {
+    sidebarEl?.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  sidebarOverlay?.addEventListener('click', closeSidebar);
+  sidebarEl?.querySelectorAll('.nav-item').forEach(link => {
+    link.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
+  });
+
   function syncWatchlistCount() {
     let open = 0;
     for (let i = 0; i < localStorage.length; i++) {

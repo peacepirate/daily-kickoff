@@ -279,6 +279,24 @@ h3 {
   vertical-align: 1px;
 }
 
+/* ── Meta chips (theme + date on watchlist items) ── */
+.tag-meta {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  display: inline-block;
+}
+.tag-theme-ai           { background: #eff6ff; color: #2563eb; }
+.tag-theme-leadership   { background: #f0fdf4; color: #15803d; }
+.tag-theme-rva-events   { background: #ecfdf5; color: #065f46; }
+.tag-theme-richmond     { background: #fff7ed; color: #c2410c; }
+.tag-theme-local-llm    { background: #faf5ff; color: #7c3aed; }
+.tag-theme-mythology    { background: #fdf4ff; color: #86198f; }
+.tag-theme-date         { background: #f6f8fa; color: #656d76; border: 1px solid #e5e7eb; }
+
 /* ── Watchlist ── */
 .watchlist-card {
   background: var(--bg-muted);
@@ -643,4 +661,78 @@ h3 {
   line-height: 1.5;
   white-space: normal;
   cursor: default;
+}
+
+/* ── Hamburger button (hidden on desktop) ── */
+.menu-btn {
+  display: none;
+  padding: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  border-radius: 4px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+.menu-btn:hover { background: var(--bg-muted); }
+
+/* ── Sidebar overlay ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+.sidebar-overlay.active { display: block; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    height: 100%;
+    width: 240px;
+    z-index: 50;
+    transition: left 0.25s ease;
+  }
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .menu-btn { display: flex; }
+  .search { display: none; }
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar-spacer { display: none; }
+  .breadcrumb { font-size: 12px; overflow: hidden; }
+  /* hide preferences button (accessible via sidebar) */
+  .topbar .topbar-btn:last-child { display: none; }
+
+  .content { padding: 16px 16px 32px; }
+
+  .theme-grid { grid-template-columns: 1fr; }
+
+  .digest-page { grid-template-columns: 1fr; }
+  .digest-rail { position: static; }
+
+  .watchlist-item {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .cadence { gap: 3px; }
+  .cadence-cell { width: 12px; height: 12px; }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 20px; }
+  .digest-body h1 { font-size: 20px; }
+  .digest-body h2 { font-size: 15px; }
+  .topbar-btn:not(#sidebar-toggle) { padding: 5px 8px; font-size: 11px; }
 }

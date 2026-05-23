@@ -19,6 +19,9 @@ interface WatchlistItem {
   text: string;
   source: string;
   digestHref: string;
+  themeId: string;
+  themeLabel: string;
+  dateLabel: string;
 }
 
 const allItems: WatchlistItem[] = [];
@@ -37,13 +40,13 @@ for (const entry of allEntries) {
   const source = `${entry.themeLabel} · ${dateLabel}`;
   const digestHref = `${B}${entry.themeId}/${slug}`;
   entry.data.actions.try.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref });
+    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.share.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref });
+    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.readDeeper.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref });
+    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
 }
 ---
@@ -71,12 +74,9 @@ for (const entry of allEntries) {
             <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
               {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
             </span>
-            <span class="watchlist-text">
-              {item.text}
-              <span class="watchlist-source">
-                · <a href={item.digestHref}>{item.source}</a>
-              </span>
-            </span>
+            <span class="watchlist-text">{item.text}</span>
+            <a href={item.digestHref} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
+            <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
             <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
             <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⌃ Snooze</button>
             <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
