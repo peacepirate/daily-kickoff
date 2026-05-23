@@ -98,6 +98,12 @@ for (const entry of allEntries) {
   });
 }
 
+const uniqueThemesDash = [...new Set(allItems.map(i => i.themeId))];
+const themeFilterLabelsDash: Record<string, string> = {
+  'ai': 'AI', 'leadership': 'Leadership', 'rva-events': 'RVA Events',
+  'richmond': 'Richmond', 'local-llm': 'Local LLM', 'mythology': 'Mythology',
+};
+
 // Reading cadence — last 21 days
 const today = new Date();
 const allDigestDates = new Set(allEntries.map(e => e.id.replace(/\.(md|mdx)$/, '')));
@@ -117,17 +123,26 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
   </div>
 
   <!-- Watchlist -->
+  {allItems.length > 0 && (
+    <div class="theme-filter-bar" id="dash-theme-bar" style="margin-bottom: 8px;">
+      <button class="filter-chip active" data-dash-theme="all">All themes</button>
+      {uniqueThemesDash.map(t => (
+        <button class="filter-chip" data-dash-theme={t}>{themeFilterLabelsDash[t] ?? t}</button>
+      ))}
+    </div>
+  )}
   <div class="watchlist-card">
     <div class="watchlist-header">
       <span class="watchlist-title">★ Watchlist</span>
       <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
+      <a href={`${B}watchlist`} class="quick-action" style="margin-left:auto; text-decoration:none;">See all →</a>
     </div>
     <div id="watchlist-items">
       {allItems.length === 0 ? (
-        <div class="watchlist-empty">No action items yet. Add digests to a theme to get started.</div>
+        <div class="watchlist-empty">No action items yet.</div>
       ) : (
         allItems.map(item => (
-          <div class="watchlist-item" data-wl-id={item.id} data-status="open">
+          <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
             <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
               {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
             </span>
@@ -135,7 +150,7 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
             <a href={`${B}${item.themeId}`} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
             <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
             <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
-            <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⌃ Snooze</button>
+            <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⏸ Later</button>
           </div>
         ))
       )}
@@ -192,7 +207,8 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
   const greetEl = document.getElementById('greeting');
   if (greetEl) greetEl.textContent = `${days[now.getDay()]} ${period}`;
 
-  // Watchlist sync
+  let dashThemeFilter = 'all';
+
   function getItemStatus(id: string): 'open' | 'done' | 'snoozed' {
     try {
       const v = JSON.parse(localStorage.getItem(id) ?? '{}');
@@ -209,23 +225,38 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
       const id = el.dataset.wlId!;
       const status = getItemStatus(id);
       el.dataset.status = status;
+
+      // Show only Open items, filtered by theme
+      const statusOk = status === 'open';
+      const themeOk  = dashThemeFilter === 'all' || el.dataset.themeId === dashThemeFilter;
+      el.style.display = (statusOk && themeOk) ? '' : 'none';
       if (status === 'open') open++;
     });
     const sub = document.getElementById('watchlist-subtitle');
     if (sub) {
       const total = document.querySelectorAll('.watchlist-item[data-wl-id]').length;
-      sub.textContent = total === 0 ? 'No items' : `${open} open · ${total - open} done`;
+      sub.textContent = total === 0 ? 'No items' : `${open} open`;
     }
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
   }
 
   document.addEventListener('click', e => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
-    if (!btn) return;
-    const id = btn.dataset.wlId!;
-    const action = btn.dataset.wlAction!;
-    localStorage.setItem(id, JSON.stringify({ status: action === 'done' ? 'done' : 'snoozed' }));
-    renderWatchlist();
+    if (btn) {
+      const id = btn.dataset.wlId!;
+      const action = btn.dataset.wlAction!;
+      localStorage.setItem(id, JSON.stringify({ status: action === 'done' ? 'done' : 'snoozed' }));
+      renderWatchlist();
+      return;
+    }
+    // Dashboard theme filter
+    const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-dash-theme]');
+    if (chip) {
+      document.querySelectorAll('[data-dash-theme]').forEach(b => b.classList.remove('active'));
+      chip.classList.add('active');
+      dashThemeFilter = chip.dataset.dashTheme!;
+      renderWatchlist();
+    }
   });
 
   renderWatchlist();

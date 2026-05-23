@@ -49,45 +49,86 @@ for (const entry of allEntries) {
     allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
 }
+
+const uniqueThemes = [...new Set(allItems.map(i => i.themeId))];
+const themeFilterLabels: Record<string, string> = {
+  'ai': 'AI',
+  'leadership': 'Leadership',
+  'rva-events': 'RVA Events',
+  'richmond': 'Richmond',
+  'local-llm': 'Local LLM',
+  'mythology': 'Mythology',
+};
 ---
 
 <Layout title="Watchlist" breadcrumb={[{ label: 'Watchlist' }]} activeTheme="watchlist">
   <h1>★ Watchlist</h1>
-  <div class="page-meta" id="wl-page-meta">All action items across themes</div>
+  <div class="page-meta" id="wl-page-meta">Action items across all themes</div>
 
   {allItems.length === 0 ? (
-    <div style="padding: 40px; text-align: center; color: var(--text-faint); border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
-      <div style="font-size: 24px; margin-bottom: 12px;">★</div>
-      <div style="font-weight: 500; margin-bottom: 8px;">No items yet</div>
-      <div style="font-size: 13px;">Action items from digests will appear here.</div>
+    <div class="wl-empty-state" style="border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
+      <div class="wl-empty-icon">★</div>
+      <div class="wl-empty-title">No items yet</div>
+      <div class="wl-empty-sub">Action items from digests will appear here.</div>
     </div>
   ) : (
-    <div class="watchlist-card">
-      <div class="watchlist-header">
-        <span class="watchlist-title">All items</span>
-        <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
-        <button class="quick-action" id="clear-done" style="margin-left:auto;">Clear done</button>
-      </div>
-      <div id="watchlist-all">
-        {allItems.map(item => (
-          <div class="watchlist-item" data-wl-id={item.id} data-status="open">
-            <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
-              {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
-            </span>
-            <span class="watchlist-text">{item.text}</span>
-            <a href={item.digestHref} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
-            <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
-            <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
-            <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⌃ Snooze</button>
-            <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
-          </div>
+    <>
+      <div class="theme-filter-bar" id="wl-theme-bar">
+        <button class="filter-chip active" data-theme-filter="all">All themes</button>
+        {uniqueThemes.map(t => (
+          <button class="filter-chip" data-theme-filter={t}>{themeFilterLabels[t] ?? t}</button>
         ))}
       </div>
-    </div>
+
+      <div class="status-tabs" id="status-tabs">
+        <button class="status-tab active" data-status-filter="open">
+          Open <span class="tab-count" id="cnt-open">—</span>
+        </button>
+        <button class="status-tab" data-status-filter="all">All</button>
+        <button class="status-tab" data-status-filter="snoozed">
+          Later <span class="tab-count" id="cnt-later">—</span>
+        </button>
+        <button class="status-tab" data-status-filter="done">
+          Done <span class="tab-count" id="cnt-done">—</span>
+        </button>
+      </div>
+
+      <div class="watchlist-card">
+        <div class="watchlist-header">
+          <span class="watchlist-title">Items</span>
+          <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
+          <button class="quick-action" id="mark-visible-done" style="margin-left:auto;">Mark open as done</button>
+          <button class="quick-action" id="clear-done">Clear done</button>
+        </div>
+        <div id="watchlist-all">
+          {allItems.map(item => (
+            <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
+              <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
+                {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
+              </span>
+              <span class="watchlist-text">{item.text}</span>
+              <a href={item.digestHref} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
+              <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
+              <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
+              <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⏸ Later</button>
+              <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
+            </div>
+          ))}
+          <div class="wl-empty-state" id="wl-filter-empty" style="display:none;">
+            <div class="wl-empty-icon">✓</div>
+            <div class="wl-empty-title">All caught up!</div>
+            <div class="wl-empty-sub">No items match the current filter.</div>
+          </div>
+        </div>
+      </div>
+    </>
   )}
 </Layout>
 
 <script>
+  let activeStatusFilter = 'open';
+  let activeThemeFilter = 'all';
+
   function getStatus(id: string): 'open' | 'done' | 'snoozed' {
     try {
       const v = JSON.parse(localStorage.getItem(id) ?? '{}');
@@ -98,29 +139,68 @@ for (const entry of allEntries) {
 
   function renderAll() {
     const items = document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]');
-    let open = 0, done = 0;
+    const counts: Record<string, number> = { open: 0, done: 0, snoozed: 0 };
+
     items.forEach(el => {
       const id = el.dataset.wlId!;
       const status = getStatus(id);
       el.dataset.status = status;
+      counts[status] = (counts[status] ?? 0) + 1;
+
       const reopenBtn = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
       const doneBtn   = el.querySelector<HTMLElement>('[data-wl-action="done"]');
       const snoozeBtn = el.querySelector<HTMLElement>('[data-wl-action="snooze"]');
       if (reopenBtn) reopenBtn.style.display = status !== 'open' ? '' : 'none';
       if (doneBtn)   doneBtn.style.display   = status === 'open' ? '' : 'none';
       if (snoozeBtn) snoozeBtn.style.display = status === 'open' ? '' : 'none';
-      if (status === 'open') open++;
-      else done++;
+
+      const statusMatch = activeStatusFilter === 'all' || el.dataset.status === activeStatusFilter;
+      const themeMatch  = activeThemeFilter  === 'all' || el.dataset.themeId  === activeThemeFilter;
+      el.style.display = (statusMatch && themeMatch) ? '' : 'none';
     });
+
+    const openCount  = document.getElementById('cnt-open');
+    const laterCount = document.getElementById('cnt-later');
+    const doneCount  = document.getElementById('cnt-done');
+    if (openCount)  openCount.textContent  = String(counts.open  ?? 0);
+    if (laterCount) laterCount.textContent = String(counts.snoozed ?? 0);
+    if (doneCount)  doneCount.textContent  = String(counts.done  ?? 0);
+
     const sub = document.getElementById('watchlist-subtitle');
-    if (sub) sub.textContent = `${open} open · ${done} done`;
+    if (sub) sub.textContent = `${counts.open ?? 0} open · ${counts.snoozed ?? 0} later · ${counts.done ?? 0} done`;
+
+    const visibleCount = [...items].filter(el => el.style.display !== 'none').length;
+    const emptyEl = document.getElementById('wl-filter-empty');
+    if (emptyEl) emptyEl.style.display = (visibleCount === 0 && items.length > 0) ? '' : 'none';
+
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
   }
 
+  // Status tab switching
+  document.querySelectorAll<HTMLElement>('[data-status-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-status-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatusFilter = btn.dataset.statusFilter!;
+      renderAll();
+    });
+  });
+
+  // Theme filter switching
+  document.querySelectorAll<HTMLElement>('[data-theme-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-theme-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeThemeFilter = btn.dataset.themeFilter!;
+      renderAll();
+    });
+  });
+
+  // Item actions (Done / Later / Reopen)
   document.addEventListener('click', e => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
     if (!btn) return;
-    const id = btn.dataset.wlId!;
+    const id     = btn.dataset.wlId!;
     const action = btn.dataset.wlAction!;
     if (action === 'done')   localStorage.setItem(id, JSON.stringify({ status: 'done' }));
     if (action === 'snooze') localStorage.setItem(id, JSON.stringify({ status: 'snoozed' }));
@@ -128,10 +208,20 @@ for (const entry of allEntries) {
     renderAll();
   });
 
+  // Bulk: mark visible open items as done
+  document.getElementById('mark-visible-done')?.addEventListener('click', () => {
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      if (el.style.display !== 'none' && el.dataset.status === 'open') {
+        localStorage.setItem(el.dataset.wlId!, JSON.stringify({ status: 'done' }));
+      }
+    });
+    renderAll();
+  });
+
+  // Bulk: clear done items
   document.getElementById('clear-done')?.addEventListener('click', () => {
     document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
-      const id = el.dataset.wlId!;
-      if (getStatus(id) === 'done') localStorage.removeItem(id);
+      if (getStatus(el.dataset.wlId!) === 'done') localStorage.removeItem(el.dataset.wlId!);
     });
     renderAll();
   });

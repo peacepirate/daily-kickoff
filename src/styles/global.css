@@ -331,10 +331,6 @@ h3 {
 .watchlist-item:last-child {
   border-bottom: none;
 }
-.watchlist-item[data-status='done'],
-.watchlist-item[data-status='snoozed'] {
-  opacity: 0.4;
-}
 .watchlist-text {
   flex: 1;
 }
@@ -735,4 +731,109 @@ h3 {
   .digest-body h1 { font-size: 20px; }
   .digest-body h2 { font-size: 15px; }
   .topbar-btn:not(#sidebar-toggle) { padding: 5px 8px; font-size: 11px; }
+}
+
+/* ── Status tabs (Feedly-style read state tabs) ── */
+.status-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.status-tabs::-webkit-scrollbar { display: none; }
+.status-tab {
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.status-tab:hover { color: var(--text); background: var(--bg-hover); }
+.status-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+.tab-count {
+  display: inline-block;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-faint);
+  margin-left: 4px;
+  min-width: 18px;
+  text-align: center;
+  transition: background 0.12s, color 0.12s;
+}
+.status-tab.active .tab-count {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Attach watchlist-card immediately below status tabs */
+.status-tabs + .watchlist-card {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
+}
+
+/* ── Theme filter bar (above watchlist and tabs) ── */
+.theme-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+/* ── Done: faded, reduced prominence (Material/Feedly pattern) ── */
+.watchlist-item[data-status='done'] {
+  opacity: 0.5;
+}
+.watchlist-item[data-status='done'] .watchlist-text {
+  color: var(--text-faint);
+}
+
+/* ── Later/Snoozed: amber left gradient, retained readability ── */
+.watchlist-item[data-status='snoozed'] {
+  opacity: 0.82;
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.12) 0%, transparent 32px);
+  border-radius: 3px;
+}
+
+/* ── Watchlist empty/caught-up state ── */
+.wl-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-faint);
+}
+.wl-empty-icon {
+  font-size: 28px;
+  margin-bottom: 10px;
+  opacity: 0.5;
+}
+.wl-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.wl-empty-sub {
+  font-size: 12px;
+}
+
+/* ── Mobile: status tabs and theme filter bar ── */
+@media (max-width: 768px) {
+  .status-tab { padding: 7px 10px; font-size: 12px; }
+  .theme-filter-bar { gap: 4px; }
 }
