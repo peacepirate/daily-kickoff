@@ -112,7 +112,7 @@ FR-E05: Sparsity fallback: if RVA events total < 4, expand to Metro zone; if < 2
 
 FR-E06: The `richmond-events` topic must run on Saturdays only (`schedule: weekly`). The orchestrator's existing weekly schedule logic handles this automatically.
 
-FR-E07: Output must be structured chronologically within week buckets (This Week, Next Weekend, Coming Up weeks 3–4) — NOT organized by event category.
+FR-E07: ~~Output must be structured chronologically within week buckets (This Week, Next Weekend, Coming Up weeks 3–4) — NOT organized by event category.~~ → **REVISED (delivered):** Output is organized Week 1–4 buckets first, then category sub-sections within each week (Family/Kids, Arts/Culture, Food/Dining, Tech/Professional, Outdoor/Parks, Civic), then chronologically within each category. Week 1 starts the Monday after the run date (TODAY+2).
 
 FR-E08: A separate Astro content collection `rva-events` must be created, distinct from the existing `richmond` collection. The nav label is "RVA Events".
 
@@ -779,8 +779,39 @@ So that I can confirm the new feed works autonomously before relying on the Satu
 
 **Dev Notes:**
 - Run manually: `bash scripts/run-topic.sh richmond-events` — on a non-Saturday, the orchestrator would skip it (weekly); bypass for testing by invoking `run-topic.sh` directly (it doesn't enforce schedule — that's the orchestrator's job)
-- If today is not Saturday, pass weekly flag explicitly: inspect `run-topic.sh` source and check if `WEEKLY_FLAG` is set conditionally — if so, run: `WEEKLY_FLAG=--weekly bash scripts/run-topic.sh richmond-events` or equivalent
-- HTML source reliability: tier2 venue pages (VMFA, Maymont, etc.) use React/Next.js. If `fetch_html` returns 0 items for a source, that's expected — the RSS tier1 sources will provide the bulk of content. Verify at least 3 items from tier1 RSS sources.
+- `run-topic.sh` reads `schedule:` from YAML automatically and passes `--weekly` for `schedule: weekly` topics — no manual flag needed
+- HTML source reliability: tier2 venue pages (VMFA, Maymont, etc.) use React/Next.js. If `fetch_html` returns 0 items for a source, that's expected — The Valentine and RSS tier1 sources are the most reliable
 - Validate frontmatter quickly: `python3 -c "import yaml; f=open('src/content/rva-events/$(date +%Y-%m-%d).md'); content=f.read(); fm=content.split('---')[1]; yaml.safe_load(fm); print('OK')"`
-- If the body contains past-dated events (common if source data is stale), add an explicit note to the prompt: "Double-check: today is [DATE]. Remove any events whose date has already passed."
 - Saturday orchestrator integration: `run-all-topics.sh` auto-discovers all `scripts/topics/*.yaml` — `richmond-events.yaml` will be picked up automatically; no orchestrator changes needed
+
+---
+
+## Epic 5 Post-Launch Addendum (2026-05-23)
+
+### Status: All stories done; date extraction fix shipped
+
+**Stories 5.1, 5.2, 5.3:** Complete and deployed. Site live at `https://peacepirate.github.io/daily-kickoff/rva-events`.
+
+### Bug Fixed: Stale Events Appearing as Upcoming
+
+**Observed (2026-05-22 digest):** "Techsters Middle School Girls Coding Camp" and "RFM Summer Camp Expo" appeared in Week 3/Week 4 with inferred future dates. Clicking through showed both events had already occurred.
+
+**Root cause:** `fetch_html()` hardcoded `"date": "recent"` for every HTML item. `print_item()` suppressed this field in output. Claude received title + URL only — zero temporal signal — and inferred dates from event names semantically ("Summer Camp" → assume June–August).
+
+**Fix (2026-05-23):**
+
+1. `fetch_sources.py` — added HTML event date extraction:
+   - `parse_date_text()` — 5-pattern date parser
+   - `extract_event_date()` — cascades through `<time datetime>`, `<time>` text, date-class CSS, `data-*` attrs, full text
+   - `event_mode: bool` on `fetch_html()` — extracts date, drops outside `[TODAY+2, TODAY+30]`, emits `DATE: YYYY-MM-DD` or `DATE: UNKNOWN`
+   - `from __future__ import annotations` for Python 3.9 compatibility
+
+2. `richmond-events.yaml` — `event_mode: true` added to all 11 HTML sources
+
+3. `richmond-events.md` — `## DATE FIELD RULES` section added; `## Dates TBC` output section added; Claude forbidden from inferring dates
+
+**Result:** Verified in `2026-05-23.md` — The Valentine's 5 events have confirmed dates (`DATE: 2026-05-25` through `2026-05-30`); Techsters/RFM correctly appear in "Dates TBC" with "check website to confirm date."
+
+### FR-E14 (added post-launch)
+
+FR-E14: `fetch_sources.py` must extract actual event dates from HTML content for `event_mode: true` sources, mathematically validate them against a `[TODAY+2, TODAY+30]` forward window, and emit `DATE: YYYY-MM-DD` (confirmed) or `DATE: UNKNOWN` (unparseable). Events outside the window must be silently dropped. Claude must never infer or guess event dates — items with `DATE: UNKNOWN` go to a `## Dates TBC` section only.

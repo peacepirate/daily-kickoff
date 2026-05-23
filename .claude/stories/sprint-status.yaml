@@ -24,7 +24,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-05-17
-last_updated: 2026-05-17 (Story 5.3 review)
+last_updated: 2026-05-23 (Epic 5 done; date extraction fix shipped)
 project: "Daily Kickoff — Multi-Topic Digest Pipeline"
 project_key: NOKEY
 tracking_system: file-system
@@ -61,8 +61,8 @@ development_status:
   epic-4-retrospective: optional
 
   # ─── Epic 5: RVA Events — Forward-Looking Event Calendar ─────────────────
-  epic-5: in-progress
+  epic-5: done
   5-1-rva-events-source-config-and-synthesis-prompt: done
   5-2-rva-events-astro-site-wiring: done
-  5-3-rva-events-e2e-live-test-and-release: review
+  5-3-rva-events-e2e-live-test-and-release: done
   epic-5-retrospective: optional
