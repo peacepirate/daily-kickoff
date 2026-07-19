@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
-import { fmtDate, dayOfWeekUTC, utcDateKey } from '../utils/date';
+import { fmtDate } from '../utils/date';
 const B = import.meta.env.BASE_URL;
 
 const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
@@ -13,62 +13,12 @@ const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmond
   getCollection('rva-events'),
 ]);
 
-function latestEntry(entries: typeof aiEntries) {
-  return [...entries].sort((a, b) => b.data.date.getTime() - a.data.date.getTime())[0] ?? null;
-}
-
-const themeCards = [
-  {
-    id: 'ai',
-    label: 'AI Intelligence',
-    latest: latestEntry(aiEntries),
-    emptyNote: 'Set sources on the theme page to begin.',
-    count: aiEntries.length,
-  },
-  {
-    id: 'leadership',
-    label: 'Engineering Leadership',
-    latest: latestEntry(leadershipEntries),
-    emptyNote: 'Set sources on the theme page to begin.',
-    count: leadershipEntries.length,
-  },
-  {
-    id: 'mythology',
-    label: 'Mythology Research',
-    latest: latestEntry(mythologyEntries),
-    emptyNote: 'For Gods of the Future Past source material.',
-    count: mythologyEntries.length,
-  },
-  {
-    id: 'richmond',
-    label: 'Richmond & Family',
-    latest: latestEntry(richmondEntries),
-    emptyNote: 'Local events, family planning, monthly planner.',
-    count: richmondEntries.length,
-  },
-  {
-    id: 'local-llm',
-    label: 'Local LLM',
-    latest: latestEntry(localLlmEntries),
-    emptyNote: 'Local inference stack updates and Gods project tooling.',
-    count: localLlmEntries.length,
-  },
-  {
-    id: 'rva-events',
-    label: 'RVA Events',
-    latest: latestEntry(rvaEventsEntries),
-    emptyNote: 'Upcoming events in Richmond — family activities, tech meetups, arts & dining.',
-    count: rvaEventsEntries.length,
-  },
-];
-
-// All action items for the watchlist
 interface WatchlistItem {
   id: string;
   type: 'try' | 'share' | 'readDeeper';
   text: string;
   source: string;
-  digestHref: string;   // ADD THIS
+  digestHref: string;
   themeId: string;
   themeLabel: string;
   dateLabel: string;
@@ -86,9 +36,9 @@ const allEntries = [
 
 for (const entry of allEntries) {
   const slug = entry.id.replace(/\.(md|mdx)$/, '');
-  const digestHref = `${B}${entry.themeId}/${slug}`;
   const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
   const source = `${entry.themeLabel} · ${dateLabel}`;
+  const digestHref = `${B}${entry.themeId}/${slug}`;
   entry.data.actions.try.forEach((item, i) => {
     allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
@@ -100,105 +50,99 @@ for (const entry of allEntries) {
   });
 }
 
-const uniqueThemesDash = [...new Set(allItems.map(i => i.themeId))];
-const themeFilterLabelsDash: Record<string, string> = {
-  'ai': 'AI', 'leadership': 'Leadership', 'rva-events': 'RVA Events',
-  'richmond': 'Richmond', 'local-llm': 'Local LLM', 'mythology': 'Mythology',
+const uniqueThemes = [...new Set(allItems.map(i => i.themeId))];
+const themeFilterLabels: Record<string, string> = {
+  'ai': 'AI',
+  'leadership': 'Leadership',
+  'rva-events': 'RVA Events',
+  'richmond': 'Richmond',
+  'local-llm': 'Local LLM',
+  'mythology': 'Mythology',
 };
-
-// Reading cadence — last 21 days
-const today = new Date();
-const allDigestDates = new Set(allEntries.map(e => e.id.replace(/\.(md|mdx)$/, '')));
-
-const cadenceDays = Array.from({ length: 21 }, (_, i) => {
-  const d = new Date(today);
-  d.setDate(today.getDate() - (20 - i));
-  const key = utcDateKey(d);
-  return { key, label: fmtDate(d, { month: 'short', day: 'numeric', timeZone: 'America/New_York' }), hasDigest: allDigestDates.has(key) };
-});
 ---
 
-<Layout title="Dashboard">
-  <h1 id="greeting">Good morning</h1>
-  <div class="page-meta" id="page-meta">
-    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/New_York' })}
-  </div>
+<Layout title="Watchlist">
+  <h1>★ Watchlist</h1>
+  <div class="page-meta" id="wl-page-meta">Action items across all themes</div>
 
-  <!-- Watchlist -->
-  {allItems.length > 0 && (
-    <div class="theme-filter-bar" id="dash-theme-bar" style="margin-bottom: 8px;">
-      <button class="filter-chip active" data-dash-theme="all">All themes</button>
-      {uniqueThemesDash.map(t => (
-        <button class="filter-chip" data-dash-theme={t}>{themeFilterLabelsDash[t] ?? t}</button>
-      ))}
+  {allItems.length === 0 ? (
+    <div class="wl-empty-state" style="border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
+      <div class="wl-empty-icon">★</div>
+      <div class="wl-empty-title">No items yet</div>
+      <div class="wl-empty-sub">Action items from digests will appear here.</div>
     </div>
-  )}
-  <div class="watchlist-card">
-    <div class="watchlist-header">
-      <span class="watchlist-title">★ Watchlist</span>
-      <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
-      <a href={`${B}watchlist`} class="quick-action" style="margin-left:auto; text-decoration:none;">See all →</a>
-    </div>
-    <div id="watchlist-items">
-      {allItems.length === 0 ? (
-        <div class="watchlist-empty">No action items yet.</div>
-      ) : (
-        allItems.map(item => (
-          <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
-            <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
-              {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
-            </span>
-            <span class="watchlist-text">{item.text}</span>
-            <a href={`${B}${item.themeId}`} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
-            <a href={item.digestHref} class="tag tag-meta tag-theme-date" style="text-decoration:none;">{item.dateLabel}</a>
-            <button class="watchlist-action watchlist-action-icon" data-wl-action="done"   data-wl-id={item.id} title="Mark done">✓</button>
-            <button class="watchlist-action watchlist-action-icon" data-wl-action="snooze" data-wl-id={item.id} title="Snooze for later">⏸</button>
-            <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
-          </div>
-        ))
-      )}
-    </div>
-  </div>
+  ) : (
+    <>
+      <div class="theme-filter-bar" id="wl-theme-bar">
+        <button class="filter-chip active" data-theme-filter="all">All themes</button>
+        {uniqueThemes.map(t => (
+          <button class="filter-chip" data-theme-filter={t}>{themeFilterLabels[t] ?? t}</button>
+        ))}
+      </div>
 
-  <h2>Latest by theme</h2>
-  <div class="theme-grid">
-    {themeCards.map(({ id, label, latest, emptyNote, count }) => (
-      <a href={`${B}${id}`} class="theme-card">
-        <div class="theme-card-header">
-          <span style="opacity:0.7;font-size:12px;">◆</span>
-          <span class="theme-card-title">{label}</span>
-          <span class="theme-card-count">
-            {count > 0 ? `${count} digest${count !== 1 ? 's' : ''}` : 'empty'}
-          </span>
+      <div class="status-tabs" id="status-tabs">
+        <button class="status-tab active" data-status-filter="open">
+          Open <span class="tab-count" id="cnt-open">—</span>
+        </button>
+        <button class="status-tab" data-status-filter="all">All</button>
+        <button class="status-tab" data-status-filter="snoozed">
+          Later <span class="tab-count" id="cnt-later">—</span>
+        </button>
+        <button class="status-tab" data-status-filter="starred">Starred <span class="tab-count" id="cnt-starred">—</span></button>
+        <button class="status-tab" data-status-filter="done">
+          Done <span class="tab-count" id="cnt-done">—</span>
+        </button>
+        <button class="status-tab" data-status-filter="archived">Archived <span class="tab-count" id="cnt-archived">—</span></button>
+      </div>
+
+      <div class="watchlist-card">
+        <div class="watchlist-header">
+          <span class="watchlist-title">Items</span>
+          <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
+          <button class="quick-action" id="mark-visible-done" style="margin-left:auto;">Mark open as done</button>
+          <button class="quick-action" id="clear-done">Clear done</button>
+          <button class="quick-action" id="wl-select-toggle">Select</button>
         </div>
-        {latest ? (
-          <>
-            <div class="theme-card-latest">{latest.data.tldr.slice(0, 130)}{latest.data.tldr.length > 130 ? '…' : ''}</div>
-            <div class="theme-card-date">
-              {fmtDate(latest.data.date, { month: 'short', day: 'numeric' })} · {latest.data.format}
+        <div id="watchlist-all">
+          <div class="wl-bulk-bar" id="wl-bulk-bar" style="display:none;">
+            <label class="wl-select-all-label">
+              <input type="checkbox" id="wl-select-all" />
+              <span id="wl-bulk-count">0 selected</span>
+            </label>
+            <button class="wl-bulk-btn" id="wl-bulk-done"   disabled>✓ Done</button>
+            <button class="wl-bulk-btn" id="wl-bulk-snooze" disabled>⏸ Later</button>
+            <button class="wl-bulk-btn" id="wl-bulk-reopen" disabled>↺ Reopen</button>
+            <button class="wl-bulk-btn" id="wl-bulk-star"   disabled>★ Star</button>
+            <button class="wl-bulk-btn" id="wl-bulk-unstar" disabled>☆ Unstar</button>
+            <button class="wl-bulk-btn wl-bulk-cancel" id="wl-bulk-cancel">Cancel</button>
+          </div>
+          {allItems.map(item => (
+            <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
+              <label class="wl-checkbox-wrap">
+                <input type="checkbox" class="wl-checkbox" data-wl-id={item.id} />
+              </label>
+              <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
+                {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
+              </span>
+              <span class="watchlist-text">{item.text}</span>
+              <a href={item.digestHref} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
+              <a href={item.digestHref} class="tag tag-meta tag-theme-date" style="text-decoration:none;">{item.dateLabel}</a>
+              <button class="watchlist-action watchlist-action-icon" data-wl-action="done"   data-wl-id={item.id} title="Mark done">✓</button>
+              <button class="watchlist-action watchlist-action-icon" data-wl-action="snooze" data-wl-id={item.id} title="Snooze for later">⏸</button>
+              <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
+              <button class="watchlist-action" data-wl-action="unarchive" data-wl-id={item.id} style="display:none;">↺ Restore</button>
+              <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
             </div>
-          </>
-        ) : (
-          <div class="theme-card-latest" style="color: var(--text-faint);">{emptyNote}</div>
-        )}
-      </a>
-    ))}
-  </div>
-
-  <h2>Reading cadence</h2>
-  <div class="cadence">
-    <span class="cadence-label" style="margin-right:8px;">Last 21 days:</span>
-    {cadenceDays.map(day => (
-      <span
-        class={`cadence-cell${day.hasDigest ? ' has-digest' : ''}`}
-        title={`${day.label}${day.hasDigest ? ' — digest published' : ''}`}
-        data-cadence-key={day.key}
-      />
-    ))}
-    <span class="cadence-label" style="margin-left:8px;">
-      {cadenceDays.filter(d => d.hasDigest).length} published
-    </span>
-  </div>
+          ))}
+          <div class="wl-empty-state" id="wl-filter-empty" style="display:none;">
+            <div class="wl-empty-icon">✓</div>
+            <div class="wl-empty-title">All caught up!</div>
+            <div class="wl-empty-sub">No items match the current filter.</div>
+          </div>
+        </div>
+      </div>
+    </>
+  )}
 </Layout>
 
 <script>
@@ -241,15 +185,8 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
     localStorage.setItem(META_KEY, today);
   }
 
-  // Greeting
-  const now = new Date();
-  const hour = now.getHours();
-  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-  const greetEl = document.getElementById('greeting');
-  if (greetEl) greetEl.textContent = `${days[now.getDay()]} ${period}`;
-
-  let dashThemeFilter = 'all';
+  let activeStatusFilter = 'open';
+  let activeThemeFilter = 'all';
 
   function getStatus(id: string): 'open' | 'done' | 'snoozed' | 'archived' {
     try {
@@ -259,17 +196,17 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
     return 'open';
   }
 
-  function renderWatchlist() {
-    const items = document.querySelectorAll<HTMLElement>('[data-wl-id]');
-    let open = 0;
+  function renderAll() {
+    const items = document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]');
+    const counts: Record<string, number> = { open: 0, done: 0, snoozed: 0, starred: 0, archived: 0 };
+
     items.forEach(el => {
-      if (!el.classList.contains('watchlist-item')) return;
       const id = el.dataset.wlId!;
       const status = getStatus(id);
-      el.dataset.status = status;
-
       const starred = isStarred(id);
+      el.dataset.status = status;
       el.dataset.starred = String(starred);
+
       const starBtn = el.querySelector<HTMLButtonElement>('.wl-star');
       if (starBtn) {
         starBtn.textContent = starred ? '★' : '☆';
@@ -277,41 +214,208 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
         starBtn.title = starred ? 'Unstar' : 'Star';
       }
 
-      // Show only Open items, filtered by theme
-      const statusOk = status === 'open'; // archived items never show on dashboard
-      const themeOk  = dashThemeFilter === 'all' || el.dataset.themeId === dashThemeFilter;
-      el.style.display = (statusOk && themeOk) ? '' : 'none';
-      if (status === 'open') open++;
+      const reopenBtn   = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
+      const doneBtn     = el.querySelector<HTMLElement>('[data-wl-action="done"]');
+      const snoozeBtn   = el.querySelector<HTMLElement>('[data-wl-action="snooze"]');
+      const restoreBtn  = el.querySelector<HTMLElement>('[data-wl-action="unarchive"]');
+      if (doneBtn)    doneBtn.style.display    = status === 'open' ? '' : 'none';
+      if (snoozeBtn)  snoozeBtn.style.display  = status === 'open' ? '' : 'none';
+      if (reopenBtn)  reopenBtn.style.display  = (status !== 'open' && status !== 'archived') ? '' : 'none';
+      if (restoreBtn) restoreBtn.style.display = status === 'archived' ? '' : 'none';
+
+      if (status === 'archived') {
+        counts.archived++;
+      } else {
+        counts[status] = (counts[status] ?? 0) + 1;
+        if (starred) counts.starred++;
+      }
+
+      const statusMatch =
+        activeStatusFilter === 'all'      ? status !== 'archived' :
+        activeStatusFilter === 'starred'  ? (starred && status !== 'archived') :
+        activeStatusFilter === 'archived' ? status === 'archived' :
+        status === activeStatusFilter;
+      const themeMatch = activeThemeFilter === 'all' || el.dataset.themeId === activeThemeFilter;
+      el.style.display = (statusMatch && themeMatch) ? '' : 'none';
     });
+
+    const openCount     = document.getElementById('cnt-open');
+    const laterCount    = document.getElementById('cnt-later');
+    const doneCount     = document.getElementById('cnt-done');
+    const starredCount  = document.getElementById('cnt-starred');
+    const archivedCount = document.getElementById('cnt-archived');
+    if (openCount)     openCount.textContent     = String(counts.open     ?? 0);
+    if (laterCount)    laterCount.textContent    = String(counts.snoozed  ?? 0);
+    if (doneCount)     doneCount.textContent     = String(counts.done     ?? 0);
+    if (starredCount)  starredCount.textContent  = String(counts.starred  ?? 0);
+    if (archivedCount) archivedCount.textContent = String(counts.archived ?? 0);
+
     const sub = document.getElementById('watchlist-subtitle');
-    if (sub) {
-      const total = document.querySelectorAll('.watchlist-item[data-wl-id]').length;
-      sub.textContent = total === 0 ? 'No items' : `${open} open`;
-    }
+    if (sub) sub.textContent = `${counts.open ?? 0} open · ${counts.snoozed ?? 0} later · ${counts.done ?? 0} done`;
+
+    const visibleCount = [...items].filter(el => el.style.display !== 'none').length;
+    const emptyEl = document.getElementById('wl-filter-empty');
+    if (emptyEl) emptyEl.style.display = (visibleCount === 0 && items.length > 0) ? '' : 'none';
+
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
   }
 
+  document.querySelectorAll<HTMLElement>('[data-status-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-status-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatusFilter = btn.dataset.statusFilter!;
+      if (selectMode) clearSelection();
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-theme-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-theme-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeThemeFilter = btn.dataset.themeFilter!;
+      if (selectMode) clearSelection();
+      renderAll();
+    });
+  });
+
   document.addEventListener('click', e => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
-    if (btn) {
-      const id     = btn.dataset.wlId!;
-      const action = btn.dataset.wlAction!;
-      if (action === 'done')   setStatus(id, 'done');
-      if (action === 'snooze') setStatus(id, 'snoozed');
-      if (action === 'star')   setStar(id, !isStarred(id));
-      renderWatchlist();
-      return;
-    }
-    // Dashboard theme filter
-    const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-dash-theme]');
-    if (chip) {
-      document.querySelectorAll('[data-dash-theme]').forEach(b => b.classList.remove('active'));
-      chip.classList.add('active');
-      dashThemeFilter = chip.dataset.dashTheme!;
-      renderWatchlist();
-    }
+    if (!btn) return;
+    const id     = btn.dataset.wlId!;
+    const action = btn.dataset.wlAction!;
+    if (action === 'done')      setStatus(id, 'done');
+    if (action === 'snooze')    setStatus(id, 'snoozed');
+    if (action === 'reopen')    setStatus(id, null);
+    if (action === 'unarchive') setStatus(id, null);
+    if (action === 'star')      setStar(id, !isStarred(id));
+    renderAll();
+  });
+
+  document.getElementById('mark-visible-done')?.addEventListener('click', () => {
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      if (el.style.display !== 'none' && el.dataset.status === 'open') {
+        setStatus(el.dataset.wlId!, 'done');
+      }
+    });
+    renderAll();
+  });
+
+  document.getElementById('clear-done')?.addEventListener('click', () => {
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      if (getStatus(el.dataset.wlId!) === 'done') setStatus(el.dataset.wlId!, null);
+    });
+    renderAll();
   });
 
   runAutoArchiveIfNeeded();
-  renderWatchlist();
+  renderAll();
+
+// ── Multi-select ──────────────────────────────────────────────────────────────
+let selectMode = false;
+const selectedIds = new Set<string>();
+
+function updateBulkBar() {
+  const count = selectedIds.size;
+  const countEl = document.getElementById('wl-bulk-count')!;
+  if (countEl) countEl.textContent = count === 0 ? '0 selected' : `${count} selected`;
+
+  const hasAny = count > 0;
+  (document.getElementById('wl-bulk-done')   as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-snooze') as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-reopen') as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-star')   as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-unstar') as HTMLButtonElement).disabled = !hasAny;
+
+  const visibleCbs = [...document.querySelectorAll<HTMLInputElement>('.wl-checkbox')]
+    .filter(cb => (cb.closest('.watchlist-item') as HTMLElement)?.style.display !== 'none');
+  const checkedCount = visibleCbs.filter(cb => cb.checked).length;
+  const selectAllCb = document.getElementById('wl-select-all') as HTMLInputElement;
+  if (selectAllCb) {
+    selectAllCb.disabled      = visibleCbs.length === 0;
+    selectAllCb.checked       = checkedCount === visibleCbs.length && visibleCbs.length > 0;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < visibleCbs.length;
+  }
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll<HTMLInputElement>('.wl-checkbox').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.watchlist-item.wl-selected').forEach(el => el.classList.remove('wl-selected'));
+  updateBulkBar();
+}
+
+function enterSelectMode() {
+  selectMode = true;
+  document.getElementById('watchlist-all')!.classList.add('wl-select-mode');
+  const toggleBtn = document.getElementById('wl-select-toggle') as HTMLButtonElement;
+  if (toggleBtn) toggleBtn.textContent = 'Cancel';
+  const bar = document.getElementById('wl-bulk-bar');
+  if (bar) bar.style.display = '';
+  updateBulkBar();
+}
+
+function exitSelectMode() {
+  selectMode = false;
+  clearSelection();
+  document.getElementById('watchlist-all')!.classList.remove('wl-select-mode');
+  const toggleBtn = document.getElementById('wl-select-toggle') as HTMLButtonElement;
+  if (toggleBtn) toggleBtn.textContent = 'Select';
+  const bar = document.getElementById('wl-bulk-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+document.getElementById('watchlist-all')?.addEventListener('change', e => {
+  const cb = (e.target as HTMLElement).closest<HTMLInputElement>('.wl-checkbox');
+  if (!cb || !selectMode) return;
+  const id   = cb.dataset.wlId!;
+  const item = cb.closest<HTMLElement>('.watchlist-item')!;
+  if (cb.checked) { selectedIds.add(id);    item.classList.add('wl-selected'); }
+  else            { selectedIds.delete(id);  item.classList.remove('wl-selected'); }
+  updateBulkBar();
+});
+
+document.getElementById('wl-select-all')?.addEventListener('change', e => {
+  const checked = (e.target as HTMLInputElement).checked;
+  document.querySelectorAll<HTMLInputElement>('.wl-checkbox').forEach(cb => {
+    const item = cb.closest<HTMLElement>('.watchlist-item')!;
+    if (item.style.display === 'none') return;
+    cb.checked = checked;
+    const id = cb.dataset.wlId!;
+    if (checked) { selectedIds.add(id);    item.classList.add('wl-selected'); }
+    else         { selectedIds.delete(id);  item.classList.remove('wl-selected'); }
+  });
+  updateBulkBar();
+});
+
+document.getElementById('wl-select-toggle')?.addEventListener('click', () => {
+  selectMode ? exitSelectMode() : enterSelectMode();
+});
+
+document.getElementById('wl-bulk-done')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStatus(id, 'done'));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-snooze')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStatus(id, 'snoozed'));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-reopen')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStatus(id, null));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-star')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStar(id, true));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-unstar')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStar(id, false));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-cancel')?.addEventListener('click', exitSelectMode);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && selectMode) exitSelectMode();
+});
 </script>

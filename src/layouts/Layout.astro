@@ -68,9 +68,6 @@ const isHome = !activeTheme && Astro.url.pathname === B;
     <div class="nav-section">
       <div class="nav-section-title">Overview</div>
       <a href={B} class={`nav-item${isHome ? ' active' : ''}`}>
-        <span class="icon">⌂</span> Dashboard
-      </a>
-      <a href={`${B}watchlist`} class={`nav-item${activeTheme === 'watchlist' ? ' active' : ''}`}>
         <span class="icon">★</span> Watchlist
         <span class="count" id="sidebar-watchlist-count"></span>
       </a>
@@ -105,7 +102,7 @@ const isHome = !activeTheme && Astro.url.pathname === B;
       </button>
       <div class="breadcrumb">
         {breadcrumb.length === 0 ? (
-          <span style="color: var(--text);">Dashboard</span>
+          <span style="color: var(--text);">Watchlist</span>
         ) : (
           breadcrumb.map((item, i) => (
             <>
@@ -123,10 +120,6 @@ const isHome = !activeTheme && Astro.url.pathname === B;
         <span>⌕</span>
         <input type="text" placeholder="Search across themes…" />
       </div>
-      <a href={`${B}watchlist`} class="topbar-btn">
-        ★ Watchlist
-        <span class="badge" id="topbar-watchlist-badge" style="display:none;">0</span>
-      </a>
       <a href={`${B}preferences`} class="topbar-btn">⚙</a>
     </div>
 
@@ -172,12 +165,7 @@ const isHome = !activeTheme && Astro.url.pathname === B;
       } catch {}
     }
     const sidebar = document.getElementById('sidebar-watchlist-count');
-    const badge   = document.getElementById('topbar-watchlist-badge');
     if (sidebar) sidebar.textContent = open > 0 ? String(open) : '';
-    if (badge) {
-      badge.textContent = String(open);
-      (badge as HTMLElement).style.display = open > 0 ? 'inline' : 'none';
-    }
   }
 
   document.addEventListener('DOMContentLoaded', syncWatchlistCount);
