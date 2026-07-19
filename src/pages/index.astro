@@ -68,6 +68,7 @@ interface WatchlistItem {
   type: 'try' | 'share' | 'readDeeper';
   text: string;
   source: string;
+  digestHref: string;   // ADD THIS
   themeId: string;
   themeLabel: string;
   dateLabel: string;
@@ -85,16 +86,17 @@ const allEntries = [
 
 for (const entry of allEntries) {
   const slug = entry.id.replace(/\.(md|mdx)$/, '');
+  const digestHref = `${B}${entry.themeId}/${slug}`;
   const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
   const source = `${entry.themeLabel} · ${dateLabel}`;
   entry.data.actions.try.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.share.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.readDeeper.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
 }
 
@@ -148,7 +150,7 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
             </span>
             <span class="watchlist-text">{item.text}</span>
             <a href={`${B}${item.themeId}`} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
-            <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
+            <a href={item.digestHref} class="tag tag-meta tag-theme-date" style="text-decoration:none;">{item.dateLabel}</a>
             <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
             <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⏸ Later</button>
           </div>

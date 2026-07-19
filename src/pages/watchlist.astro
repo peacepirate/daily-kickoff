@@ -99,10 +99,24 @@ const themeFilterLabels: Record<string, string> = {
           <span class="watchlist-subtitle" id="watchlist-subtitle">—</span>
           <button class="quick-action" id="mark-visible-done" style="margin-left:auto;">Mark open as done</button>
           <button class="quick-action" id="clear-done">Clear done</button>
+          <button class="quick-action" id="wl-select-toggle">Select</button>
         </div>
         <div id="watchlist-all">
+          <div class="wl-bulk-bar" id="wl-bulk-bar" style="display:none;">
+            <label class="wl-select-all-label">
+              <input type="checkbox" id="wl-select-all" />
+              <span id="wl-bulk-count">0 selected</span>
+            </label>
+            <button class="wl-bulk-btn" id="wl-bulk-done"   disabled>✓ Done</button>
+            <button class="wl-bulk-btn" id="wl-bulk-snooze" disabled>⏸ Later</button>
+            <button class="wl-bulk-btn" id="wl-bulk-reopen" disabled>↺ Reopen</button>
+            <button class="wl-bulk-btn wl-bulk-cancel" id="wl-bulk-cancel">Cancel</button>
+          </div>
           {allItems.map(item => (
             <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
+              <label class="wl-checkbox-wrap">
+                <input type="checkbox" class="wl-checkbox" data-wl-id={item.id} />
+              </label>
               <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
                 {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
               </span>
@@ -182,6 +196,7 @@ const themeFilterLabels: Record<string, string> = {
       document.querySelectorAll('[data-status-filter]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeStatusFilter = btn.dataset.statusFilter!;
+      if (selectMode) clearSelection();
       renderAll();
     });
   });
@@ -192,6 +207,7 @@ const themeFilterLabels: Record<string, string> = {
       document.querySelectorAll('[data-theme-filter]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeThemeFilter = btn.dataset.themeFilter!;
+      if (selectMode) clearSelection();
       renderAll();
     });
   });
@@ -227,4 +243,106 @@ const themeFilterLabels: Record<string, string> = {
   });
 
   renderAll();
+
+// ── Multi-select ──────────────────────────────────────────────────────────────
+let selectMode = false;
+const selectedIds = new Set<string>();
+
+function updateBulkBar() {
+  const count = selectedIds.size;
+  const countEl = document.getElementById('wl-bulk-count')!;
+  if (countEl) countEl.textContent = count === 0 ? '0 selected' : `${count} selected`;
+
+  const hasAny = count > 0;
+  (document.getElementById('wl-bulk-done')   as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-snooze') as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-reopen') as HTMLButtonElement).disabled = !hasAny;
+
+  const visibleCbs = [...document.querySelectorAll<HTMLInputElement>('.wl-checkbox')]
+    .filter(cb => (cb.closest('.watchlist-item') as HTMLElement)?.style.display !== 'none');
+  const checkedCount = visibleCbs.filter(cb => cb.checked).length;
+  const selectAllCb = document.getElementById('wl-select-all') as HTMLInputElement;
+  if (selectAllCb) {
+    selectAllCb.disabled      = visibleCbs.length === 0;
+    selectAllCb.checked       = checkedCount === visibleCbs.length && visibleCbs.length > 0;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < visibleCbs.length;
+  }
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll<HTMLInputElement>('.wl-checkbox').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.watchlist-item.wl-selected').forEach(el => el.classList.remove('wl-selected'));
+  updateBulkBar();
+}
+
+function enterSelectMode() {
+  selectMode = true;
+  document.getElementById('watchlist-all')!.classList.add('wl-select-mode');
+  const toggleBtn = document.getElementById('wl-select-toggle') as HTMLButtonElement;
+  if (toggleBtn) toggleBtn.textContent = 'Cancel';
+  const bar = document.getElementById('wl-bulk-bar');
+  if (bar) bar.style.display = '';
+  updateBulkBar();
+}
+
+function exitSelectMode() {
+  selectMode = false;
+  clearSelection();
+  document.getElementById('watchlist-all')!.classList.remove('wl-select-mode');
+  const toggleBtn = document.getElementById('wl-select-toggle') as HTMLButtonElement;
+  if (toggleBtn) toggleBtn.textContent = 'Select';
+  const bar = document.getElementById('wl-bulk-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+// Checkbox delegation
+document.getElementById('watchlist-all')?.addEventListener('change', e => {
+  const cb = (e.target as HTMLElement).closest<HTMLInputElement>('.wl-checkbox');
+  if (!cb || !selectMode) return;
+  const id   = cb.dataset.wlId!;
+  const item = cb.closest<HTMLElement>('.watchlist-item')!;
+  if (cb.checked) { selectedIds.add(id);    item.classList.add('wl-selected'); }
+  else            { selectedIds.delete(id);  item.classList.remove('wl-selected'); }
+  updateBulkBar();
+});
+
+// Select-all
+document.getElementById('wl-select-all')?.addEventListener('change', e => {
+  const checked = (e.target as HTMLInputElement).checked;
+  document.querySelectorAll<HTMLInputElement>('.wl-checkbox').forEach(cb => {
+    const item = cb.closest<HTMLElement>('.watchlist-item')!;
+    if (item.style.display === 'none') return;
+    cb.checked = checked;
+    const id = cb.dataset.wlId!;
+    if (checked) { selectedIds.add(id);    item.classList.add('wl-selected'); }
+    else         { selectedIds.delete(id);  item.classList.remove('wl-selected'); }
+  });
+  updateBulkBar();
+});
+
+// Toggle button
+document.getElementById('wl-select-toggle')?.addEventListener('click', () => {
+  selectMode ? exitSelectMode() : enterSelectMode();
+});
+
+// Bulk actions
+document.getElementById('wl-bulk-done')?.addEventListener('click', () => {
+  selectedIds.forEach(id => localStorage.setItem(id, JSON.stringify({ status: 'done' })));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-snooze')?.addEventListener('click', () => {
+  selectedIds.forEach(id => localStorage.setItem(id, JSON.stringify({ status: 'snoozed' })));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-reopen')?.addEventListener('click', () => {
+  selectedIds.forEach(id => localStorage.removeItem(id));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-cancel')?.addEventListener('click', exitSelectMode);
+
+// Escape to exit
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && selectMode) exitSelectMode();
+});
 </script>

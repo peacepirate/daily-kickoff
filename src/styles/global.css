@@ -296,6 +296,9 @@ h3 {
 .tag-theme-local-llm    { background: #faf5ff; color: #7c3aed; }
 .tag-theme-mythology    { background: #fdf4ff; color: #86198f; }
 .tag-theme-date         { background: #f6f8fa; color: #656d76; border: 1px solid #e5e7eb; }
+/* Digest link on date chip */
+a.tag-theme-date { color: #656d76; }
+a.tag-theme-date:hover { text-decoration: underline; color: var(--text); }
 
 /* ── Watchlist ── */
 .watchlist-card {
@@ -836,4 +839,76 @@ h3 {
 @media (max-width: 768px) {
   .status-tab { padding: 7px 10px; font-size: 12px; }
   .theme-filter-bar { gap: 4px; }
+}
+
+/* ── Multi-select mode ────────────────────────────────────────────────────── */
+.wl-checkbox-wrap {
+  display: none;
+  align-items: center;
+  flex-shrink: 0;
+}
+.wl-select-mode .wl-checkbox-wrap {
+  display: flex;
+}
+.wl-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+/* Hide per-item action buttons and header bulk buttons in select mode */
+.wl-select-mode .watchlist-action,
+.wl-select-mode #mark-visible-done,
+.wl-select-mode #clear-done {
+  display: none !important;
+}
+/* Highlight selected items */
+.watchlist-item.wl-selected {
+  background: var(--accent-bg);
+  border-radius: 3px;
+  margin-inline: -4px;
+  padding-inline: 4px;
+}
+/* Bulk action bar */
+.wl-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.wl-select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  user-select: none;
+}
+#wl-bulk-count {
+  font-weight: 500;
+  color: var(--text);
+  min-width: 6ch;
+}
+.wl-bulk-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+}
+.wl-bulk-btn:hover:not(:disabled) { background: var(--bg-muted); }
+.wl-bulk-btn:disabled { opacity: 0.4; cursor: default; }
+.wl-bulk-cancel { color: var(--text-faint); }
+@media (max-width: 768px) {
+  .wl-bulk-bar { gap: 6px; }
+  .wl-checkbox { width: 18px; height: 18px; }
 }
