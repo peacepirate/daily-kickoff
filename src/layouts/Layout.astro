@@ -168,7 +168,7 @@ const isHome = !activeTheme && Astro.url.pathname === B;
       if (!key?.startsWith('wl:')) continue;
       try {
         const v = JSON.parse(localStorage.getItem(key) ?? '{}');
-        if (v.status === 'open') open++;
+        if (!v.status) open++;
       } catch {}
     }
     const sidebar = document.getElementById('sidebar-watchlist-count');

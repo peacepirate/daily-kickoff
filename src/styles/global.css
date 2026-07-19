@@ -912,3 +912,51 @@ a.tag-theme-date:hover { text-decoration: underline; color: var(--text); }
   .wl-bulk-bar { gap: 6px; }
   .wl-checkbox { width: 18px; height: 18px; }
 }
+
+/* ── Star button ─────────────────────────────────────────────────────────── */
+.wl-star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 2px 3px;
+  border-radius: 3px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.1s;
+}
+.wl-star:hover { color: var(--amber); background: var(--bg-hover); }
+.wl-star[aria-pressed="true"] { color: var(--amber); }
+
+/* Starred item: subtle amber left stripe */
+.watchlist-item[data-starred="true"] {
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.09) 0%, transparent 28px);
+  border-radius: 3px;
+}
+/* Done + starred: keep star amber despite row dimming */
+.watchlist-item[data-status="done"][data-starred="true"] .wl-star {
+  opacity: 1;
+}
+/* Hide star button in select mode */
+.wl-select-mode .wl-star { display: none; }
+
+/* Archived item: heavily muted with strikethrough */
+.watchlist-item[data-status="archived"] {
+  opacity: 0.38;
+}
+.watchlist-item[data-status="archived"] .watchlist-text {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+/* Archived tab: amber accent when active */
+.status-tab[data-status-filter="archived"].active {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+.status-tab[data-status-filter="archived"].active .tab-count {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--amber);
+  color: var(--amber);
+}

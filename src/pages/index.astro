@@ -145,6 +145,7 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
       ) : (
         allItems.map(item => (
           <div class="watchlist-item" data-wl-id={item.id} data-status="open" data-theme-id={item.themeId}>
+            <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
             <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
               {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
             </span>
@@ -201,6 +202,45 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
 </Layout>
 
 <script>
+  function getStoredValue(id: string): Record<string, unknown> {
+    try { return JSON.parse(localStorage.getItem(id) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+  }
+  function setStatus(id: string, status: 'done' | 'snoozed' | 'archived' | null): void {
+    const v = getStoredValue(id);
+    if (status === null) { delete v.status; } else { v.status = status; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+  function isStarred(id: string): boolean {
+    return getStoredValue(id).starred === true;
+  }
+  function setStar(id: string, starred: boolean): void {
+    const v = getStoredValue(id);
+    if (starred) { v.starred = true; } else { delete v.starred; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+  function runAutoArchiveIfNeeded(): void {
+    const META_KEY = 'wl:meta:last-archive-run';
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(META_KEY) === today) return;
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - 60);
+    const cutoffMs = cutoff.getTime();
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      const id = el.dataset.wlId!;
+      const parts = id.split(':');
+      if (parts.length < 4) return;
+      const dateStr = parts[1]!;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+      const itemDateMs = new Date(dateStr + 'T00:00:00Z').getTime();
+      if (itemDateMs > cutoffMs) return;
+      if (isStarred(id)) return;
+      const v = getStoredValue(id);
+      if (v.status === 'archived') return;
+      setStatus(id, 'archived');
+    });
+    localStorage.setItem(META_KEY, today);
+  }
+
   // Greeting
   const now = new Date();
   const hour = now.getHours();
@@ -211,10 +251,10 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
 
   let dashThemeFilter = 'all';
 
-  function getItemStatus(id: string): 'open' | 'done' | 'snoozed' {
+  function getStatus(id: string): 'open' | 'done' | 'snoozed' | 'archived' {
     try {
       const v = JSON.parse(localStorage.getItem(id) ?? '{}');
-      if (v.status === 'done' || v.status === 'snoozed') return v.status as 'done' | 'snoozed';
+      if (v.status === 'done' || v.status === 'snoozed' || v.status === 'archived') return v.status;
     } catch {}
     return 'open';
   }
@@ -225,11 +265,20 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
     items.forEach(el => {
       if (!el.classList.contains('watchlist-item')) return;
       const id = el.dataset.wlId!;
-      const status = getItemStatus(id);
+      const status = getStatus(id);
       el.dataset.status = status;
 
+      const starred = isStarred(id);
+      el.dataset.starred = String(starred);
+      const starBtn = el.querySelector<HTMLButtonElement>('.wl-star');
+      if (starBtn) {
+        starBtn.textContent = starred ? '★' : '☆';
+        starBtn.setAttribute('aria-pressed', String(starred));
+        starBtn.title = starred ? 'Unstar' : 'Star';
+      }
+
       // Show only Open items, filtered by theme
-      const statusOk = status === 'open';
+      const statusOk = status === 'open'; // archived items never show on dashboard
       const themeOk  = dashThemeFilter === 'all' || el.dataset.themeId === dashThemeFilter;
       el.style.display = (statusOk && themeOk) ? '' : 'none';
       if (status === 'open') open++;
@@ -245,9 +294,11 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
   document.addEventListener('click', e => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
     if (btn) {
-      const id = btn.dataset.wlId!;
+      const id     = btn.dataset.wlId!;
       const action = btn.dataset.wlAction!;
-      localStorage.setItem(id, JSON.stringify({ status: action === 'done' ? 'done' : 'snoozed' }));
+      if (action === 'done')   setStatus(id, 'done');
+      if (action === 'snooze') setStatus(id, 'snoozed');
+      if (action === 'star')   setStar(id, !isStarred(id));
       renderWatchlist();
       return;
     }
@@ -261,5 +312,6 @@ const cadenceDays = Array.from({ length: 21 }, (_, i) => {
     }
   });
 
+  runAutoArchiveIfNeeded();
   renderWatchlist();
 </script>

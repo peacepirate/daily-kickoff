@@ -88,9 +88,11 @@ const themeFilterLabels: Record<string, string> = {
         <button class="status-tab" data-status-filter="snoozed">
           Later <span class="tab-count" id="cnt-later">—</span>
         </button>
+        <button class="status-tab" data-status-filter="starred">Starred <span class="tab-count" id="cnt-starred">—</span></button>
         <button class="status-tab" data-status-filter="done">
           Done <span class="tab-count" id="cnt-done">—</span>
         </button>
+        <button class="status-tab" data-status-filter="archived">Archived <span class="tab-count" id="cnt-archived">—</span></button>
       </div>
 
       <div class="watchlist-card">
@@ -110,6 +112,8 @@ const themeFilterLabels: Record<string, string> = {
             <button class="wl-bulk-btn" id="wl-bulk-done"   disabled>✓ Done</button>
             <button class="wl-bulk-btn" id="wl-bulk-snooze" disabled>⏸ Later</button>
             <button class="wl-bulk-btn" id="wl-bulk-reopen" disabled>↺ Reopen</button>
+            <button class="wl-bulk-btn" id="wl-bulk-star"   disabled>★ Star</button>
+            <button class="wl-bulk-btn" id="wl-bulk-unstar" disabled>☆ Unstar</button>
             <button class="wl-bulk-btn wl-bulk-cancel" id="wl-bulk-cancel">Cancel</button>
           </div>
           {allItems.map(item => (
@@ -117,6 +121,7 @@ const themeFilterLabels: Record<string, string> = {
               <label class="wl-checkbox-wrap">
                 <input type="checkbox" class="wl-checkbox" data-wl-id={item.id} />
               </label>
+              <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
               <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
                 {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
               </span>
@@ -126,6 +131,7 @@ const themeFilterLabels: Record<string, string> = {
               <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
               <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⏸ Later</button>
               <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
+              <button class="watchlist-action" data-wl-action="unarchive" data-wl-id={item.id} style="display:none;">↺ Restore</button>
             </div>
           ))}
           <div class="wl-empty-state" id="wl-filter-empty" style="display:none;">
@@ -140,45 +146,114 @@ const themeFilterLabels: Record<string, string> = {
 </Layout>
 
 <script>
+  function getStoredValue(id: string): Record<string, unknown> {
+    try { return JSON.parse(localStorage.getItem(id) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+  }
+  function setStatus(id: string, status: 'done' | 'snoozed' | 'archived' | null): void {
+    const v = getStoredValue(id);
+    if (status === null) { delete v.status; } else { v.status = status; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+  function isStarred(id: string): boolean {
+    return getStoredValue(id).starred === true;
+  }
+  function setStar(id: string, starred: boolean): void {
+    const v = getStoredValue(id);
+    if (starred) { v.starred = true; } else { delete v.starred; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+  function runAutoArchiveIfNeeded(): void {
+    const META_KEY = 'wl:meta:last-archive-run';
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(META_KEY) === today) return;
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - 60);
+    const cutoffMs = cutoff.getTime();
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      const id = el.dataset.wlId!;
+      const parts = id.split(':');
+      if (parts.length < 4) return;
+      const dateStr = parts[1]!;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+      const itemDateMs = new Date(dateStr + 'T00:00:00Z').getTime();
+      if (itemDateMs > cutoffMs) return;
+      if (isStarred(id)) return;
+      const v = getStoredValue(id);
+      if (v.status === 'archived') return;
+      setStatus(id, 'archived');
+    });
+    localStorage.setItem(META_KEY, today);
+  }
+
   let activeStatusFilter = 'open';
   let activeThemeFilter = 'all';
 
-  function getStatus(id: string): 'open' | 'done' | 'snoozed' {
+  function getStatus(id: string): 'open' | 'done' | 'snoozed' | 'archived' {
     try {
       const v = JSON.parse(localStorage.getItem(id) ?? '{}');
-      if (v.status === 'done' || v.status === 'snoozed') return v.status as 'done' | 'snoozed';
+      if (v.status === 'done' || v.status === 'snoozed' || v.status === 'archived') return v.status;
     } catch {}
     return 'open';
   }
 
   function renderAll() {
     const items = document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]');
-    const counts: Record<string, number> = { open: 0, done: 0, snoozed: 0 };
+    const counts: Record<string, number> = { open: 0, done: 0, snoozed: 0, starred: 0, archived: 0 };
 
     items.forEach(el => {
       const id = el.dataset.wlId!;
       const status = getStatus(id);
+      const starred = isStarred(id);
       el.dataset.status = status;
-      counts[status] = (counts[status] ?? 0) + 1;
+      el.dataset.starred = String(starred);
 
-      const reopenBtn = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
-      const doneBtn   = el.querySelector<HTMLElement>('[data-wl-action="done"]');
-      const snoozeBtn = el.querySelector<HTMLElement>('[data-wl-action="snooze"]');
-      if (reopenBtn) reopenBtn.style.display = status !== 'open' ? '' : 'none';
-      if (doneBtn)   doneBtn.style.display   = status === 'open' ? '' : 'none';
-      if (snoozeBtn) snoozeBtn.style.display = status === 'open' ? '' : 'none';
+      // Update star button
+      const starBtn = el.querySelector<HTMLButtonElement>('.wl-star');
+      if (starBtn) {
+        starBtn.textContent = starred ? '★' : '☆';
+        starBtn.setAttribute('aria-pressed', String(starred));
+        starBtn.title = starred ? 'Unstar' : 'Star';
+      }
 
-      const statusMatch = activeStatusFilter === 'all' || el.dataset.status === activeStatusFilter;
-      const themeMatch  = activeThemeFilter  === 'all' || el.dataset.themeId  === activeThemeFilter;
+      // Update per-item action button visibility
+      const reopenBtn   = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
+      const doneBtn     = el.querySelector<HTMLElement>('[data-wl-action="done"]');
+      const snoozeBtn   = el.querySelector<HTMLElement>('[data-wl-action="snooze"]');
+      const restoreBtn  = el.querySelector<HTMLElement>('[data-wl-action="unarchive"]');
+      if (doneBtn)    doneBtn.style.display    = status === 'open' ? '' : 'none';
+      if (snoozeBtn)  snoozeBtn.style.display  = status === 'open' ? '' : 'none';
+      if (reopenBtn)  reopenBtn.style.display  = (status !== 'open' && status !== 'archived') ? '' : 'none';
+      if (restoreBtn) restoreBtn.style.display = status === 'archived' ? '' : 'none';
+
+      // Counts
+      if (status === 'archived') {
+        counts.archived++;
+      } else {
+        counts[status] = (counts[status] ?? 0) + 1;
+        if (starred) counts.starred++;
+      }
+
+      // Visibility
+      const statusMatch =
+        activeStatusFilter === 'all'      ? status !== 'archived' :
+        activeStatusFilter === 'starred'  ? (starred && status !== 'archived') :
+        activeStatusFilter === 'archived' ? status === 'archived' :
+        status === activeStatusFilter;
+      const themeMatch = activeThemeFilter === 'all' || el.dataset.themeId === activeThemeFilter;
       el.style.display = (statusMatch && themeMatch) ? '' : 'none';
     });
 
-    const openCount  = document.getElementById('cnt-open');
-    const laterCount = document.getElementById('cnt-later');
-    const doneCount  = document.getElementById('cnt-done');
-    if (openCount)  openCount.textContent  = String(counts.open  ?? 0);
-    if (laterCount) laterCount.textContent = String(counts.snoozed ?? 0);
-    if (doneCount)  doneCount.textContent  = String(counts.done  ?? 0);
+    // Update tab count badges
+    const openCount     = document.getElementById('cnt-open');
+    const laterCount    = document.getElementById('cnt-later');
+    const doneCount     = document.getElementById('cnt-done');
+    const starredCount  = document.getElementById('cnt-starred');
+    const archivedCount = document.getElementById('cnt-archived');
+    if (openCount)     openCount.textContent     = String(counts.open     ?? 0);
+    if (laterCount)    laterCount.textContent    = String(counts.snoozed  ?? 0);
+    if (doneCount)     doneCount.textContent     = String(counts.done     ?? 0);
+    if (starredCount)  starredCount.textContent  = String(counts.starred  ?? 0);
+    if (archivedCount) archivedCount.textContent = String(counts.archived ?? 0);
 
     const sub = document.getElementById('watchlist-subtitle');
     if (sub) sub.textContent = `${counts.open ?? 0} open · ${counts.snoozed ?? 0} later · ${counts.done ?? 0} done`;
@@ -212,36 +287,36 @@ const themeFilterLabels: Record<string, string> = {
     });
   });
 
-  // Item actions (Done / Later / Reopen)
   document.addEventListener('click', e => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-action]');
     if (!btn) return;
     const id     = btn.dataset.wlId!;
     const action = btn.dataset.wlAction!;
-    if (action === 'done')   localStorage.setItem(id, JSON.stringify({ status: 'done' }));
-    if (action === 'snooze') localStorage.setItem(id, JSON.stringify({ status: 'snoozed' }));
-    if (action === 'reopen') localStorage.removeItem(id);
+    if (action === 'done')      setStatus(id, 'done');
+    if (action === 'snooze')    setStatus(id, 'snoozed');
+    if (action === 'reopen')    setStatus(id, null);
+    if (action === 'unarchive') setStatus(id, null);
+    if (action === 'star')      setStar(id, !isStarred(id));
     renderAll();
   });
 
-  // Bulk: mark visible open items as done
   document.getElementById('mark-visible-done')?.addEventListener('click', () => {
     document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
       if (el.style.display !== 'none' && el.dataset.status === 'open') {
-        localStorage.setItem(el.dataset.wlId!, JSON.stringify({ status: 'done' }));
+        setStatus(el.dataset.wlId!, 'done');
       }
     });
     renderAll();
   });
 
-  // Bulk: clear done items
   document.getElementById('clear-done')?.addEventListener('click', () => {
     document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
-      if (getStatus(el.dataset.wlId!) === 'done') localStorage.removeItem(el.dataset.wlId!);
+      if (getStatus(el.dataset.wlId!) === 'done') setStatus(el.dataset.wlId!, null);
     });
     renderAll();
   });
 
+  runAutoArchiveIfNeeded();
   renderAll();
 
 // ── Multi-select ──────────────────────────────────────────────────────────────
@@ -257,6 +332,8 @@ function updateBulkBar() {
   (document.getElementById('wl-bulk-done')   as HTMLButtonElement).disabled = !hasAny;
   (document.getElementById('wl-bulk-snooze') as HTMLButtonElement).disabled = !hasAny;
   (document.getElementById('wl-bulk-reopen') as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-star')   as HTMLButtonElement).disabled = !hasAny;
+  (document.getElementById('wl-bulk-unstar') as HTMLButtonElement).disabled = !hasAny;
 
   const visibleCbs = [...document.querySelectorAll<HTMLInputElement>('.wl-checkbox')]
     .filter(cb => (cb.closest('.watchlist-item') as HTMLElement)?.style.display !== 'none');
@@ -328,15 +405,23 @@ document.getElementById('wl-select-toggle')?.addEventListener('click', () => {
 
 // Bulk actions
 document.getElementById('wl-bulk-done')?.addEventListener('click', () => {
-  selectedIds.forEach(id => localStorage.setItem(id, JSON.stringify({ status: 'done' })));
+  selectedIds.forEach(id => setStatus(id, 'done'));
   exitSelectMode(); renderAll();
 });
 document.getElementById('wl-bulk-snooze')?.addEventListener('click', () => {
-  selectedIds.forEach(id => localStorage.setItem(id, JSON.stringify({ status: 'snoozed' })));
+  selectedIds.forEach(id => setStatus(id, 'snoozed'));
   exitSelectMode(); renderAll();
 });
 document.getElementById('wl-bulk-reopen')?.addEventListener('click', () => {
-  selectedIds.forEach(id => localStorage.removeItem(id));
+  selectedIds.forEach(id => setStatus(id, null));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-star')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStar(id, true));
+  exitSelectMode(); renderAll();
+});
+document.getElementById('wl-bulk-unstar')?.addEventListener('click', () => {
+  selectedIds.forEach(id => setStar(id, false));
   exitSelectMode(); renderAll();
 });
 document.getElementById('wl-bulk-cancel')?.addEventListener('click', exitSelectMode);

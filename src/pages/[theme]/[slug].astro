@@ -136,15 +136,23 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
 </Layout>
 
 <script>
+  function getStoredValue(id: string): Record<string, unknown> {
+    try { return JSON.parse(localStorage.getItem(id) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+  }
+  function setStatus(id: string, status: 'done' | 'snoozed' | 'archived' | null): void {
+    const v = getStoredValue(id);
+    if (status === null) { delete v.status; } else { v.status = status; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+
   document.getElementById('mark-all-read')?.addEventListener('click', e => {
     e.preventDefault();
-    // Extract slug robustly (strip trailing slash, take last segment)
     const parts = window.location.pathname.replace(/\/$/, '').split('/');
     const slug = parts.at(-1)!;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key?.includes(`:${slug}:`)) {
-        localStorage.setItem(key, JSON.stringify({ status: 'done' }));
+        setStatus(key, 'done');
       }
     }
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
