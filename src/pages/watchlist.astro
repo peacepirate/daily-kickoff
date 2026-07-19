@@ -121,17 +121,17 @@ const themeFilterLabels: Record<string, string> = {
               <label class="wl-checkbox-wrap">
                 <input type="checkbox" class="wl-checkbox" data-wl-id={item.id} />
               </label>
-              <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
               <span class={`tag tag-${item.type === 'readDeeper' ? 'read' : item.type}`} style="min-width:76px;">
                 {item.type === 'try' ? 'TRY' : item.type === 'share' ? 'SHARE' : 'READ DEEPER'}
               </span>
               <span class="watchlist-text">{item.text}</span>
               <a href={item.digestHref} class={`tag tag-meta tag-theme-${item.themeId}`} style="text-decoration:none; margin-left:4px;">{item.themeLabel}</a>
               <span class="tag tag-meta tag-theme-date">{item.dateLabel}</span>
-              <button class="watchlist-action" data-wl-action="done"   data-wl-id={item.id}>✓ Done</button>
-              <button class="watchlist-action" data-wl-action="snooze" data-wl-id={item.id}>⏸ Later</button>
+              <button class="watchlist-action watchlist-action-icon" data-wl-action="done"   data-wl-id={item.id} title="Mark done">✓</button>
+              <button class="watchlist-action watchlist-action-icon" data-wl-action="snooze" data-wl-id={item.id} title="Snooze for later">⏸</button>
               <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
               <button class="watchlist-action" data-wl-action="unarchive" data-wl-id={item.id} style="display:none;">↺ Restore</button>
+              <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
             </div>
           ))}
           <div class="wl-empty-state" id="wl-filter-empty" style="display:none;">

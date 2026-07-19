@@ -355,6 +355,11 @@ a.tag-theme-date:hover { text-decoration: underline; color: var(--text); }
   background: var(--bg-hover);
   color: var(--text);
 }
+/* Icon-only Done / Later buttons — tighter padding, slightly larger glyph */
+.watchlist-action-icon {
+  padding: 2px 5px;
+  font-size: 13px;
+}
 .watchlist-empty {
   color: var(--text-faint);
   font-size: 13px;
@@ -925,6 +930,7 @@ a.tag-theme-date:hover { text-decoration: underline; color: var(--text); }
   flex-shrink: 0;
   line-height: 1;
   transition: color 0.1s;
+  margin-left: 4px;
 }
 .wl-star:hover { color: var(--amber); background: var(--bg-hover); }
 .wl-star[aria-pressed="true"] { color: var(--amber); }
