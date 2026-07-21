@@ -412,12 +412,26 @@ a.tag-theme-date:hover { text-decoration: underline; color: var(--text); }
 }
 
 /* ── Reading cadence ── */
+.cadence-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
 .cadence {
   display: flex;
   gap: 4px;
   align-items: center;
   flex-wrap: wrap;
   margin-top: 16px;
+}
+.cadence.cadence-inline {
+  margin-top: 0;
 }
 .cadence-cell {
   width: 14px;

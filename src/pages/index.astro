@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getCollection } from 'astro:content';
-import { fmtDate } from '../utils/date';
+import { fmtDate, utcDateKey } from '../utils/date';
 const B = import.meta.env.BASE_URL;
 
 const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
@@ -50,6 +50,16 @@ for (const entry of allEntries) {
   });
 }
 
+// Reading cadence — last 21 days
+const today = new Date();
+const allDigestDates = new Set(allEntries.map(e => e.id.replace(/\.(md|mdx)$/, '')));
+const cadenceDays = Array.from({ length: 21 }, (_, i) => {
+  const d = new Date(today);
+  d.setDate(today.getDate() - (20 - i));
+  const key = utcDateKey(d);
+  return { key, label: fmtDate(d, { month: 'short', day: 'numeric', timeZone: 'America/New_York' }), hasDigest: allDigestDates.has(key) };
+});
+
 const uniqueThemes = [...new Set(allItems.map(i => i.themeId))];
 const themeFilterLabels: Record<string, string> = {
   'ai': 'AI',
@@ -62,6 +72,20 @@ const themeFilterLabels: Record<string, string> = {
 ---
 
 <Layout title="Watchlist">
+  <div class="cadence-banner">
+    <span class="cadence-label">Last 21 days</span>
+    <div class="cadence cadence-inline">
+      {cadenceDays.map(day => (
+        <span
+          class={`cadence-cell${day.hasDigest ? ' has-digest' : ''}`}
+          title={`${day.label}${day.hasDigest ? ' — digest published' : ''}`}
+          data-cadence-key={day.key}
+        />
+      ))}
+    </div>
+    <span class="cadence-label">{cadenceDays.filter(d => d.hasDigest).length} / 21</span>
+  </div>
+
   <h1>★ Watchlist</h1>
   <div class="page-meta" id="wl-page-meta">Action items across all themes</div>
 
