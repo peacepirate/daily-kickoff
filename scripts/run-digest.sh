@@ -59,6 +59,7 @@ $(cat "$CONTENT_FILE")"
 "$CLAUDE_BIN" \
   --dangerously-skip-permissions \
   --print \
+  --model claude-sonnet-5 \
   "$FULL_PROMPT" \
   2>&1 | tee -a "$LOG_FILE"
 
