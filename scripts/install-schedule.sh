@@ -1,6 +1,6 @@
 #!/bin/bash
-# One-time setup: installs a macOS launchd agent that runs all digest topics
-# at 11:00 PM every night (Mon–Sat; Sundays skipped by run-all-topics.sh).
+# One-time setup: installs a macOS launchd agent that runs the job orchestrator
+# at 11:00 PM every night. Which jobs run is decided per job by `schedule:`.
 #
 # Usage: bash scripts/install-schedule.sh
 # To uninstall: bash scripts/install-schedule.sh --uninstall
@@ -10,7 +10,7 @@ set -euo pipefail
 LABEL="fyi.priyesh.daily-digest"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-RUN_SCRIPT="$REPO_DIR/scripts/run-all-topics.sh"
+RUN_SCRIPT="$REPO_DIR/scripts/run-jobs.sh"
 LOG_DIR="$REPO_DIR/scripts/logs"
 
 if [ "${1:-}" = "--uninstall" ]; then
@@ -38,7 +38,7 @@ cat > "$PLIST" <<EOF
     <string>${RUN_SCRIPT}</string>
   </array>
 
-  <!-- Fire at 11:00 PM every night; run-all-topics.sh skips Sundays itself -->
+  <!-- Fire at 11:00 PM every night; each job gates itself on its own schedule -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
@@ -69,7 +69,7 @@ launchctl load -w "$PLIST"
 
 echo ""
 echo "✓ Installed: $LABEL"
-echo "  Fires daily at 11:00 PM local time (Sundays skipped)."
+echo "  Fires daily at 11:00 PM local time; each job gates on its own schedule."
 echo "  Logs: $LOG_DIR/"
 echo ""
 echo "  To test a manual run right now:"

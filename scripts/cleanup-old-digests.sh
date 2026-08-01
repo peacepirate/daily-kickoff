@@ -1,6 +1,6 @@
 #!/bin/bash
 # Deletes digest .md files older than N days that do NOT have `starred: true` in their frontmatter.
-# Manual tool — not wired into run-all-topics.sh.
+# Manual tool — not wired into run-jobs.sh.
 #
 # `starred: true` must be added to the frontmatter by hand. The site's ★ button
 # is unrelated: it writes per-action-item keys to browser localStorage only.
