@@ -1,0 +1,119 @@
+#!/bin/bash
+# kickoff — CLI for the Daily Kickoff content engine (Phase 2).
+#
+# Code lives in this repo; data lives in $STUDIO_DIR (a separate private repo).
+#
+# Usage: kickoff <command> [args]
+
+set -euo pipefail
+
+# Resolve through symlinks — this is normally invoked via ~/.local/bin/kickoff.
+# BSD readlink has no -f, so walk the chain manually.
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  TARGET="$(readlink "$SELF")"
+  case "$TARGET" in
+    /*) SELF="$TARGET" ;;
+    *)  SELF="$(cd "$(dirname "$SELF")" && pwd)/$TARGET" ;;
+  esac
+done
+REPO_DIR="$(cd "$(dirname "$SELF")/../.." && pwd)"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/kickoff/config"
+
+resolve_studio_dir() {
+  if [ -n "${STUDIO_DIR:-}" ]; then
+    echo "$STUDIO_DIR"; return
+  fi
+  if [ -f "$CONFIG_FILE" ]; then
+    local from_config
+    from_config=$(grep -E '^STUDIO_DIR=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'"'' || true)
+    if [ -n "$from_config" ]; then echo "${from_config/#\~/$HOME}"; return; fi
+  fi
+  echo "$(cd "$REPO_DIR/../.." && pwd)/kickoff-studio"
+}
+
+STUDIO_DIR="$(resolve_studio_dir)"
+
+# Never auto-create. An empty studio looks healthy and silently yields empty
+# corpus bundles.
+require_studio() {
+  if [ ! -d "$STUDIO_DIR" ]; then
+    cat >&2 <<EOF
+ERROR: STUDIO_DIR does not exist: $STUDIO_DIR
+
+Fix one of:
+  git clone git@github.com:peacepirate/kickoff-studio.git "$STUDIO_DIR"
+  export STUDIO_DIR=/path/to/kickoff-studio
+  echo 'STUDIO_DIR=/path/to/kickoff-studio' >> $CONFIG_FILE
+EOF
+    exit 1
+  fi
+  local missing=""
+  for d in notes angles drafts published engagement state; do
+    [ -d "$STUDIO_DIR/$d" ] || missing="$missing $d"
+  done
+  if [ -n "$missing" ]; then
+    echo "ERROR: $STUDIO_DIR is missing required directories:$missing" >&2
+    echo "       Is this the right studio? Expected the kickoff-studio layout." >&2
+    exit 1
+  fi
+}
+
+usage() {
+  cat <<EOF
+kickoff — Daily Kickoff content engine
+
+Usage: kickoff <command> [args]
+
+Commands:
+  note <text>          Capture a field note              (Epic 2)
+  draft <angle-id>     Generate channel drafts           (Epic 5)
+  approve <slug>       Publish a draft, copy to clipboard (Epic 6)
+  engagement <slug>    Record post-hoc metrics           (Epic 7)
+  doctor               Check studio wiring
+  --help               This message
+
+Paths:
+  repo        $REPO_DIR
+  STUDIO_DIR  $STUDIO_DIR$([ -d "$STUDIO_DIR" ] && echo "" || echo "   (MISSING)")
+
+Resolution order: \$STUDIO_DIR -> $CONFIG_FILE -> <repo>/../../kickoff-studio
+EOF
+}
+
+not_yet() {
+  echo "kickoff $1: not implemented yet — lands in $2." >&2
+  exit 2
+}
+
+cmd_doctor() {
+  require_studio
+  echo "STUDIO_DIR   $STUDIO_DIR  OK"
+  echo "directories  notes angles drafts published engagement state  OK"
+  if git -C "$STUDIO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    local remote
+    remote=$(git -C "$STUDIO_DIR" remote get-url origin 2>/dev/null || echo "none")
+    echo "git          $remote"
+    if [ "$remote" != "none" ]; then
+      case "$( (cd "$STUDIO_DIR" && gh repo view --json visibility -q .visibility) 2>/dev/null || echo unknown)" in
+        PRIVATE) echo "visibility   PRIVATE  OK" ;;
+        PUBLIC)  echo "visibility   PUBLIC — this repo holds field notes. Fix before capturing." ;;
+        *)       echo "visibility   unknown (gh unavailable)" ;;
+      esac
+    fi
+  else
+    echo "git          not a repo — notes will have no history"
+  fi
+  echo "corpus       $(find "$REPO_DIR/src/content" -name '20*.md' 2>/dev/null | wc -l | tr -d ' ') digests"
+  echo "notes        $(find "$STUDIO_DIR/notes" -name '*.md' 2>/dev/null | wc -l | tr -d ' ') files"
+}
+
+case "${1:---help}" in
+  --help|-h|help) usage ;;
+  doctor)         cmd_doctor ;;
+  note)           require_studio; not_yet note "Epic 2" ;;
+  draft)          require_studio; not_yet draft "Epic 5" ;;
+  approve)        require_studio; not_yet approve "Epic 6" ;;
+  engagement)     require_studio; not_yet engagement "Epic 7" ;;
+  *)              echo "Unknown command: $1" >&2; echo >&2; usage >&2; exit 1 ;;
+esac
