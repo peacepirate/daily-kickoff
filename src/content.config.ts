@@ -4,7 +4,7 @@ import { glob } from 'astro/loaders';
 const digestSchema = z.object({
   title: z.string(),
   date: z.coerce.date(),
-  theme: z.enum(['ai', 'leadership', 'local-llm', 'mythology', 'richmond', 'rva-events']),
+  theme: z.enum(['ai', 'leadership', 'rva-events', 'tech']),
   format: z.enum(['daily', 'weekly-synthesis']).default('daily'),
   tldr: z.string(),
   itemCount: z.number(),
@@ -22,6 +22,7 @@ const digestSchema = z.object({
       skip: z.array(z.string()).default([]),
     })
     .default({ try: [], share: [], readDeeper: [], skip: [] }),
+  starred: z.boolean().default(false),
 });
 
 export const collections = {
@@ -33,20 +34,12 @@ export const collections = {
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/leadership' }),
     schema: digestSchema,
   }),
-  mythology: defineCollection({
-    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/mythology' }),
-    schema: digestSchema,
-  }),
-  richmond: defineCollection({
-    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/richmond' }),
-    schema: digestSchema,
-  }),
-  'local-llm': defineCollection({
-    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/local-llm' }),
-    schema: digestSchema,
-  }),
   'rva-events': defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/rva-events' }),
+    schema: digestSchema,
+  }),
+  tech: defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/tech' }),
     schema: digestSchema,
   }),
 };

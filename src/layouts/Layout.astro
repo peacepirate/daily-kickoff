@@ -10,35 +10,29 @@ interface BreadcrumbItem {
 interface Props {
   title?: string;
   breadcrumb?: BreadcrumbItem[];
-  activeTheme?: 'ai' | 'leadership' | 'local-llm' | 'mythology' | 'richmond' | 'rva-events' | 'watchlist' | 'preferences';
+  activeTheme?: 'ai' | 'leadership' | 'rva-events' | 'tech' | 'watchlist' | 'preferences';
 }
 
 const { title = 'priyesh.fyi', breadcrumb = [], activeTheme } = Astro.props;
 
-const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, rvaEventsEntries, techEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
-  getCollection('local-llm'),
-  getCollection('mythology'),
-  getCollection('richmond'),
   getCollection('rva-events'),
+  getCollection('tech'),
 ]);
 
 const themeCounts = {
   ai: aiEntries.length,
   leadership: leadershipEntries.length,
-  'local-llm': localLlmEntries.length,
-  mythology: mythologyEntries.length,
-  richmond: richmondEntries.length,
   'rva-events': rvaEventsEntries.length,
+  tech: techEntries.length,
 };
 
 const themeNav = [
   { id: 'ai',          label: 'AI Intelligence',    count: themeCounts.ai },
   { id: 'leadership',  label: 'Eng Leadership',      count: themeCounts.leadership },
-  { id: 'mythology',   label: 'Mythology Research',  count: themeCounts.mythology },
-  { id: 'richmond',    label: 'Richmond & Family',   count: themeCounts.richmond },
-  { id: 'local-llm',   label: 'Local LLM',           count: themeCounts['local-llm'] },
+  { id: 'tech',        label: 'Tech & Gadgets',      count: themeCounts.tech },
   { id: 'rva-events',  label: 'RVA Events',          count: themeCounts['rva-events'] },
 ];
 

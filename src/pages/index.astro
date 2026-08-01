@@ -4,13 +4,11 @@ import { getCollection } from 'astro:content';
 import { fmtDate, utcDateKey } from '../utils/date';
 const B = import.meta.env.BASE_URL;
 
-const [aiEntries, leadershipEntries, localLlmEntries, mythologyEntries, richmondEntries, rvaEventsEntries] = await Promise.all([
+const [aiEntries, leadershipEntries, rvaEventsEntries, techEntries] = await Promise.all([
   getCollection('ai'),
   getCollection('leadership'),
-  getCollection('local-llm'),
-  getCollection('mythology'),
-  getCollection('richmond'),
   getCollection('rva-events'),
+  getCollection('tech'),
 ]);
 
 interface WatchlistItem {
@@ -28,10 +26,8 @@ const allItems: WatchlistItem[] = [];
 const allEntries = [
   ...aiEntries.map(e => ({ ...e, themeId: 'ai', themeLabel: 'AI Intelligence' })),
   ...leadershipEntries.map(e => ({ ...e, themeId: 'leadership', themeLabel: 'Eng Leadership' })),
-  ...mythologyEntries.map(e => ({ ...e, themeId: 'mythology', themeLabel: 'Mythology' })),
-  ...richmondEntries.map(e => ({ ...e, themeId: 'richmond', themeLabel: 'Richmond & Family' })),
-  ...localLlmEntries.map(e => ({ ...e, themeId: 'local-llm', themeLabel: 'Local LLM' })),
   ...rvaEventsEntries.map(e => ({ ...e, themeId: 'rva-events', themeLabel: 'RVA Events' })),
+  ...techEntries.map(e => ({ ...e, themeId: 'tech', themeLabel: 'Tech & Gadgets' })),
 ].sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 for (const entry of allEntries) {
@@ -65,9 +61,7 @@ const themeFilterLabels: Record<string, string> = {
   'ai': 'AI',
   'leadership': 'Leadership',
   'rva-events': 'RVA Events',
-  'richmond': 'Richmond',
-  'local-llm': 'Local LLM',
-  'mythology': 'Mythology',
+  'tech': 'Tech & Gadgets',
 };
 ---
 

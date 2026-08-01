@@ -292,9 +292,7 @@ h3 {
 .tag-theme-ai           { background: #eff6ff; color: #2563eb; }
 .tag-theme-leadership   { background: #f0fdf4; color: #15803d; }
 .tag-theme-rva-events   { background: #ecfdf5; color: #065f46; }
-.tag-theme-richmond     { background: #fff7ed; color: #c2410c; }
-.tag-theme-local-llm    { background: #faf5ff; color: #7c3aed; }
-.tag-theme-mythology    { background: #fdf4ff; color: #86198f; }
+.tag-theme-tech         { background: #fff7ed; color: #c2410c; }
 .tag-theme-date         { background: #f6f8fa; color: #656d76; border: 1px solid #e5e7eb; }
 /* Digest link on date chip */
 a.tag-theme-date { color: #656d76; }
