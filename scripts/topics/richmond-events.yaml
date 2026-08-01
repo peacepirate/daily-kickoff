@@ -1,8 +1,8 @@
-name: richmond-events
-theme: rva-events
-schedule: weekly
-output_collection: rva-events
-prompt: scripts/prompts/richmond-events.md
+name:     richmond-events
+schedule: saturday
+producer: fetch_sources.py --topic richmond-events
+prompt:   scripts/prompts/richmond-events.md
+output:   src/content/rva-events/{{DATE}}.md
 
 sources:
   tier1:

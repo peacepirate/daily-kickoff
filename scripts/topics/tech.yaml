@@ -1,8 +1,8 @@
-name: "Tech & Gadgets"
-theme: tech
-schedule: daily
-output_collection: tech
-prompt: scripts/prompts/tech.md
+name:     "Tech & Gadgets"
+schedule: weekdays
+producer: fetch_sources.py --topic tech
+prompt:   scripts/prompts/tech.md
+output:   src/content/tech/{{DATE}}.md
 
 sources:
   tier1:

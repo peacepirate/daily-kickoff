@@ -1,8 +1,8 @@
-name: "AI Intelligence"
-theme: ai
-schedule: daily
-output_collection: ai
-prompt: scripts/prompts/ai.md
+name:     "AI Intelligence"
+schedule: weekdays
+producer: fetch_sources.py --topic ai
+prompt:   scripts/prompts/ai.md
+output:   src/content/ai/{{DATE}}.md
 
 sources:
   tier1:

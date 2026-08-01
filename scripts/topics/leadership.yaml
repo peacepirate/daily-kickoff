@@ -1,8 +1,8 @@
-name: "Engineering Leadership"
-theme: leadership
-schedule: weekly
-output_collection: leadership
-prompt: scripts/prompts/leadership.md
+name:     "Engineering Leadership"
+schedule: saturday
+producer: fetch_sources.py --topic leadership
+prompt:   scripts/prompts/leadership.md
+output:   src/content/leadership/{{DATE}}.md
 
 sources:
   tier1:
