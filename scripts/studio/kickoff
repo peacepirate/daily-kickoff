@@ -18,46 +18,12 @@ while [ -L "$SELF" ]; do
   esac
 done
 REPO_DIR="$(cd "$(dirname "$SELF")/../.." && pwd)"
-CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/kickoff/config"
+. "$REPO_DIR/scripts/lib/job-config.sh"
 
-resolve_studio_dir() {
-  if [ -n "${STUDIO_DIR:-}" ]; then
-    echo "$STUDIO_DIR"; return
-  fi
-  if [ -f "$CONFIG_FILE" ]; then
-    local from_config
-    from_config=$(grep -E '^STUDIO_DIR=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'"'' || true)
-    if [ -n "$from_config" ]; then echo "${from_config/#\~/$HOME}"; return; fi
-  fi
-  echo "$(cd "$REPO_DIR/../.." && pwd)/kickoff-studio"
-}
-
+CONFIG_FILE="$KICKOFF_STUDIO_CONFIG"
 STUDIO_DIR="$(resolve_studio_dir)"
 
-# Never auto-create. An empty studio looks healthy and silently yields empty
-# corpus bundles.
-require_studio() {
-  if [ ! -d "$STUDIO_DIR" ]; then
-    cat >&2 <<EOF
-ERROR: STUDIO_DIR does not exist: $STUDIO_DIR
-
-Fix one of:
-  git clone git@github.com:peacepirate/kickoff-studio.git "$STUDIO_DIR"
-  export STUDIO_DIR=/path/to/kickoff-studio
-  echo 'STUDIO_DIR=/path/to/kickoff-studio' >> $CONFIG_FILE
-EOF
-    exit 1
-  fi
-  local missing=""
-  for d in notes angles drafts published engagement state; do
-    [ -d "$STUDIO_DIR/$d" ] || missing="$missing $d"
-  done
-  if [ -n "$missing" ]; then
-    echo "ERROR: $STUDIO_DIR is missing required directories:$missing" >&2
-    echo "       Is this the right studio? Expected the kickoff-studio layout." >&2
-    exit 1
-  fi
-}
+require_studio() { require_studio_dir "$STUDIO_DIR" || exit 1; }
 
 usage() {
   cat <<EOF
