@@ -113,22 +113,22 @@ Write TO Priyesh, not about him. State the "so what" for his role. No hype langu
 
 ## STEP 1 — Check date and determine format
 
-Run: `date +%Y-%m-%d` → this is TODAY
-Run: `date +%u` → 6 = Saturday (weekly synthesis), 1–5 = weekday (daily)
+Run date: {{DATE}}
+Output format: {{FORMAT}}
 
-Check: does `src/content/ai/TODAY.md` already exist? If yes, print "Already exists — skipping." and stop.
+Check: does `src/content/ai/{{DATE}}.md` already exist? If yes, print "Already exists — skipping." and stop.
 
 ## STEP 2 — Write the digest file
 
 Using the fetched content below, generate the digest in the correct format.
-Write to `src/content/ai/TODAY.md` with this exact structure:
+Write to `src/content/ai/{{DATE}}.md` with this exact structure:
 
 ```
 ---
 title: "[digest heading]"
-date: TODAY
+date: {{DATE}}
 theme: ai
-format: [daily | weekly-synthesis]
+format: {{FORMAT}}
 tldr: "[TL;DR text verbatim]"
 itemCount: [integer — count of items in What's New / tier sections]
 readTimeMinutes: [integer]
@@ -155,4 +155,4 @@ actions:
 The orchestrator (`run-all-topics.sh`) handles all git operations after all topics complete.
 Your job ends when the file is written. Do not run `git add`, `git commit`, or `git push`.
 
-Print: "✓ AI digest for TODAY written to src/content/ai/TODAY.md"
+Print: "✓ AI digest for {{DATE}} written to src/content/ai/{{DATE}}.md"

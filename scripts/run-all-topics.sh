@@ -45,31 +45,50 @@ for config in "$TOPICS_DIR"/*.yaml; do
     continue
   fi
 
-  # Idempotency: skip if today's output already exists
+  # Idempotency: skip if today's output already exists (-s, so an empty file from
+  # a killed run doesn't block the topic forever)
   OUTPUT_FILE="$REPO_DIR/src/content/$THEME/$DATE.md"
-  if [ -f "$OUTPUT_FILE" ]; then
+  if [ -s "$OUTPUT_FILE" ]; then
     log "$TOPIC: output exists — skipping"
     continue
   fi
 
   log "--- Running topic: $TOPIC ---"
-  # Subshell isolates set -e failures so one topic failure doesn't kill the loop
-  (bash "$REPO_DIR/scripts/run-topic.sh" "$TOPIC") \
+  # Subshell isolates set -e failures so one topic failure doesn't kill the loop.
+  # DIGEST_DATE is inherited so a run crossing midnight can't write a file this
+  # orchestrator isn't guarding.
+  (DIGEST_DATE="$DATE" bash "$REPO_DIR/scripts/run-topic.sh" "$TOPIC") \
     && COMMITTED=$((COMMITTED + 1)) \
     || { log "WARN: $TOPIC failed"; FAILED_TOPICS="$FAILED_TOPICS $TOPIC"; }
 done
 
-# Single commit for all successfully generated content
-if git -C "$REPO_DIR" diff --quiet HEAD -- src/content/ 2>/dev/null; then
+# Single commit for all successfully generated content.
+# Uses porcelain, not `git diff HEAD`, which cannot see untracked files — and
+# every new digest is untracked.
+if [ -z "$(git -C "$REPO_DIR" status --porcelain -- src/content/)" ]; then
   log "No new content to commit."
 else
-  git -C "$REPO_DIR" add src/content/
+  git -C "$REPO_DIR" add -A src/content/
   git -C "$REPO_DIR" commit -m "digest: $DATE [automated]"
-  git -C "$REPO_DIR" push origin main
-  log "Pushed $COMMITTED topic(s)."
+  log "Committed $COMMITTED topic(s)."
+fi
+
+# Push separately so a push failure doesn't abort the run, and so unpushed
+# commits are retried on later nights.
+UNPUSHED=$(git -C "$REPO_DIR" rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+if [ "$UNPUSHED" != "0" ]; then
+  log "Pushing $UNPUSHED unpushed commit(s)..."
+  if git -C "$REPO_DIR" push origin main 2>&1 | tee -a "$LOG_FILE"; then
+    log "Push OK."
+  else
+    log "ERROR: push failed — $UNPUSHED commit(s) remain local. Will retry next run."
+  fi
 fi
 
 if [ -n "$FAILED_TOPICS" ]; then
   log "FAILED topics:$FAILED_TOPICS"
 fi
+
+# cleanup-old-digests.sh is intentionally not wired in — run it manually.
+
 log "=== run-all-topics finished $(date) ==="

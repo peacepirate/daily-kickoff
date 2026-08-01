@@ -13,9 +13,9 @@ Write TO Priyesh like a well-connected Richmond local who scanned all the calend
 
 ## THIS IS A FORWARD-LOOKING EVENTS DIGEST
 
-- **Window:** next 30 days from TODAY (the Saturday run date)
+- **Window:** next 30 days from {{DATE}} (the Saturday run date)
 - **Never include:** events that have already occurred
-- **Deduplication boundary:** events occurring on TODAY or TODAY+1 (Sunday) belong in the Richmond news digest — exclude them here
+- **Run weekend:** events on {{DATE}} or {{DATE_PLUS_1}} (Sunday) are included, in Week 1
 - **Organize:** by week bucket first (Week 1 through Week 4), then by category within each week, then chronologically within each category
 
 ## DISTANCE WEIGHTING
@@ -47,8 +47,7 @@ When surfacing non-RVA items, prefix with the zone: **Metro:** or **Extended Met
 - Pure partisan fundraisers (campaign rally, party gala, political fundraising dinner) — no civic-access angle
 - Generic charity 5Ks and ribbon cuttings with no broader community draw
 - Events outside the distance zones defined above
-- Events whose date has already passed as of TODAY
-- Events occurring TODAY or TODAY+1 (belongs in richmond news digest)
+- Events whose date has already passed as of {{DATE}}
 
 ## VOLUME TARGET
 
@@ -123,10 +122,10 @@ If light: "Light calendar this month — nothing requiring advance booking." No 
 ```
 
 **Rules for week buckets:**
-- Week 1 starts the Monday after the run date (TODAY+2)
+- Week 1 covers the run date through the following Sunday
 - Week 2 is the following Mon–Sun
 - Week 3 is the following Mon–Sun
-- Week 4 covers the remainder through TODAY+30
+- Week 4 covers the remainder through {{DATE_PLUS_30}}
 - Omit a week section entirely if no qualifying events fall in that window
 - Omit a category sub-section if no events in that week belong to it
 - Within each category, list events in ascending date order (earliest first)
@@ -170,22 +169,21 @@ Each HTML-sourced event in the fetched content carries a `DATE:` field:
 
 ## STEP 1 — Check date
 
-Run: `date +%Y-%m-%d` → this is TODAY
-Run: `date +%u` → should be 6 (Saturday)
+Run date: {{DATE}} (should be a Saturday)
 
-Calculate the 30-day window end: TODAY + 30 days.
+The 30-day window ends {{DATE_PLUS_30}}.
 
-Check: does `src/content/rva-events/TODAY.md` already exist? If yes, print "Already exists — skipping." and stop.
+Check: does `src/content/rva-events/{{DATE}}.md` already exist? If yes, print "Already exists — skipping." and stop.
 
 ## STEP 2 — Write the digest file
 
 Using the fetched content below, generate the forward-looking events calendar.
-Write to `src/content/rva-events/TODAY.md` with this exact structure:
+Write to `src/content/rva-events/{{DATE}}.md` with this exact structure:
 
 ```
 ---
 title: "Richmond Events — [Month DD]–[Month DD, YYYY]"
-date: TODAY
+date: {{DATE}}
 theme: rva-events
 format: weekly-synthesis
 tldr: "[2-sentence summary of top 2-3 events this window]"
@@ -214,4 +212,4 @@ actions:
 The orchestrator (`run-all-topics.sh`) handles all git operations after all topics complete.
 Do not run `git add`, `git commit`, or `git push`.
 
-Print: "✓ Richmond Events digest for TODAY written to src/content/rva-events/TODAY.md"
+Print: "✓ Richmond Events digest for {{DATE}} written to src/content/rva-events/{{DATE}}.md"

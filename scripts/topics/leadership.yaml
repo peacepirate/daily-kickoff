@@ -20,6 +20,18 @@ sources:
       max_items: 5
 
   tier2:
+    - name: "Rands in Repose"
+      kind: rss
+      url: "https://randsinrepose.com/feed/"
+      max_items: 5
+    - name: "Level Up"
+      kind: html
+      url: "https://levelup.patkua.com"
+      max_items: 5
+    - name: "Camille Fournier"
+      kind: rss
+      url: "https://medium.com/feed/@skamille"
+      max_items: 5
     - name: "The Pragmatic Engineer"
       kind: rss
       url: "https://newsletter.pragmaticengineer.com/feed"

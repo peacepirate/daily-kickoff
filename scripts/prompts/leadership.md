@@ -95,20 +95,20 @@ Write TO Priyesh as a peer EM who did the reading for him. Use "you" not "he." B
 
 ## STEP 1 — Check date
 
-Run: `date +%Y-%m-%d` → this is TODAY
-Run: `date +%u` → should be 6 (Saturday)
+Run date: {{DATE}}
+Output format: {{FORMAT}}
 
-Check: does `src/content/leadership/TODAY.md` already exist? If yes, print "Already exists — skipping." and stop.
+Check: does `src/content/leadership/{{DATE}}.md` already exist? If yes, print "Already exists — skipping." and stop.
 
 ## STEP 2 — Write the digest file
 
 Using the fetched content below, generate the weekly synthesis.
-Write to `src/content/leadership/TODAY.md` with this exact structure:
+Write to `src/content/leadership/{{DATE}}.md` with this exact structure:
 
 ```
 ---
 title: "Engineering Leadership Weekly — Week of [Mon]–[Sat date, YYYY]"
-date: TODAY
+date: {{DATE}}
 theme: leadership
 format: weekly-synthesis
 tldr: "[TL;DR text verbatim — 3–5 sentences]"
@@ -137,4 +137,4 @@ actions:
 The orchestrator (`run-all-topics.sh`) handles all git operations after all topics complete.
 Do not run `git add`, `git commit`, or `git push`.
 
-Print: "✓ Leadership digest for TODAY written to src/content/leadership/TODAY.md"
+Print: "✓ Leadership digest for {{DATE}} written to src/content/leadership/{{DATE}}.md"

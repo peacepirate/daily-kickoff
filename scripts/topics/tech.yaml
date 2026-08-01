@@ -1,0 +1,125 @@
+name: "Tech & Gadgets"
+theme: tech
+schedule: daily
+output_collection: tech
+prompt: scripts/prompts/tech.md
+
+sources:
+  tier1:
+    - name: "The Verge"
+      kind: rss
+      url: "https://www.theverge.com/rss/index.xml"
+      max_items: 8
+    - name: "Ars Technica"
+      kind: rss
+      url: "https://feeds.arstechnica.com/arstechnica/index/"
+      max_items: 8
+    - name: "Engadget"
+      kind: rss
+      url: "https://www.engadget.com/rss.xml"
+      max_items: 5
+    - name: "TechCrunch"
+      kind: rss
+      url: "https://techcrunch.com/feed"
+      max_items: 5
+    - name: "Tom's Guide"
+      kind: rss
+      url: "https://www.tomsguide.com/feeds.xml"
+      max_items: 5
+
+  tier2:
+    # Mobile & ecosystems
+    - name: "9to5Mac"
+      kind: rss
+      url: "https://9to5mac.com/feed"
+      max_items: 5
+    - name: "MacRumors"
+      kind: rss
+      url: "https://feeds.macrumors.com/MacRumors-All"
+      max_items: 5
+    - name: "Android Authority"
+      kind: rss
+      url: "https://androidauthority.com/feed"
+      max_items: 5
+    - name: "GSMArena"
+      kind: rss
+      url: "https://www.gsmarena.com/rss-news-reviews.php3"
+      max_items: 5
+    # Smart home
+    - name: "Home Assistant Blog"
+      kind: atom
+      url: "https://www.home-assistant.io/atom.xml"
+      max_items: 5
+    - name: "SmartHomeScene"
+      kind: rss
+      url: "https://smarthomescene.com/feed"
+      max_items: 5
+    # EV & auto
+    - name: "InsideEVs"
+      kind: rss
+      url: "https://insideevs.com/rss/articles/all/"
+      max_items: 5
+    - name: "Electrek"
+      kind: rss
+      url: "https://electrek.co/feed"
+      max_items: 5
+    - name: "Car and Driver"
+      kind: rss
+      url: "https://www.caranddriver.com/rss/all.xml"
+      max_items: 5
+    - name: "Motor1"
+      kind: rss
+      url: "https://motor1.com/rss/articles/all/"
+      max_items: 5
+    # Lab testing
+    - name: "RTINGS"
+      kind: html
+      url: "https://www.rtings.com/reviews"
+      max_items: 5
+    # Emerging tech
+    - name: "Hackaday"
+      kind: rss
+      url: "https://hackaday.com/feed"
+      max_items: 5
+    - name: "IEEE Spectrum"
+      kind: rss
+      url: "https://spectrum.ieee.org/rss/fulltext"
+      max_items: 5
+    - name: "MIT Technology Review"
+      kind: rss
+      url: "https://www.technologyreview.com/feed"
+      max_items: 5
+    # Productivity & tools
+    - name: "Product Hunt"
+      kind: rss
+      url: "https://producthunt.com/feed"
+      max_items: 5
+    - name: "Every"
+      kind: rss
+      url: "https://every.to/feed"
+      max_items: 5
+    # Wearables
+    - name: "DC Rainmaker"
+      kind: rss
+      url: "https://dcrainmaker.com/feed"
+      max_items: 5
+
+  tier3:
+    - name: "Hacker News"
+      kind: rss
+      url: "https://hnrss.org/frontpage"
+      max_items: 30
+      filter_regex: "\\b(gadget|smartphone|EV|electric.?vehicle|smart.?home|Matter|wearable|Apple|Samsung|Google|Tesla|iPhone|Android|review|buying.?guide|teardown|hardware|HomeKit|Zigbee|Thread|battery|display|camera|audio|headphone|laptop|tablet)\\b"
+      filter_cap: 3
+    - name: "r/gadgets"
+      kind: rss
+      url: "https://www.reddit.com/r/gadgets.rss"
+      max_items: 10
+    - name: "r/BuyItForLife"
+      kind: rss
+      url: "https://www.reddit.com/r/BuyItForLife.rss"
+      max_items: 10
+    - name: "r/homeautomation"
+      kind: rss
+      url: "https://www.reddit.com/r/homeautomation.rss"
+      max_items: 10

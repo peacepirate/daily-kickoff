@@ -14,6 +14,10 @@ sources:
       kind: releasebot
       url: "https://releasebot.io/updates/anthropic"
       max_items: 5
+    - name: "Anthropic Engineering Blog"
+      kind: html
+      url: "https://www.anthropic.com/engineering"
+      max_items: 5
     - name: "OpenAI Releases"
       kind: releasebot
       url: "https://releasebot.io/updates/openai"
@@ -40,6 +44,10 @@ sources:
       max_items: 3
 
   tier2:
+    - name: "Ahead of AI"
+      kind: rss
+      url: "https://magazine.sebastianraschka.com/feed"
+      max_items: 5
     - name: "Simon Willison"
       kind: rss
       url: "https://simonwillison.net/atom/everything/"

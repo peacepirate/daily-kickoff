@@ -25,5 +25,4 @@ pnpm-debug.log*
 
 # Python venv and runtime logs
 scripts/.venv/
-scripts/logs/*.log
-scripts/logs/fetched-*.txt
+scripts/logs/

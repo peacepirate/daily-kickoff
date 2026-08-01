@@ -1,7 +1,9 @@
 #!/bin/bash
-# Deletes digest .md files older than N days from all content collections.
-# WARNING: localStorage-based starred/archived state is NOT checked here.
-# Star important items in the site UI before running this script.
+# Deletes digest .md files older than N days that do NOT have `starred: true` in their frontmatter.
+# Manual tool — not wired into run-all-topics.sh.
+#
+# `starred: true` must be added to the frontmatter by hand. The site's ★ button
+# is unrelated: it writes per-action-item keys to browser localStorage only.
 #
 # Usage:
 #   bash scripts/cleanup-old-digests.sh               # dry-run (safe, prints only)
@@ -10,7 +12,7 @@
 
 set -euo pipefail
 
-DAYS=60
+DAYS=365
 CONFIRM=false
 
 while [[ $# -gt 0 ]]; do
@@ -30,16 +32,23 @@ echo "Mode: $( [ "$CONFIRM" = true ] && echo 'DELETE' || echo 'DRY-RUN')"
 echo ""
 
 deleted=0
+starred=0
 skipped=0
 
 while IFS= read -r file; do
-  # Skip .gitkeep and non-date files
   base="$(basename "$file")"
   if [[ "$base" == ".gitkeep" ]]; then continue; fi
   date_part="${base%.md}"
   if ! [[ "$date_part" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then continue; fi
 
   if [[ "$date_part" < "$CUTOFF" ]]; then
+    # Check for starred: true in frontmatter — skip protected files
+    if grep -qm1 "^starred: true$" "$file" 2>/dev/null; then
+      echo "STARRED (kept): $file"
+      starred=$((starred + 1))
+      continue
+    fi
+
     if [ "$CONFIRM" = true ]; then
       rm "$file"
       echo "DELETED: $file"
@@ -53,7 +62,7 @@ while IFS= read -r file; do
 done < <(find "$CONTENT_DIR" -name "*.md" | sort)
 
 echo ""
-echo "Summary: $deleted file(s) $( [ "$CONFIRM" = true ] && echo 'deleted' || echo 'would be deleted'), $skipped too recent (kept)"
+echo "Summary: $deleted file(s) $( [ "$CONFIRM" = true ] && echo 'deleted' || echo 'would be deleted'), $starred starred (kept), $skipped too recent (kept)"
 if [ "$CONFIRM" = false ] && [ "$deleted" -gt 0 ]; then
   echo "Run with --confirm to actually delete."
 fi
