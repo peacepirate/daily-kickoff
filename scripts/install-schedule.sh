@@ -1,6 +1,6 @@
 #!/bin/bash
 # One-time setup: installs a macOS launchd agent that runs the job orchestrator
-# at 11:00 PM every night. Which jobs run is decided per job by `schedule:`.
+# at 06:00 every day. Which jobs run is decided per job by `schedule:`.
 #
 # Usage: bash scripts/install-schedule.sh
 # To uninstall: bash scripts/install-schedule.sh --uninstall
@@ -38,23 +38,28 @@ cat > "$PLIST" <<EOF
     <string>${RUN_SCRIPT}</string>
   </array>
 
-  <!-- Two slots; each job additionally gates itself on its own schedule:
-         Mon–Sat 23:00  digest fetch  (weekdays, saturday)
-         Sun     04:00  generation    (sunday) — reads Saturday's synthesis
-       Sunday is deliberately absent from the 23:00 slot so a sunday job cannot
-       fire twice in one day. launchd Weekday: 0=Sun, 1=Mon … 6=Sat. -->
+  <!-- One slot: 06:00 every day. Each job gates itself on its own schedule:
+       field, so Mon–Sat runs digest jobs and Sunday runs generation.
+       The orchestrator holds no day policy at all — and with a single slot per
+       day a sunday job cannot fire twice, so no day needs excluding.
+       06:00 rather than 23:00 so the Saturday synthesis is read and starred a
+       full day before Sunday's generation run consumes it.
+       launchd Weekday: 0=Sun, 1=Mon … 6=Sat.
+       This heredoc is unquoted: no backticks in this prose, they would run. -->
   <key>StartCalendarInterval</key>
   <array>
-    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>6</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>6</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
   </array>
 
-  <!-- If the machine was asleep at 11pm, fire as soon as it wakes -->
+  <!-- If the machine was asleep at 06:00, launchd fires this once on wake.
+       Degraded (the digest lands when you open the lid) but never lost.
+       A pmset repeat wakeorpoweron event makes it deterministic. -->
   <key>RunAtLoad</key>
   <false/>
 
@@ -77,12 +82,29 @@ launchctl load -w "$PLIST"
 
 echo ""
 echo "✓ Installed: $LABEL"
-echo "  Mon-Sat 23:00 (digest fetch) and Sun 04:00 (generation), local time."
-echo "  Each job additionally gates on its own schedule: field in its config."
+echo "  06:00 every day, local time. Each job gates on its own schedule: field,"
+echo "  so Mon-Sat run digest jobs and Sunday runs generation."
 echo "  Logs: $LOG_DIR/"
+echo ""
+
+# launchd fires a missed calendar job on wake, so a sleeping Mac degrades the
+# 06:00 slot to "whenever the lid opens" rather than losing it. A scheduled wake
+# makes it deterministic. One wake time covers everything precisely because
+# there is only one slot.
+# Here-string, not a pipe: under `set -o pipefail`, `grep -q` exits on first
+# match and the writer dies of SIGPIPE (141), failing the pipeline even though
+# the match succeeded.
+if grep -q '05:50' <<<"$(pmset -g sched 2>/dev/null || true)"; then
+  echo "  Scheduled wake: already configured (pmset -g sched)."
+else
+  echo "  RECOMMENDED — wake the Mac just before the run so 06:00 is deterministic:"
+  echo "    sudo pmset repeat wakeorpoweron MTWRFSU 05:50:00"
+  echo "  Verify with: pmset -g sched"
+fi
 echo ""
 echo "  To test a manual run right now:"
 echo "    bash $RUN_SCRIPT"
 echo ""
 echo "  To uninstall:"
 echo "    bash $REPO_DIR/scripts/install-schedule.sh --uninstall"
+echo "    sudo pmset repeat cancel"

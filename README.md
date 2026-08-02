@@ -57,19 +57,25 @@ Adding a job means adding a YAML file and a prompt. No new shell.
 
 ### Schedule
 
-launchd fires two slots:
+launchd fires **one slot: 06:00, every day.** Each job gates on its own `schedule:`, so Mon–Sat run
+digest jobs and Sunday runs generation. The orchestrator holds no day policy at all — and with one
+slot per day a `sunday` job cannot fire twice, so no day needs excluding.
 
-```
-Mon–Sat 23:00   digest fetch     (weekdays, saturday jobs)
-Sun     04:00   generation       (sunday jobs)
-```
-
-Sunday is deliberately absent from the 23:00 slot so a `sunday` job cannot fire twice in one day.
+06:00 rather than 23:00 so the Saturday weekly synthesis is read and starred a full day before
+Sunday's generation run consumes it. A digest dated `D` therefore covers `D−1 06:00 → D 06:00`: the
+date matches the morning you read it, not the day the news broke.
 
 ```bash
 bash scripts/install-schedule.sh              # install / reload
 bash scripts/install-schedule.sh --uninstall
+
+sudo pmset repeat wakeorpoweron MTWRFSU 05:50:00   # recommended — see below
+pmset -g sched                                     # verify
 ```
+
+**The Mac is probably asleep at 06:00.** launchd fires a missed calendar job once on wake, so the
+run degrades to "whenever you open the lid" rather than being lost. The `pmset` line makes it
+deterministic; one wake time covers everything because there is only one slot.
 
 ---
 
