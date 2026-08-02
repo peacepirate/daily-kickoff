@@ -99,11 +99,12 @@ run_cap commit_and_push "$d" "src/content/" "msg"
   && grep -q "no remote" <<<"$CP_OUT" \
   && ok "no remote commits locally and warns (rc 0)" || bad "no remote: rc=$CP_RC"
 
-# 6. Not a git repo at all -> rc 2, warn, no crash.
+# 6. Not a git repo at all -> reported clearly, no crash. The return code it
+#    maps to is asserted in case 12; here we only care that it is legible.
 mkdir -p "$WORK/plain/src/content"; echo x > "$WORK/plain/src/content/a.md"
 run_cap commit_and_push "$WORK/plain" "src/content/" "msg"
-[ "$CP_RC" = 2 ] && grep -q "not a git repository" <<<"$CP_OUT" \
-  && ok "non-repo returns 2 and warns" || bad "non-repo: rc=$CP_RC"
+grep -q "not a git repository" <<<"$CP_OUT" \
+  && ok "non-repo says so plainly" || bad "non-repo message missing: rc=$CP_RC"
 
 # 7. Push fails -> rc 1 tagged 'push', and the commit SURVIVES for the retry.
 d="$(new_repo pushfail)"; git -C "$d" remote set-url origin "$WORK/does-not-exist.git"
@@ -144,6 +145,61 @@ run_cap commit_and_push "$d" "src/content/" "msg"
 [ "$CP_RC" = 1 ] && [ "$(commits_in "$d")" = "$before" ] \
   && ok "detached HEAD refuses to commit (rc 1)" \
   || bad "detached HEAD: rc=$CP_RC tag='$COMMIT_PUSH_FAIL'"
+
+# 12. Not a repo is a FAILURE, not "nothing to commit". Folding it into rc 2
+#     made the orchestrator exit 0 for a repo that cannot publish at all.
+mkdir -p "$WORK/plain2/src/content"; echo x > "$WORK/plain2/src/content/a.md"
+run_cap commit_and_push "$WORK/plain2" "src/content/" "msg"
+[ "$CP_RC" = 1 ] && [ "$COMMIT_PUSH_FAIL" = "norepo" ] \
+  && ok "non-repo fails (rc 1), so the orchestrator exits non-zero" \
+  || bad "non-repo: rc=$CP_RC tag='$COMMIT_PUSH_FAIL'"
+
+# 13. A conflicted merge must be refused: `add -A` would mark it resolved and
+#     the automated message would conclude it, publishing conflict markers.
+d="$(new_repo merging)"
+git -C "$d" checkout -q -b side
+echo side > "$d/src/content/conflict.md"; git -C "$d" add -A >/dev/null; git -C "$d" commit -qm side
+git -C "$d" checkout -q main
+# git does not track empty directories, so checking out main removed src/content
+# along with the file that was the only thing in it.
+mkdir -p "$d/src/content"
+echo main > "$d/src/content/conflict.md"; git -C "$d" add -A >/dev/null; git -C "$d" commit -qm main
+git -C "$d" merge side >/dev/null 2>&1
+before="$(commits_in "$d")"
+run_cap commit_and_push "$d" "src/content/" "msg"
+[ "$CP_RC" = 1 ] && [ "$(commits_in "$d")" = "$before" ] \
+  && ok "conflicted merge is refused, nothing committed (rc 1)" \
+  || bad "mid-merge: rc=$CP_RC commits $before -> $(commits_in "$d")"
+grep -q "<<<<<<<" "$d/src/content/conflict.md" \
+  && ok "conflict markers left in the tree, not published" || bad "conflict was concluded"
+git -C "$d" merge --abort 2>/dev/null || true
+
+# 14. A file staged by hand OUTSIDE the pathspec must not ride along. The old
+#     test only proved untracked files are excluded, which cannot fail — an
+#     untracked file is never in the index.
+d="$(new_repo staged)"
+echo in > "$d/src/content/a.md"
+echo out > "$d/other/secret.txt"
+git -C "$d" add -- other/secret.txt >/dev/null      # pre-staged, deliberately
+run_cap commit_and_push "$d" "src/content/" "msg"
+files="$(git -C "$d" show --name-only --format= HEAD | tr '\n' ' ')"
+[ "$CP_RC" = 0 ] && grep -q "src/content/a.md" <<<"$files" && ! grep -q "secret.txt" <<<"$files" \
+  && ok "pre-staged out-of-scope file is NOT committed" || bad "staged leak: [$files]"
+[ -n "$(git -C "$d" diff --cached --name-only)" ] \
+  && ok "the out-of-scope file is left staged, untouched" || bad "staged file was consumed"
+
+# 15. A remote with no tracking branch must still push. `@{u}` is unresolvable
+#     there, and the old `|| echo 0` read that as "nothing to push" — commit
+#     locally forever, rc 0, no warning.
+d="$WORK/noupstream"; mkdir -p "$d/src/content"
+git -C "$d" init -q -b main; git -C "$d" config user.email t@t.t; git -C "$d" config user.name t
+echo seed > "$d/seed.txt"; git -C "$d" add -A >/dev/null; git -C "$d" commit -qm seed
+git init -q --bare "$d.git"; git -C "$d" remote add origin "$d.git"   # note: no -u
+echo x > "$d/src/content/a.md"
+run_cap commit_and_push "$d" "src/content/" "msg"
+[ "$CP_RC" = 0 ] && [ -n "$(git -C "$d.git" rev-parse --verify --quiet main || true)" ] \
+  && ok "remote without a tracking branch is still pushed" \
+  || bad "no-upstream: rc=$CP_RC, remote main=$(git -C "$d.git" rev-parse --verify --quiet main || echo NONE)"
 
 echo
 [ "$FAIL" = "0" ] && echo "commit_and_push tests passed" || echo "commit_and_push tests FAILED"

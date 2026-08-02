@@ -20,7 +20,16 @@ bad() { printf "  \033[31mFAIL\033[0m  %s\n" "$*"; FAIL=1; }
 
 echo "watchlist key schema"
 
-if [ ! -f dist/index.html ]; then
+# Rebuild when dist/ is missing OR older than any source this file asserts
+# about. dist/ is gitignored, so it is whatever the last local build left —
+# without this, editing index.astro and running preflight would assert against
+# the previous build and print all-green while guarding nothing.
+stale_dist=0
+[ -f dist/index.html ] || stale_dist=1
+for src in src/pages/index.astro src/layouts/Layout.astro "src/pages/[theme]/[slug].astro"; do
+  [ "$src" -nt dist/index.html ] 2>/dev/null && stale_dist=1
+done
+if [ "$stale_dist" = 1 ]; then
   npx astro build >/tmp/wl-keys-build.log 2>&1 \
     || { bad "astro build failed — see /tmp/wl-keys-build.log"; exit 1; }
 fi

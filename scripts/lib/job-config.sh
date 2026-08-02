@@ -138,9 +138,29 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
   local repo="$1" pathspec="$2" message="$3" expected="${4:-main}"
   COMMIT_PUSH_FAIL=""
 
+  # rc 1, not 2: pre-extraction this path produced FAILED_JOBS and a non-zero
+  # exit from the orchestrator. Folding it into "nothing to commit" made
+  # `launchctl list` show success for a repo that cannot publish at all — the
+  # 13-night failure shape. Callers that can survive it (the CLI, where the note
+  # is already on disk) downgrade it themselves.
   if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
-    note "WARN: $repo is not a git repository — committed nothing, no history kept."
-    return 2
+    note "ERROR: $repo is not a git repository — committed nothing, no history kept."
+    COMMIT_PUSH_FAIL="norepo"
+    return 1
+  fi
+
+  # A conflicted merge leaves the branch guard satisfied, so without this
+  # `git add -A` would mark the conflict resolved and the automated message
+  # would conclude someone else's merge — publishing conflict markers.
+  local gitdir
+  gitdir="$(git -C "$repo" rev-parse --git-dir 2>/dev/null)"
+  case "$repo/$gitdir" in /*) ;; *) gitdir="$repo/$gitdir" ;; esac
+  if [ -e "$gitdir/MERGE_HEAD" ] || [ -e "$gitdir/CHERRY_PICK_HEAD" ] \
+     || [ -d "$gitdir/rebase-merge" ] || [ -d "$gitdir/rebase-apply" ]; then
+    note "ERROR: $repo has a merge, cherry-pick or rebase in progress — refusing to commit."
+    note "       Finish or abort it by hand; an automated commit would conclude it silently."
+    COMMIT_PUSH_FAIL="commit(in-progress)"
+    return 1
   fi
 
   # symbolic-ref first: it resolves an unborn branch, where rev-parse fails and
@@ -159,8 +179,18 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
 
   local committed=0
   if [ -n "$(git -C "$repo" status --porcelain -- "$pathspec")" ]; then
-    git -C "$repo" add -A -- "$pathspec"
-    if git -C "$repo" commit -m "$message" >/dev/null; then
+    # An unchecked `add` fails silently: both callers invoke this inside an
+    # && / || list, which disables `set -e` for the whole function body.
+    if ! git -C "$repo" add -A -- "$pathspec"; then
+      note "ERROR: git add failed in $repo (index.lock held by another process?)."
+      COMMIT_PUSH_FAIL="add"
+      return 1
+    fi
+    # `commit -- "$pathspec"`, not a bare commit: a bare commit writes the whole
+    # index, so anything staged by hand outside the pathspec rides along. The
+    # public-repo mitigation this whole epic rests on is that the commit is
+    # scoped, and `add -A -- pathspec` alone does not make it so.
+    if git -C "$repo" commit -m "$message" -- "$pathspec" >/dev/null; then
       committed=1
     else
       note "ERROR: commit failed in $repo."
@@ -178,8 +208,24 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
     [ "$committed" = 1 ] && return 0 || return 2
   fi
 
-  local unpushed push_out
-  unpushed=$(git -C "$repo" rev-list --count '@{u}..HEAD' 2>/dev/null || echo "0")
+  # Without a tracking branch `@{u}` is unresolvable, and the old `|| echo 0`
+  # turned that into "nothing to push" — so a studio made with `git init` +
+  # `git remote add` committed forever and never published, silently, rc 0.
+  # That is the exact shape of invariant 4 ("success is `git log origin/main`").
+  # Fall back to the remote-tracking ref, and if there is none either, push
+  # anyway: the destination is known regardless of what git can count.
+  local unpushed push_out base=""
+  if git -C "$repo" rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
+    base='@{u}'
+  elif git -C "$repo" rev-parse --verify --quiet "origin/$expected" >/dev/null 2>&1; then
+    base="origin/$expected"
+  fi
+  if [ -n "$base" ]; then
+    unpushed=$(git -C "$repo" rev-list --count "$base..HEAD" 2>/dev/null || echo "0")
+  else
+    unpushed="?"
+    note "WARN: $repo has a remote but no tracking branch — pushing without a count."
+  fi
   if [ "$unpushed" != "0" ]; then
     note "Pushing $unpushed unpushed commit(s) from $repo..."
     if push_out=$(git -C "$repo" push origin "HEAD:$expected" 2>&1); then

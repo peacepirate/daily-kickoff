@@ -94,7 +94,11 @@ echo ""
 # Here-string, not a pipe: under `set -o pipefail`, `grep -q` exits on first
 # match and the writer dies of SIGPIPE (141), failing the pipeline even though
 # the match succeeded.
-if grep -q '05:50' <<<"$(pmset -g sched 2>/dev/null || true)"; then
+# Match the event TYPE and all seven days, not just the time: pmset prints
+# repeating events as "wakepoweron at 5:50AM every day", so a bare '05:50'
+# match would miss it entirely, and would also accept a *sleep* event or a
+# Mon-Fri-only wake that leaves Sunday generation with no wake at all.
+if grep -qiE 'wake.*(0?5:50).*(every day|MTWRFSU)' <<<"$(pmset -g sched 2>/dev/null || true)"; then
   echo "  Scheduled wake: already configured (pmset -g sched)."
 else
   echo "  RECOMMENDED — wake the Mac just before the run so 06:00 is deterministic:"
