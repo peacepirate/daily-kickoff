@@ -11,7 +11,13 @@
 
 KICKOFF_LIB_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-log() { echo "$*" | tee -a "$LOG_FILE"; }
+# Falls back to stderr rather than requiring LOG_FILE: the kickoff CLI has no
+# log file, and `tee -a "$LOG_FILE"` would abort on the unbound variable under
+# `set -u` — which would kill the first CLI run on a fresh clone inside
+# ensure_venv, before it could report anything.
+log() {
+  if [ -n "${LOG_FILE:-}" ]; then echo "$*" | tee -a "$LOG_FILE"; else echo "$*" >&2; fi
+}
 
 date_offset() {  # BSD date with GNU fallback
   date -j -v"+${2}d" -f %Y-%m-%d "$1" +%Y-%m-%d 2>/dev/null || date -d "$1 + $2 days" +%Y-%m-%d

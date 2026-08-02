@@ -122,6 +122,11 @@ const themeFilterLabels: Record<string, string> = {
           <button class="quick-action" id="mark-visible-done" style="margin-left:auto;">Mark open as done</button>
           <button class="quick-action" id="clear-done">Clear done</button>
           <button class="quick-action" id="wl-select-toggle">Select</button>
+          <button class="quick-action" id="wl-export" aria-label="Export signals — downloads a JSON file">
+            Export signals <span class="tab-count" id="wl-export-count">—</span>
+          </button>
+          <span class="wl-export-age" id="wl-export-age"></span>
+          <span class="wl-export-msg" id="wl-export-msg" role="status" aria-live="polite"></span>
         </div>
         <div id="watchlist-all">
           <div class="wl-bulk-bar" id="wl-bulk-bar" style="display:none;">
@@ -186,6 +191,35 @@ const themeFilterLabels: Record<string, string> = {
 </Layout>
 
 <style>
+  /* ── Signals export ──────────────────────────────────────────────────────── */
+  /* The header gained a fourth control; let it wrap rather than overflow narrow screens. */
+  .watchlist-header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .wl-export-age {
+    font-size: 11px;
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+  /* Stale is carried by the wording too, so colour is never the only signal. */
+  .wl-export-age[data-level="stale"] {
+    color: var(--amber);
+    font-weight: 500;
+  }
+  .wl-export-msg {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-basis: 100%;
+    text-align: right;
+  }
+  .wl-export-msg:empty {
+    display: none;
+  }
+  @media (max-width: 768px) {
+    .wl-export-msg { text-align: left; }
+  }
+
   /* ── Row notes ───────────────────────────────────────────────────────────── */
   /* The row is nowrap on desktop; it only wraps once it has a second line to hold. */
   .watchlist-item[data-has-note="true"],
@@ -288,6 +322,110 @@ const themeFilterLabels: Record<string, string> = {
     const trimmed = note.trim();
     if (trimmed) { v.note = trimmed; } else { delete v.note; }
     if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+
+  /**
+   * Item keys only: `wl:` prefix AND exactly 5 colon-parts. This excludes `wl:meta:*`
+   * (3 parts, not items) and retained pre-migration keys (4 parts), which are ambiguous
+   * by theme — the exact defect the theme namespace removed. Same rule as Layout.astro.
+   * Values are passed through verbatim; malformed and empty entries are skipped.
+   */
+  function collectSignals(): Record<string, Record<string, unknown>> {
+    const items: Record<string, Record<string, unknown>> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith('wl:')) continue;
+      if (key.split(':').length !== 5) continue;
+      let parsed: unknown;
+      try { parsed = JSON.parse(localStorage.getItem(key) ?? ''); } catch { continue; }
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue;
+      if (Object.keys(parsed).length === 0) continue;
+      items[key] = parsed as Record<string, unknown>;
+    }
+    return items;
+  }
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  function localDateKey(d: Date): string {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  /** ISO-8601 in local time with a numeric offset — the importer merges on this. */
+  function localTimestamp(d: Date): string {
+    const offsetMin = -d.getTimezoneOffset();
+    const sign = offsetMin < 0 ? '-' : '+';
+    const abs = Math.abs(offsetMin);
+    return `${localDateKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+      + `${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
+  }
+
+  const LAST_EXPORT_KEY = 'wl:meta:last-export';
+  // 7 days is the same threshold `kickoff doctor` warns at, so the browser and the CLI
+  // never disagree about when a snapshot is too old for Epic 3's ranking to trust.
+  const STALE_EXPORT_DAYS = 7;
+
+  /** Whole days between two local date keys, via UTC midnight so DST cannot shift it. */
+  function daysSinceDateKey(dateKey: string): number | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+    const then = new Date(`${dateKey}T00:00:00Z`).getTime();
+    const now = new Date(`${localDateKey(new Date())}T00:00:00Z`).getTime();
+    return Math.round((now - then) / 86400000);
+  }
+
+  function renderExportAge(signalCount: number): void {
+    const el = document.getElementById('wl-export-age');
+    if (!el) return;
+    const stamp = localStorage.getItem(LAST_EXPORT_KEY);
+    const days = stamp ? daysSinceDateKey(stamp.slice(0, 10)) : null;
+    let text: string;
+    let stale: boolean;
+    if (days === null) {
+      // Signals stored but never exported is the worst case: ranking runs on nothing.
+      stale = signalCount > 0;
+      text = stale ? 'never exported — ranking has nothing to read' : 'not exported yet';
+    } else if (days <= 0) {
+      stale = false;
+      text = 'exported today';
+    } else {
+      stale = days >= STALE_EXPORT_DAYS;
+      text = `exported ${days} day${days === 1 ? '' : 's'} ago${stale ? ' — ranking is stale' : ''}`;
+    }
+    el.textContent = text;
+    el.setAttribute('data-level', stale ? 'stale' : 'ok');
+  }
+
+  let exportMsgTimer = 0;
+  function showExportMessage(text: string): void {
+    const msg = document.getElementById('wl-export-msg');
+    if (!msg) return;
+    msg.textContent = text;
+    clearTimeout(exportMsgTimer);
+    exportMsgTimer = window.setTimeout(() => { msg.textContent = ''; }, 6000);
+  }
+
+  function exportSignals(): void {
+    const items = collectSignals();
+    const count = Object.keys(items).length;
+    if (count === 0) {
+      // An empty snapshot that looks healthy is the failure this epic exists to avoid.
+      showExportMessage('Nothing to export yet — star, snooze, or note an item first.');
+      return;
+    }
+    const now = new Date();
+    const exportedAt = localTimestamp(now);
+    const payload = { schema: 2, exportedAt, items };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kickoff-signals-${localDateKey(now)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoking synchronously can cancel an in-flight download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // 3-part wl:meta key, so every 5-part consumer rule already excludes it.
+    localStorage.setItem(LAST_EXPORT_KEY, exportedAt);
+    renderExportAge(count);
+    showExportMessage(`Exported ${count} item${count === 1 ? '' : 's'} to kickoff-signals-${localDateKey(now)}.json`);
   }
 
   const KEY_SCHEMA_KEY = 'wl:meta:key-schema';
@@ -416,6 +554,14 @@ const themeFilterLabels: Record<string, string> = {
     const sub = document.getElementById('watchlist-subtitle');
     if (sub) sub.textContent = `${counts.open ?? 0} open · ${counts.snoozed ?? 0} later · ${counts.done ?? 0} done`;
 
+    // Counts stored keys, not rendered rows — a signal survives its digest leaving the page.
+    const n = Object.keys(collectSignals()).length;
+    const exportCount = document.getElementById('wl-export-count');
+    const exportBtn = document.getElementById('wl-export');
+    if (exportCount) exportCount.textContent = String(n);
+    if (exportBtn) exportBtn.setAttribute('aria-label', `Export signals — ${n} item${n === 1 ? '' : 's'}, downloads a JSON file`);
+    renderExportAge(n);
+
     const visibleCount = [...items].filter(el => el.style.display !== 'none').length;
     const emptyEl = document.getElementById('wl-filter-empty');
     if (emptyEl) emptyEl.style.display = (visibleCount === 0 && items.length > 0) ? '' : 'none';
@@ -471,6 +617,8 @@ const themeFilterLabels: Record<string, string> = {
     });
     renderAll();
   });
+
+  document.getElementById('wl-export')?.addEventListener('click', exportSignals);
 
   // ── Row note editor ─────────────────────────────────────────────────────────
   function openNoteEditor(item: HTMLElement): void {

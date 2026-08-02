@@ -87,6 +87,17 @@ grep -q 'wl:${theme}:${slug}:' src/pages/\[theme\]/\[slug\].astro \
   && ok "mark-all-read is scoped to one theme" \
   || bad "mark-all-read would mark other themes' items for the same date done"
 
+# The exporter is the only writer of the signals wire format and `kickoff
+# signals` is the only reader, in a different language in a different repo.
+# Nothing else would notice them drifting apart.
+grep -q 'schema: 2' src/pages/index.astro \
+  && ok "export pins schema: 2 (kickoff signals rejects anything else)" \
+  || bad "export schema version changed — update the kickoff signals reader too"
+
+grep -q "split(':').length !== 5" src/pages/index.astro \
+  && ok "export excludes wl:meta:* and legacy keys" \
+  || bad "export would ship theme-ambiguous legacy keys into the corpus ranking"
+
 echo
 [ "$FAIL" = "0" ] && echo "watchlist key tests passed" || echo "watchlist key tests FAILED"
 exit "$FAIL"

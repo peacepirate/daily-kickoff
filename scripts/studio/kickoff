@@ -36,6 +36,7 @@ Commands:
                        Capture a field note
   note -               Capture the body from stdin
   note --import <file> Ingest blank-line-separated blocks, one entry each
+  signals [path]       Merge a watchlist export into state/signals.json
   draft <angle-id>     Generate channel drafts           (Epic 5)
   approve <slug>       Publish a draft, copy to clipboard (Epic 6)
   engagement <slug>    Record post-hoc metrics           (Epic 7)
@@ -236,6 +237,197 @@ cmd_note() {
   echo "note: captured $NOTE_COUNT → $file ($(grep -cE "$NOTE_HEADER_RE" "$file" || true) total)"
 }
 
+# ---------------------------------------------------------------------------
+# signals — the browser -> filesystem bridge (S2.7)
+#
+# The site is static, stars live in localStorage, and select_corpus.py runs from
+# launchd against the filesystem. Nothing connects them. This is that bridge:
+# the export half downloads a snapshot, this half merges it into
+# $STUDIO_DIR/state/signals.json.
+#
+# Absence is never deletion. A key missing from an export means "a different
+# browser", not "unstarred"; deleting on absence would silently destroy stars.
+
+SIGNALS_GLOB='kickoff-signals-*.json'
+
+signals_die() { echo "kickoff signals: $*" >&2; exit 1; }
+
+# Python is fine here — this is not the 10-second capture path that `note` is.
+signals_python() { ensure_venv; }
+
+# Newest by mtime, not by the date in the filename: two exports on one day are
+# ordinary, and the filename only carries a day.
+newest_export() {  # DIR... -> path on stdout, empty if none
+  local dir f best="" best_m=-1 m
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for f in "$dir"/$SIGNALS_GLOB; do
+      [ -f "$f" ] || continue
+      m="$(stat -f %m "$f" 2>/dev/null || echo 0)"
+      if [ "$m" -gt "$best_m" ]; then best_m="$m"; best="$f"; fi
+    done
+  done
+  printf '%s' "$best"
+}
+
+cmd_signals() {
+  local explicit=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -*) signals_die "unknown option: $1" ;;
+      *)  [ -z "$explicit" ] || signals_die "one export at a time (got '$explicit' and '$1')"
+          explicit="$1"; shift ;;
+    esac
+  done
+
+  require_studio
+
+  local downloads="$HOME/Downloads" here="$PWD" src=""
+  if [ -n "$explicit" ]; then
+    [ -f "$explicit" ] || signals_die "no such export: $explicit — signals.json unchanged."
+    src="$explicit"
+  else
+    src="$(newest_export "$downloads" "$here")"
+    if [ -z "$src" ]; then
+      # Naming every location matters: the alternative is a plausible-looking
+      # empty snapshot, which is the failure this whole epic exists to prevent.
+      note "ERROR: no $SIGNALS_GLOB found. Looked in:"
+      note "  $downloads"
+      note "  $here"
+      note ""
+      note "Export from the watchlist first, or name the file: kickoff signals <path>"
+      note "Nothing was written — signals.json is unchanged."
+      exit 1
+    fi
+  fi
+
+  local dest="$STUDIO_DIR/state/signals.json" ts summary
+  ts="$(now_iso)"
+  signals_python
+
+  # Everything is validated before anything is written, and the store is
+  # replaced atomically, so a bad export cannot leave a half-merged snapshot.
+  # Quoted heredoc: the merge script must reach Python verbatim.
+  summary="$("$PYTHON_BIN" - "$src" "$dest" "$ts" <<'PY'
+import json, os, sys
+from datetime import datetime, timezone
+
+src, dest, merged_at = sys.argv[1], sys.argv[2], sys.argv[3]
+SCHEMA = 2
+
+
+def die(msg):
+    sys.exit("kickoff signals: " + msg)
+
+
+def instant(stamp, what):
+    """ISO-8601 with an offset orders by true instant, never by string.
+    09:00-04:00 is LATER than 12:00+00:00 yet sorts earlier as text."""
+    if not isinstance(stamp, str):
+        die("%s is not a string: %r" % (what, stamp))
+    s = stamp.strip()
+    if s[-1:] in ("Z", "z"):
+        s = s[:-1] + "+00:00"
+    # fromisoformat wants +HH:MM; exports written by other tools may say +HHMM.
+    if len(s) >= 5 and s[-5] in "+-" and s[-4:].isdigit():
+        s = s[:-2] + ":" + s[-2:]
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        die("%s is not ISO-8601: %r" % (what, stamp))
+    if dt.tzinfo is None:
+        die("%s carries no UTC offset, so it cannot be ordered: %r" % (what, stamp))
+    return dt
+
+
+try:
+    with open(src, encoding="utf-8") as fh:
+        export = json.load(fh)
+except ValueError as exc:
+    die("%s is not valid JSON (%s) — %s untouched." % (src, exc, dest))
+if not isinstance(export, dict):
+    die("%s is not a JSON object — %s untouched." % (src, dest))
+if export.get("schema") != SCHEMA:
+    die("%s declares schema %r, expected %d — %s untouched."
+        % (src, export.get("schema"), SCHEMA, dest))
+exported_at = export.get("exportedAt")
+exported = instant(exported_at, "exportedAt")
+items = export.get("items")
+if not isinstance(items, dict):
+    die("%s has no 'items' object — %s untouched." % (src, dest))
+for key, value in items.items():
+    if not isinstance(value, dict):
+        die("item %r is a %s, expected an object — refusing the whole file."
+            % (key, type(value).__name__))
+# An export carrying nothing would write a snapshot that looks healthy and
+# holds no signal. Refuse it loudly instead.
+if not items:
+    die("%s carries 0 items — nothing to merge, and an empty snapshot would "
+        "look healthy. %s untouched." % (src, dest))
+
+store = {"schema": SCHEMA, "items": {}}
+if os.path.exists(dest):
+    try:
+        with open(dest, encoding="utf-8") as fh:
+            store = json.load(fh)
+    except ValueError as exc:
+        die("%s is corrupt (%s) — refusing to merge over it." % (dest, exc))
+    if not isinstance(store, dict) or not isinstance(store.get("items"), dict):
+        die("%s is not a signals store — refusing to merge over it." % dest)
+
+kept = store["items"]
+new = updated = 0
+for key, value in items.items():
+    held = kept.get(key)
+    if held is None:
+        new += 1
+    else:
+        seen = held.get("seenAt") if isinstance(held, dict) else None
+        # No seenAt predates provenance; treat it as older than any export.
+        if seen is not None and instant(seen, "seenAt for %s" % key) >= exported:
+            continue                      # retained: what we already hold is newer
+        updated += 1
+    merged = dict(value)
+    merged["seenAt"] = exported_at        # verbatim, so the next merge can order it
+    kept[key] = merged
+
+store["schema"] = SCHEMA
+store["mergedAt"] = merged_at
+store["items"] = kept
+
+# Serialise fully before opening anything: a failure here must not be able to
+# leave a half-written store, or a stray .tmp for `git add` to sweep up.
+blob = json.dumps(store, indent=2, sort_keys=True) + "\n"
+tmp = dest + ".tmp"
+with open(tmp, "w", encoding="utf-8") as fh:
+    fh.write(blob)
+os.replace(tmp, dest)
+
+age = (datetime.now(timezone.utc) - exported).days
+print("%d %d %d %d %d %s"
+      % (new, updated, len(kept) - new - updated, len(items), age, exported_at))
+PY
+)" || signals_die "refused $src — $dest is unchanged."
+
+  local n_new n_upd n_ret n_items age exported
+  read -r n_new n_upd n_ret n_items age exported <<<"$summary"
+
+  # Move rather than copy, matching `note --import`. Re-importing is harmless
+  # anyway — equal exportedAt is not newer — but pointless.
+  mkdir -p "$STUDIO_DIR/state/.imported"
+  mv "$src" "$STUDIO_DIR/state/.imported/$ts-$(basename "$src")" \
+    || note "WARN: merged, but $src could not be moved out of the way."
+
+  local rc=0
+  # Current shell, never $(...): COMMIT_PUSH_FAIL is a global out-parameter.
+  commit_and_push "$STUDIO_DIR" "state/" "signals: $n_items keys from $exported" || rc=$?
+  [ "$rc" = 1 ] && note "WARN: signals.json is on disk but git did not record it (${COMMIT_PUSH_FAIL:-unknown})."
+
+  echo "signals: $n_new new, $n_upd updated, $n_ret retained → $dest"
+  echo "         from $exported ($age day(s) old, $n_items keys in the export)"
+  return 0
+}
+
 cmd_doctor() {
   require_studio
   echo "STUDIO_DIR   $STUDIO_DIR  OK"
@@ -265,6 +457,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     --help|-h|help) usage ;;
     doctor)         cmd_doctor ;;
     note)           shift; cmd_note "$@" ;;
+    signals)        shift; cmd_signals "$@" ;;
     draft)          require_studio; not_yet draft "Epic 5" ;;
     approve)        require_studio; not_yet approve "Epic 6" ;;
     engagement)     require_studio; not_yet engagement "Epic 7" ;;
