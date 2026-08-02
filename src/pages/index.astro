@@ -35,14 +35,16 @@ for (const entry of allEntries) {
   const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
   const source = `${entry.themeLabel} · ${dateLabel}`;
   const digestHref = `${B}${entry.themeId}/${slug}`;
+  // Key shape is wl:<theme>:<date>:<type>:<i>. The theme segment is required because
+  // `slug` is only the date — without it two themes publishing the same day collide.
   entry.data.actions.try.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:try:${i}`, type: 'try', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${entry.themeId}:${slug}:try:${i}`, type: 'try', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.share.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${entry.themeId}:${slug}:share:${i}`, type: 'share', text: `${item.what} → ${item.who}`, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
   entry.data.actions.readDeeper.forEach((item, i) => {
-    allItems.push({ id: `wl:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
+    allItems.push({ id: `wl:${entry.themeId}:${slug}:read:${i}`, type: 'readDeeper', text: item, source, digestHref, themeId: entry.themeId, themeLabel: entry.themeLabel, dateLabel });
   });
 }
 
@@ -149,7 +151,27 @@ const themeFilterLabels: Record<string, string> = {
               <button class="watchlist-action watchlist-action-icon" data-wl-action="snooze" data-wl-id={item.id} title="Snooze for later">⏸</button>
               <button class="watchlist-action" data-wl-action="reopen" data-wl-id={item.id} style="display:none;">↺ Reopen</button>
               <button class="watchlist-action" data-wl-action="unarchive" data-wl-id={item.id} style="display:none;">↺ Restore</button>
+              <button
+                class="watchlist-action watchlist-action-icon wl-note-btn"
+                data-wl-note-toggle
+                data-wl-id={item.id}
+                id={`note-btn-${item.id}`}
+                aria-controls={`note-${item.id}`}
+                aria-expanded="false"
+                aria-label="Add note"
+                title="Add note"
+              >✎</button>
               <button class="wl-star" data-wl-action="star" data-wl-id={item.id} aria-pressed="false" aria-label="Star item" title="Star">☆</button>
+              <div class="wl-note-block">
+                <div class="wl-note-text"></div>
+                <textarea
+                  class="wl-note-input"
+                  id={`note-${item.id}`}
+                  rows="2"
+                  placeholder="Note…"
+                  aria-label={`Note for: ${item.text}`}
+                ></textarea>
+              </div>
             </div>
           ))}
           <div class="wl-empty-state" id="wl-filter-empty" style="display:none;">
@@ -162,6 +184,83 @@ const themeFilterLabels: Record<string, string> = {
     </>
   )}
 </Layout>
+
+<style>
+  /* ── Row notes ───────────────────────────────────────────────────────────── */
+  /* The row is nowrap on desktop; it only wraps once it has a second line to hold. */
+  .watchlist-item[data-has-note="true"],
+  .watchlist-item.wl-note-open {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  /* Secondary to the star: muted rather than amber. */
+  .watchlist-item[data-has-note="true"] .wl-note-btn {
+    color: var(--text-muted);
+  }
+
+  .wl-note-block {
+    display: none;
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+  .watchlist-item[data-has-note="true"] .wl-note-block,
+  .watchlist-item.wl-note-open .wl-note-block {
+    display: block;
+  }
+
+  .wl-note-text {
+    display: none;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    border-left: 2px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 4px 8px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .watchlist-item[data-has-note="true"] .wl-note-text {
+    display: block;
+  }
+  /* Must follow the rule above — equal specificity, editing wins. */
+  .watchlist-item.wl-note-open .wl-note-text {
+    display: none;
+  }
+
+  .wl-note-input {
+    display: none;
+    width: 100%;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    resize: vertical;
+  }
+  .watchlist-item.wl-note-open .wl-note-input {
+    display: block;
+  }
+  .wl-note-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+
+  /* Select mode hides per-row affordances; the button is covered by .watchlist-action. */
+  .wl-select-mode .wl-note-block {
+    display: none !important;
+  }
+
+  @media (max-width: 768px) {
+    /* 16px keeps mobile browsers from zooming the viewport on focus. */
+    .wl-note-input { font-size: 16px; }
+  }
+</style>
 
 <script>
   function getStoredValue(id: string): Record<string, unknown> {
@@ -180,6 +279,40 @@ const themeFilterLabels: Record<string, string> = {
     if (starred) { v.starred = true; } else { delete v.starred; }
     if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
   }
+  function getNote(id: string): string {
+    const note = getStoredValue(id).note;
+    return typeof note === 'string' ? note : '';
+  }
+  function setNote(id: string, note: string): void {
+    const v = getStoredValue(id);
+    const trimmed = note.trim();
+    if (trimmed) { v.note = trimmed; } else { delete v.note; }
+    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+  }
+
+  const KEY_SCHEMA_KEY = 'wl:meta:key-schema';
+  /** wl:<theme>:<date>:<type>:<i> → the pre-theme wl:<date>:<type>:<i> it used to share. */
+  function legacyKeyFor(id: string): string | null {
+    const parts = id.split(':');
+    if (parts.length !== 5) return null;
+    return `${parts[0]}:${parts[2]}:${parts[3]}:${parts[4]}`;
+  }
+  function migrateKeySchemaIfNeeded(): void {
+    if (localStorage.getItem(KEY_SCHEMA_KEY) === '2') return;
+    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
+      const id = el.dataset.wlId!;
+      if (localStorage.getItem(id) !== null) return;
+      const legacyId = legacyKeyFor(id);
+      if (legacyId === null) return;
+      const legacyValue = localStorage.getItem(legacyId);
+      if (legacyValue === null) return;
+      // One legacy key fans out to every theme that published that date: over-credits, loses nothing.
+      localStorage.setItem(id, legacyValue);
+    });
+    // Legacy keys stay: they are tiny and they are the only rollback path.
+    localStorage.setItem(KEY_SCHEMA_KEY, '2');
+  }
+
   function runAutoArchiveIfNeeded(): void {
     const META_KEY = 'wl:meta:last-archive-run';
     const today = new Date().toISOString().slice(0, 10);
@@ -190,8 +323,9 @@ const themeFilterLabels: Record<string, string> = {
     document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
       const id = el.dataset.wlId!;
       const parts = id.split(':');
-      if (parts.length < 4) return;
-      const dateStr = parts[1]!;
+      // wl:<theme>:<date>:<type>:<i> — the date moved to parts[2] when keys gained a theme.
+      if (parts.length < 5) return;
+      const dateStr = parts[2]!;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
       const itemDateMs = new Date(dateStr + 'T00:00:00Z').getTime();
       if (itemDateMs > cutoffMs) return;
@@ -230,6 +364,17 @@ const themeFilterLabels: Record<string, string> = {
         starBtn.textContent = starred ? '★' : '☆';
         starBtn.setAttribute('aria-pressed', String(starred));
         starBtn.title = starred ? 'Unstar' : 'Star';
+      }
+
+      const note = getNote(id);
+      el.dataset.hasNote = String(note.length > 0);
+      const noteText = el.querySelector<HTMLElement>('.wl-note-text');
+      if (noteText) noteText.textContent = note;
+      const noteBtn = el.querySelector<HTMLButtonElement>('.wl-note-btn');
+      if (noteBtn) {
+        const label = note ? 'Edit note' : 'Add note';
+        noteBtn.setAttribute('aria-label', label);
+        noteBtn.title = label;
       }
 
       const reopenBtn   = el.querySelector<HTMLElement>('[data-wl-action="reopen"]');
@@ -327,6 +472,77 @@ const themeFilterLabels: Record<string, string> = {
     renderAll();
   });
 
+  // ── Row note editor ─────────────────────────────────────────────────────────
+  function openNoteEditor(item: HTMLElement): void {
+    const ta = item.querySelector<HTMLTextAreaElement>('.wl-note-input');
+    if (!ta) return;
+    ta.value = getNote(item.dataset.wlId!);
+    ta.dataset.original = ta.value;
+    item.classList.add('wl-note-open');
+    item.querySelector<HTMLElement>('.wl-note-btn')?.setAttribute('aria-expanded', 'true');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+  function closeNoteEditor(item: HTMLElement): void {
+    item.classList.remove('wl-note-open');
+    item.querySelector<HTMLElement>('.wl-note-btn')?.setAttribute('aria-expanded', 'false');
+  }
+
+  const watchlistAll = document.getElementById('watchlist-all');
+
+  // Keep focus inside an open editor so focusout does not close it before the click lands.
+  document.addEventListener('mousedown', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-note-toggle]');
+    if (btn?.closest('.watchlist-item')?.classList.contains('wl-note-open')) e.preventDefault();
+  });
+
+  document.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-wl-note-toggle]');
+    const item = btn?.closest<HTMLElement>('.watchlist-item');
+    if (!item) return;
+    if (item.classList.contains('wl-note-open')) {
+      const ta = item.querySelector<HTMLTextAreaElement>('.wl-note-input');
+      // Blurring routes through focusout, which is the single save-and-close path.
+      if (ta && document.activeElement === ta) { ta.blur(); return; }
+      if (ta) setNote(item.dataset.wlId!, ta.value);
+      closeNoteEditor(item);
+      renderAll();
+    } else {
+      openNoteEditor(item);
+    }
+  });
+
+  watchlistAll?.addEventListener('keydown', e => {
+    const ta = (e.target as HTMLElement).closest<HTMLTextAreaElement>('.wl-note-input');
+    if (!ta) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation(); // otherwise the document-level Escape handler exits select mode
+      ta.value = ta.dataset.original ?? '';
+      ta.dataset.cancelled = '1';
+      ta.blur();
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      ta.blur();
+    }
+  });
+
+  watchlistAll?.addEventListener('focusout', e => {
+    const ta = (e.target as HTMLElement).closest<HTMLTextAreaElement>('.wl-note-input');
+    const item = ta?.closest<HTMLElement>('.watchlist-item');
+    if (!ta || !item) return;
+    if (ta.dataset.cancelled === '1') {
+      ta.removeAttribute('data-cancelled');
+    } else {
+      setNote(item.dataset.wlId!, ta.value);
+    }
+    closeNoteEditor(item);
+    renderAll();
+  });
+
+  // Migration must precede auto-archive: archive reads the new key, and an unmigrated
+  // star would read as unstarred, archiving an item the star was meant to protect.
+  migrateKeySchemaIfNeeded();
   runAutoArchiveIfNeeded();
   renderAll();
 

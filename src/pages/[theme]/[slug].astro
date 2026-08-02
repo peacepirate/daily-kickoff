@@ -147,12 +147,19 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
     e.preventDefault();
     const parts = window.location.pathname.replace(/\/$/, '').split('/');
     const slug = parts.at(-1)!;
+    // Theme, not just date: keys are wl:<theme>:<date>:<type>:<i>, so matching
+    // on `:<date>:` alone would mark every other theme's items for that date
+    // done too — and ai/tech both publish daily.
+    const theme = parts.at(-2)!;
+    const prefix = `wl:${theme}:${slug}:`;
+    // Collect first, mutate after: setStatus can remove a key, which shifts
+    // every later index of a live localStorage.key(i) walk.
+    const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.includes(`:${slug}:`)) {
-        setStatus(key, 'done');
-      }
+      if (key?.startsWith(prefix)) keys.push(key);
     }
+    keys.forEach(key => setStatus(key, 'done'));
     document.dispatchEvent(new CustomEvent('watchlist-updated'));
     const btn = document.getElementById('mark-all-read');
     if (btn) btn.textContent = '✓ Marked all done';

@@ -153,6 +153,12 @@ const isHome = !activeTheme && Astro.url.pathname === B;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key?.startsWith('wl:')) continue;
+      // Only current-schema item keys: wl:<theme>:<date>:<type>:<i>.
+      // This one rule excludes both wl:meta:* (3 parts, and JSON.parse('2')
+      // yields a number whose .status is undefined, so it would count as open)
+      // and the pre-migration 4-part keys, which are retained as a rollback
+      // path and would otherwise double-count every migrated item.
+      if (key.split(':').length !== 5) continue;
       try {
         const v = JSON.parse(localStorage.getItem(key) ?? '{}');
         if (!v.status) open++;
