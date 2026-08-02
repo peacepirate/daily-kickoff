@@ -36,8 +36,12 @@ for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*
   [ -f "$config" ] || continue
   JOB="$(basename "$config" .yaml)"
   JOB_KIND="$(basename "$(dirname "$config")")"
-  SCHEDULE="$(cfg_get "$config" schedule daily)"
-  OUTPUT_TPL="$(cfg_get "$config" output)"
+  # A malformed config must fail its own job, not abort the whole run before
+  # the commit and push gates. `||` suspends set -e for the assignment.
+  SCHEDULE="$(cfg_get "$config" schedule daily)" \
+    || { log "ERROR: $JOB: unreadable config $config"; FAILED_JOBS="$FAILED_JOBS $JOB"; continue; }
+  OUTPUT_TPL="$(cfg_get "$config" output)" \
+    || { log "ERROR: $JOB: unreadable config $config"; FAILED_JOBS="$FAILED_JOBS $JOB"; continue; }
 
   if [ -z "$OUTPUT_TPL" ]; then
     log "ERROR: $JOB: $config declares no output:"
@@ -82,30 +86,44 @@ done
 # Single commit for all successfully generated content.
 # Uses porcelain, not `git diff HEAD`, which cannot see untracked files — and
 # every new digest is untracked.
-if [ -z "$(git -C "$REPO_DIR" status --porcelain -- src/content/)" ]; then
+BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+if [ "$BRANCH" != "main" ]; then
+  # Committing here would land on the wrong branch and `push origin main` would
+  # be a silent no-op that still logs success.
+  log "ERROR: on branch '$BRANCH', not main — refusing to commit or push."
+  FAILED_JOBS="$FAILED_JOBS commit(branch=$BRANCH)"
+elif [ -z "$(git -C "$REPO_DIR" status --porcelain -- src/content/)" ]; then
   log "No new content to commit."
 else
   git -C "$REPO_DIR" add -A src/content/
-  git -C "$REPO_DIR" commit -m "digest: $DATE [automated]"
-  log "Committed $COMMITTED job(s)."
+  if git -C "$REPO_DIR" commit -m "digest: $DATE [automated]"; then
+    log "Committed $COMMITTED job(s)."
+  else
+    log "ERROR: commit failed."
+    FAILED_JOBS="$FAILED_JOBS commit"
+  fi
 fi
 
 # Push separately so a push failure doesn't abort the run, and so unpushed
 # commits are retried on later nights.
 UNPUSHED=$(git -C "$REPO_DIR" rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
-if [ "$UNPUSHED" != "0" ]; then
+if [ "$BRANCH" = "main" ] && [ "$UNPUSHED" != "0" ]; then
   log "Pushing $UNPUSHED unpushed commit(s)..."
-  if git -C "$REPO_DIR" push origin main 2>&1 | tee -a "$LOG_FILE"; then
+  if git -C "$REPO_DIR" push origin HEAD:main 2>&1 | tee -a "$LOG_FILE"; then
     log "Push OK."
   else
     log "ERROR: push failed — $UNPUSHED commit(s) remain local. Will retry next run."
+    FAILED_JOBS="$FAILED_JOBS push"
   fi
-fi
-
-if [ -n "$FAILED_JOBS" ]; then
-  log "FAILED jobs:$FAILED_JOBS"
 fi
 
 # cleanup-old-digests.sh is intentionally not wired in — run it manually.
 
 log "=== run-jobs finished $(date) ==="
+
+# Exit non-zero so failures are visible in `launchctl list` — the dated log is
+# gitignored and never leaves this machine.
+if [ -n "$FAILED_JOBS" ]; then
+  log "FAILED jobs:$FAILED_JOBS"
+  exit 1
+fi

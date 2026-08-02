@@ -134,7 +134,7 @@ actions:
 
 ## STEP 3 — Write file only (do NOT commit)
 
-The orchestrator (`run-all-topics.sh`) handles all git operations after all topics complete.
+The orchestrator (`run-jobs.sh`) handles all git operations after all topics complete.
 Do not run `git add`, `git commit`, or `git push`.
 
 Print: "✓ Leadership digest for {{DATE}} written to src/content/leadership/{{DATE}}.md"

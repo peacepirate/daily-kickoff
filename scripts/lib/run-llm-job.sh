@@ -60,7 +60,7 @@ validate_frontmatter() {
   ensure_venv
   local problems
   if ! problems=$("$PYTHON_BIN" - "$1" <<'PY' 2>&1
-import sys, yaml
+import os, sys, yaml
 
 path = sys.argv[1]
 lines = open(path, encoding="utf-8").read().split("\n")
@@ -90,6 +90,15 @@ for key in ("itemCount", "readTimeMinutes"):
         problems.append("%s must be a number, got %r" % (key, val))
 if fm.get("format") not in (None, "daily", "weekly-synthesis"):
     problems.append("format must be daily or weekly-synthesis, got %r" % fm["format"])
+# Mirrors the enum in src/content.config.ts — a value outside it fails the
+# Astro build, which the nightly job cannot see.
+if fm.get("theme") not in (None, "ai", "leadership", "rva-events", "tech"):
+    problems.append("theme %r is not a declared collection" % fm.get("theme"))
+if fm.get("title") is not None and not isinstance(fm["title"], str):
+    problems.append("title must be a string, got %r" % (fm["title"],))
+expected_theme = os.path.basename(os.path.dirname(os.path.abspath(path)))
+if fm.get("theme") not in (None, expected_theme):
+    problems.append("theme %r does not match directory %r" % (fm["theme"], expected_theme))
 if problems:
     sys.exit("; ".join(problems))
 PY
@@ -148,12 +157,26 @@ run_llm_job() {
 
 $(cat "$bundle_file")"
 
+  # Verification must run even when claude exits non-zero: a refusal or a
+  # truncated stream can still leave a partial file behind, and an unverified
+  # file gets committed and then blocks the job forever via the -s guard.
+  set +e
   "$claude_bin" \
     --dangerously-skip-permissions \
     --print \
     --model "$model" \
     "$full_prompt" \
     2>&1 | tee -a "$LOG_FILE"
+  local rc=${PIPESTATUS[0]}
+  set -e
+
+  if [ "$rc" -ne 0 ]; then
+    log "${label}claude exited $rc"
+    # Anything written during a failed run is unreviewed and would be swept up
+    # by the orchestrator's `git add -A`. Quarantine unconditionally.
+    quarantine_output "$output_file"
+    return 1
+  fi
 
   verify_output "$output_file" || return 1
   log "${label}Wrote $(wc -c < "$output_file" | tr -d ' ') bytes to $output_file"

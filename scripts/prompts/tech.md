@@ -156,7 +156,7 @@ actions:
 
 ## STEP 3 — Write file only (do NOT commit)
 
-The orchestrator (`run-all-topics.sh`) handles all git operations after all topics complete.
+The orchestrator (`run-jobs.sh`) handles all git operations after all topics complete.
 Your job ends when the file is written. Do not run `git add`, `git commit`, or `git push`.
 
 Print: "✓ Tech & Gadgets digest for {{DATE}} written to src/content/tech/{{DATE}}.md"
