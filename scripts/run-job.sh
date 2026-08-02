@@ -80,7 +80,10 @@ fi
 # A prompt that names a path other than the one this job verifies is a silent,
 # permanent skip loop.
 OUTPUT_NAMED="${OUTPUT_FILE#$REPO_DIR/}"
-if ! render_placeholders "$(cat "$PROMPT_FILE")" | grep -qF "$OUTPUT_NAMED"; then
+# Here-string, not a pipe: under `set -o pipefail`, `grep -q` exits on first
+# match and the writer dies of SIGPIPE (141), failing the whole pipeline even
+# though the match succeeded.
+if ! grep -qF "$OUTPUT_NAMED" <<<"$(render_placeholders "$(cat "$PROMPT_FILE")")"; then
   log "ERROR: [$JOB] $PROMPT_REL does not write to $OUTPUT_NAMED (output: in $CONFIG_FILE)."
   exit 1
 fi

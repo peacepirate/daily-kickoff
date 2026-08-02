@@ -45,9 +45,12 @@ render_placeholders() {
 PLACEHOLDER_RE='\{\{[A-Z_0-9]+\}\}|(^|[^A-Za-z_])TODAY([^A-Za-z_]|$)'
 
 assert_no_placeholders() {  # TEXT LABEL
-  if printf '%s' "$1" | grep -qE "$PLACEHOLDER_RE"; then
+  # Here-string, not a pipe: under `set -o pipefail`, `grep -q` exits on first
+  # match and the writer dies of SIGPIPE (141), failing the pipeline even though
+  # the match succeeded — which would make this fail-closed guard fail open.
+  if grep -qE "$PLACEHOLDER_RE" <<<"$1"; then
     log "ERROR: ${JOB_LABEL:+[$JOB_LABEL] }unsubstituted placeholder in $2:"
-    printf '%s' "$1" | grep -nE "$PLACEHOLDER_RE" | tee -a "$LOG_FILE"
+    grep -nE "$PLACEHOLDER_RE" <<<"$1" | tee -a "$LOG_FILE"
     return 1
   fi
 }
@@ -123,7 +126,7 @@ verify_output() {
     quarantine_output "$1"
     return 1
   fi
-  if ! head -1 "$1" | grep -q '^---'; then
+  if ! grep -q '^---' <<<"$(head -1 "$1")"; then
     log "ERROR: ${label}$1 has no frontmatter — likely truncated."
     quarantine_output "$1"
     return 1
