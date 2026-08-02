@@ -127,6 +127,24 @@ d="$(new_repo nologfile)"; echo x > "$d/src/content/a.md"
 ( unset LOG_FILE; set -u; commit_and_push "$d" "src/content/" "msg" >/dev/null 2>&1 )
 [ $? = 0 ] && ok "works with LOG_FILE unset (kickoff path)" || bad "fails with LOG_FILE unset"
 
+# 10. Unborn branch — a studio made with `git init` has no commits yet, and
+#     rev-parse --abbrev-ref HEAD fails there. Must still commit.
+d="$WORK/unborn"; mkdir -p "$d/notes"; git -C "$d" init -q -b main
+git -C "$d" config user.email t@t.t; git -C "$d" config user.name t
+echo x > "$d/notes/2026-08.md"
+run_cap commit_and_push "$d" "notes/" "note: first"
+[ "$CP_RC" = 0 ] && [ "$(commits_in "$d")" = 1 ] \
+  && ok "unborn branch still commits (rc 0)" \
+  || bad "unborn branch: rc=$CP_RC tag='$COMMIT_PUSH_FAIL'"
+
+# 11. Detached HEAD must be refused — it is not the expected branch.
+d="$(new_repo detached)"; git -C "$d" checkout -q --detach HEAD
+echo x > "$d/src/content/a.md"; before="$(commits_in "$d")"
+run_cap commit_and_push "$d" "src/content/" "msg"
+[ "$CP_RC" = 1 ] && [ "$(commits_in "$d")" = "$before" ] \
+  && ok "detached HEAD refuses to commit (rc 1)" \
+  || bad "detached HEAD: rc=$CP_RC tag='$COMMIT_PUSH_FAIL'"
+
 echo
 [ "$FAIL" = "0" ] && echo "commit_and_push tests passed" || echo "commit_and_push tests FAILED"
 exit "$FAIL"

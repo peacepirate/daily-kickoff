@@ -143,8 +143,14 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
     return 2
   fi
 
+  # symbolic-ref first: it resolves an unborn branch, where rev-parse fails and
+  # would report "unknown" — so a studio created with `git init` rather than
+  # `git clone` would never commit anything. rev-parse is the fallback, and on a
+  # detached HEAD it yields "HEAD", which correctly fails the check below.
   local branch
-  branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+  branch="$(git -C "$repo" symbolic-ref --short HEAD 2>/dev/null \
+            || git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null \
+            || echo unknown)"
   if [ "$branch" != "$expected" ]; then
     note "ERROR: $repo is on branch '$branch', not $expected — refusing to commit or push."
     COMMIT_PUSH_FAIL="commit(branch=$branch)"

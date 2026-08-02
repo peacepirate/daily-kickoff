@@ -32,7 +32,10 @@ kickoff — Daily Kickoff content engine
 Usage: kickoff <command> [args]
 
 Commands:
-  note <text>          Capture a field note              (Epic 2)
+  note <text> [--tag a,b] [--link <theme>/<date>]
+                       Capture a field note
+  note -               Capture the body from stdin
+  note --import <file> Ingest blank-line-separated blocks, one entry each
   draft <angle-id>     Generate channel drafts           (Epic 5)
   approve <slug>       Publish a draft, copy to clipboard (Epic 6)
   engagement <slug>    Record post-hoc metrics           (Epic 7)
@@ -50,6 +53,187 @@ EOF
 not_yet() {
   echo "kickoff $1: not implemented yet — lands in $2." >&2
   exit 2
+}
+
+# ---------------------------------------------------------------------------
+# note — capture (S2.3) and the import port (S2.4)
+#
+# One entry:
+#
+#   ## 2026-08-02T14:31-04:00 #adoption #review-bottleneck → leadership/2026-08-01
+#   Body text, verbatim, possibly several lines.
+#
+# The header carries every machine-readable field; the body runs to the next
+# header or EOF.
+
+# The single regex that identifies an entry header, for writer and reader alike.
+# Anchored to the ISO-8601 stamp rather than a bare '## ' because bodies are
+# stored verbatim and may legitimately contain markdown headings of their own.
+NOTE_HEADER_RE='^## ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}[-+][0-9]{2}:[0-9]{2})(.*)$'
+
+NOTE_PENDING=""
+NOTE_COUNT=0
+
+note_die() { echo "kickoff note: $*" >&2; exit 1; }
+
+# One `date` call: three would risk straddling a minute or a day boundary.
+# BSD date has no %:z, so splice the colon into +hhmm here.
+now_iso() {
+  local raw zone
+  raw="$(date '+%Y-%m-%dT%H:%M %z')"
+  zone="${raw#* }"
+  raw="${raw% *}"
+  printf '%s%s:%s' "$raw" "${zone%??}" "${zone#???}"
+}
+
+format_tags() {  # "a,b" or "#a, #b" -> " #a #b"
+  local raw="${1//,/ }" t out=""
+  set -f   # a tag is a literal; word-splitting must not also glob
+  for t in $raw; do
+    t="${t#\#}"
+    [ -n "$t" ] && out="$out #$t"
+  done
+  set +f
+  printf '%s' "$out"
+}
+
+link_near_matches() {  # THEME DATE -> " theme/date ..."
+  local theme="$1" date="$2" out="" d f base prev="" next=""
+  for d in "$REPO_DIR"/src/content/*/; do
+    base="$(basename "$d")"
+    if [ "$base" != "$theme" ] && [ -f "$d$date.md" ]; then out="$out $base/$date"; fi
+  done
+  # Glob expansion is already date-sorted, so the last name below the target and
+  # the first above it are the neighbours.
+  for f in "$REPO_DIR/src/content/$theme"/*.md; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f" .md)"
+    if [[ "$base" < "$date" ]]; then prev="$base"
+    elif [ -z "$next" ] && [[ "$base" > "$date" ]]; then next="$base"; fi
+  done
+  [ -n "$prev" ] && out="$out $theme/$prev"
+  [ -n "$next" ] && out="$out $theme/$next"
+  printf '%s' "$out"
+}
+
+# A dangling link warns and never fails. Discarding the note would cost far more
+# than a pointer that has to be corrected by hand later.
+check_link() {  # THEME/DATE
+  local link="$1" theme date near
+  case "$link" in
+    */*) theme="${link%%/*}"; date="${link##*/}" ;;
+    *)   note "WARN: --link '$link' is not <theme>/<date> — recorded as given."; return 0 ;;
+  esac
+  [ -f "$REPO_DIR/src/content/$theme/$date.md" ] && return 0
+  note "WARN: --link $link names no digest under $REPO_DIR/src/content/."
+  near="$(link_near_matches "$theme" "$date")"
+  [ -n "$near" ] && note "      near matches:$near"
+  note "      Writing the note anyway."
+  return 0
+}
+
+note_add_entry() {  # TS TAGS LINK BODY
+  local header="## $1$2" body
+  [ -n "$3" ] && header="$header → $3"
+  body="$(printf '%s' "$4")"   # drop trailing blank lines; the separator is ours
+  NOTE_PENDING="$NOTE_PENDING
+$header
+$body
+"
+  NOTE_COUNT=$((NOTE_COUNT + 1))
+}
+
+cmd_note() {
+  local body="" tags="" link="" import_file="" from_stdin=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --tag|--tags) [ $# -ge 2 ] || note_die "--tag needs a value";   tags="$2";        shift 2 ;;
+      --link)       [ $# -ge 2 ] || note_die "--link needs a value";  link="$2";        shift 2 ;;
+      --import)     [ $# -ge 2 ] || note_die "--import needs a file"; import_file="$2"; shift 2 ;;
+      -)            from_stdin=1; shift ;;
+      --)           shift; while [ $# -gt 0 ]; do body="${body:+$body }$1"; shift; done ;;
+      -*)           note_die "unknown option: $1" ;;
+      *)            body="${body:+$body }$1"; shift ;;
+    esac
+  done
+
+  local mode="text"
+  if [ -n "$import_file" ]; then
+    [ "$from_stdin" = 0 ] || note_die "use either - or --import, not both"
+    [ -z "$body" ] || note_die "--import takes no inline text"
+    mode="import"
+  elif [ "$from_stdin" = 1 ]; then
+    mode="stdin"
+  elif [ -z "$body" ]; then
+    note_die 'nothing to capture. Usage: kickoff note "text" [--tag a,b] [--link <theme>/<date>]'
+  fi
+
+  # Before anything is read or written, so an unresolvable studio loses nothing.
+  require_studio
+
+  local ts day month file tag_str
+  ts="$(now_iso)"
+  day="${ts%%T*}"
+  month="${day%-*}"
+  file="$STUDIO_DIR/notes/$month.md"
+  tag_str="$(format_tags "$tags")"
+  [ -n "$link" ] && check_link "$link"
+
+  case "$mode" in
+    text)
+      note_add_entry "$ts" "$tag_str" "$link" "$body"
+      ;;
+    stdin)
+      body="$(cat)"
+      [ -n "${body//[[:space:]]/}" ] || note_die "empty note on stdin."
+      note_add_entry "$ts" "$tag_str" "$link" "$body"
+      ;;
+    import)
+      [ -f "$import_file" ] || note_die "no such file: $import_file"
+      # Timestamped at import time, never inferred from the file: any inferred
+      # time would be confidently wrong for every block but the last.
+      local line block=""
+      while IFS= read -r line || [ -n "$line" ]; do
+        if [ -z "${line//[[:space:]]/}" ]; then
+          if [ -n "$block" ]; then note_add_entry "$ts" "$tag_str" "$link" "$block"; block=""; fi
+        else
+          block="${block:+$block
+}$line"
+        fi
+      done < "$import_file"
+      [ -n "$block" ] && note_add_entry "$ts" "$tag_str" "$link" "$block"
+      [ "$NOTE_COUNT" -gt 0 ] \
+        || note_die "$import_file holds no note blocks — nothing imported, file left in place."
+      ;;
+  esac
+
+  if [ ! -f "$file" ]; then
+    printf '# Notes — %s\n' "$month" > "$file" || note_die "cannot create $file — nothing captured."
+  fi
+  # Append only. This file is Phase 2 corpus; a rewrite risks every prior note.
+  printf '%s' "$NOTE_PENDING" >> "$file" || note_die "cannot append to $file — nothing captured."
+
+  if [ "$mode" = "import" ]; then
+    # Move rather than copy: a second import of the same file must be
+    # impossible, and the raw original is worth keeping.
+    mkdir -p "$STUDIO_DIR/notes/.imported"
+    mv "$import_file" "$STUDIO_DIR/notes/.imported/$ts-$(basename "$import_file")" \
+      || note "WARN: entries captured but $import_file could not be moved — re-importing would duplicate them."
+  fi
+
+  local msg rc=0
+  if [ "$mode" = "import" ]; then
+    msg="note: import $NOTE_COUNT entries from $(basename "$import_file") ($ts)"
+  else
+    msg="note: $ts"
+  fi
+  # Current shell, never $(...): COMMIT_PUSH_FAIL is a global out-parameter.
+  commit_and_push "$STUDIO_DIR" "notes/" "$msg" || rc=$?
+  # The note is on disk either way; git trouble must not read as a lost capture.
+  [ "$rc" = 1 ] && note "WARN: note is on disk but git did not record it (${COMMIT_PUSH_FAIL:-unknown})."
+
+  echo "note: captured $NOTE_COUNT → $file ($(grep -cE "$NOTE_HEADER_RE" "$file" || true) total)"
 }
 
 cmd_doctor() {
@@ -74,12 +258,16 @@ cmd_doctor() {
   echo "notes        $(find "$STUDIO_DIR/notes" -name '*.md' 2>/dev/null | wc -l | tr -d ' ') files"
 }
 
-case "${1:---help}" in
-  --help|-h|help) usage ;;
-  doctor)         cmd_doctor ;;
-  note)           require_studio; not_yet note "Epic 2" ;;
-  draft)          require_studio; not_yet draft "Epic 5" ;;
-  approve)        require_studio; not_yet approve "Epic 6" ;;
-  engagement)     require_studio; not_yet engagement "Epic 7" ;;
-  *)              echo "Unknown command: $1" >&2; echo >&2; usage >&2; exit 1 ;;
-esac
+# Dispatch only when executed. Sourcing gives the tests the canonical
+# NOTE_HEADER_RE, so writer and reader cannot drift apart.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  case "${1:---help}" in
+    --help|-h|help) usage ;;
+    doctor)         cmd_doctor ;;
+    note)           shift; cmd_note "$@" ;;
+    draft)          require_studio; not_yet draft "Epic 5" ;;
+    approve)        require_studio; not_yet approve "Epic 6" ;;
+    engagement)     require_studio; not_yet engagement "Epic 7" ;;
+    *)              echo "Unknown command: $1" >&2; echo >&2; usage >&2; exit 1 ;;
+  esac
+fi
