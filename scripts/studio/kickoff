@@ -429,6 +429,9 @@ PY
 }
 
 cmd_doctor() {
+  # Dynamically scoped, so doctor_signals and doctor_dangling_links accumulate
+  # into it and this function sees the result.
+  local DOCTOR_FAIL=0
   require_studio
   echo "STUDIO_DIR   $STUDIO_DIR  OK"
   echo "directories  notes angles drafts published engagement state  OK"
@@ -447,7 +450,123 @@ cmd_doctor() {
     echo "git          not a repo — notes will have no history"
   fi
   echo "corpus       $(find "$REPO_DIR/src/content" -name '20*.md' 2>/dev/null | wc -l | tr -d ' ') digests"
-  echo "notes        $(find "$STUDIO_DIR/notes" -name '*.md' 2>/dev/null | wc -l | tr -d ' ') files"
+
+  # -maxdepth 1: notes/.imported/ holds raw import sources, which are archive,
+  # not notes. Counting them would inflate the one number that says whether the
+  # differentiating input is actually being captured.
+  # `|| true` throughout: grep exits 1 on no match, and under `set -o pipefail`
+  # that fails the whole pipeline — so an empty studio would abort doctor
+  # instead of reporting an empty studio.
+  local note_files newest
+  note_files=$(find "$STUDIO_DIR/notes" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+  newest="$(grep -h -E "$NOTE_HEADER_RE" "$STUDIO_DIR"/notes/*.md 2>/dev/null \
+            | sed -E 's/^## ([^ ]+).*/\1/' | sort | tail -1)" || true
+  echo "notes        $note_files file(s), $(count_note_entries) entr(ies)${newest:+, newest $newest}"
+
+  doctor_signals
+  doctor_dangling_links
+
+  # seen.json has no writer until Epic 6. Say so explicitly: this project already
+  # carries one protection with no producer — cleanup-old-digests.sh honours a
+  # `starred: true` frontmatter field that nothing has ever written — and a
+  # second silent no-op is not worth the confusion it buys.
+  if [ -f "$STUDIO_DIR/state/seen.json" ]; then
+    echo "seen.json    present"
+  else
+    echo "seen.json    absent — written by 'kickoff approve' (Epic 6), so this is expected"
+  fi
+
+  [ "$DOCTOR_FAIL" = 0 ] || { echo; echo "doctor: $DOCTOR_FAIL check(s) need attention."; return 1; }
+}
+
+count_note_entries() {
+  local n
+  n="$(grep -h -c -E "$NOTE_HEADER_RE" "$STUDIO_DIR"/notes/*.md 2>/dev/null \
+       | awk '{n += $1} END {print n + 0}')" || true
+  printf '%s' "${n:-0}"
+}
+
+# Ranking silently computed from a stale picture of what you cared about is the
+# failure this epic exists to prevent, so staleness has to be loud somewhere the
+# CLI can see it. 7 days matches the threshold the site elevates at; keep them
+# in step.
+STALE_SIGNAL_DAYS=7
+
+doctor_signals() {
+  local store="$STUDIO_DIR/state/signals.json"
+  if [ ! -f "$store" ]; then
+    echo "signals      none yet — export from the site, then run 'kickoff signals'"
+    echo "             until then ranking sees no stars at all"
+    DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+    return
+  fi
+  ensure_venv
+  local report
+  report="$("$PYTHON_BIN" - "$store" "$STALE_SIGNAL_DAYS" <<'PY'
+import json, sys
+from datetime import datetime, timezone
+
+path, stale_days = sys.argv[1], int(sys.argv[2])
+try:
+    doc = json.load(open(path, encoding="utf-8"))
+except Exception as exc:
+    print("CORRUPT|%s" % exc)
+    raise SystemExit(0)
+
+items = doc.get("items") or {}
+starred = sum(1 for v in items.values() if v.get("starred"))
+noted = sum(1 for v in items.values() if v.get("note"))
+stamps = [v["seenAt"] for v in items.values() if v.get("seenAt")]
+age = ""
+if stamps:
+    newest = max(stamps)
+    try:
+        s = newest.replace("Z", "+00:00").replace("z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            raise ValueError("no offset")
+        age = str((datetime.now(timezone.utc) - dt).days)
+    except Exception:
+        age = "?"
+print("OK|%d|%d|%d|%s" % (len(items), starred, noted, age))
+PY
+)"
+  case "$report" in
+    CORRUPT*)
+      echo "signals      CORRUPT — ${report#CORRUPT|}"
+      echo "             re-export from the site and re-run 'kickoff signals'"
+      DOCTOR_FAIL=$((DOCTOR_FAIL + 1)) ;;
+    *)
+      local IFS='|'; read -r _ total starred noted age <<<"$report"
+      echo "signals      $total key(s), $starred starred, $noted noted"
+      if [ "$age" = "?" ] || [ -z "$age" ]; then
+        echo "             age unknown — no usable seenAt in the store"
+        DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+      elif [ "$age" -ge "$STALE_SIGNAL_DAYS" ]; then
+        echo "             STALE: newest signal is $age days old — ranking is out of date"
+        DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+      else
+        echo "             newest signal $age day(s) old  OK"
+      fi ;;
+  esac
+}
+
+# A --link that names nothing resolves to no boost at all in Epic 3's ranking,
+# and it does so silently. Capture deliberately never fails on one, so this is
+# where they surface.
+doctor_dangling_links() {
+  local dangling=0 link links
+  links="$(grep -h -oE '→ [^ ]+' "$STUDIO_DIR"/notes/*.md 2>/dev/null | sed 's/^→ //' | sort -u)" || true
+  while IFS= read -r link; do
+    [ -n "$link" ] || continue
+    [ -f "$REPO_DIR/src/content/$link.md" ] || { dangling=$((dangling + 1)); echo "             dangling: $link"; }
+  done <<<"$links"
+  if [ "$dangling" = 0 ]; then
+    echo "note links   all resolve  OK"
+  else
+    echo "note links   $dangling dangling — those notes give their digest no ranking boost"
+    DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+  fi
 }
 
 # Dispatch only when executed. Sourcing gives the tests the canonical
