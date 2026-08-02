@@ -114,6 +114,82 @@ resolve_output() {  # OUTPUT_TEMPLATE -> absolute path
   printf '%s' "$path"
 }
 
+# The project's only commit-and-push logic, so there is exactly one copy of it.
+# The site repo and $STUDIO_DIR both need every guard here; a second copy is the
+# drift class that produced the original theme bug.
+#
+#   commit_and_push REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
+#   -> 0 committed · 2 nothing to commit · 1 failed (COMMIT_PUSH_FAIL holds a tag)
+#
+# Call it in the current shell. COMMIT_PUSH_FAIL is a global out-parameter, so
+# `$(commit_and_push ...)` would discard the tag in the subshell.
+#
+# Each guard was earned:
+#   - branch check, because `push origin HEAD:main` from another branch pushes
+#     the wrong branch to main, and off-main runs must not commit at all;
+#   - `status --porcelain`, never `git diff HEAD`, which cannot see untracked
+#     files — and every new digest and note is untracked;
+#   - push split from commit, so a push failure leaves the commit intact and the
+#     next run retries it.
+#
+# Uses note(), not log(): the kickoff CLI has no LOG_FILE, and log() would die
+# on the unbound variable under `set -u`.
+commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
+  local repo="$1" pathspec="$2" message="$3" expected="${4:-main}"
+  COMMIT_PUSH_FAIL=""
+
+  if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+    note "WARN: $repo is not a git repository — committed nothing, no history kept."
+    return 2
+  fi
+
+  local branch
+  branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+  if [ "$branch" != "$expected" ]; then
+    note "ERROR: $repo is on branch '$branch', not $expected — refusing to commit or push."
+    COMMIT_PUSH_FAIL="commit(branch=$branch)"
+    return 1
+  fi
+
+  local committed=0
+  if [ -n "$(git -C "$repo" status --porcelain -- "$pathspec")" ]; then
+    git -C "$repo" add -A -- "$pathspec"
+    if git -C "$repo" commit -m "$message" >/dev/null; then
+      committed=1
+    else
+      note "ERROR: commit failed in $repo."
+      COMMIT_PUSH_FAIL="commit"
+      return 1
+    fi
+  else
+    note "No new content to commit."
+  fi
+
+  # A studio clone may legitimately have no remote. That is a warning, never a
+  # failure — a note must not be lost to git configuration.
+  if [ -z "$(git -C "$repo" remote 2>/dev/null)" ]; then
+    [ "$committed" = 1 ] && note "WARN: $repo has no remote — commit is local only."
+    [ "$committed" = 1 ] && return 0 || return 2
+  fi
+
+  local unpushed push_out
+  unpushed=$(git -C "$repo" rev-list --count '@{u}..HEAD' 2>/dev/null || echo "0")
+  if [ "$unpushed" != "0" ]; then
+    note "Pushing $unpushed unpushed commit(s) from $repo..."
+    if push_out=$(git -C "$repo" push origin "HEAD:$expected" 2>&1); then
+      [ -n "$push_out" ] && note "$push_out"
+      note "Push OK."
+    else
+      [ -n "$push_out" ] && note "$push_out"
+      note "ERROR: push failed — $unpushed commit(s) remain local in $repo. Will retry next run."
+      COMMIT_PUSH_FAIL="push"
+      return 1
+    fi
+  fi
+
+  [ "$committed" = 1 ] && return 0 || return 2
+}
+
 # Phase 2 reads the digest corpus; it must never write to it.
 assert_output_boundary() {  # KIND OUTPUT_PATH
   [ "$1" = "generators" ] || return 0

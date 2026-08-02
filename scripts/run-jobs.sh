@@ -83,39 +83,20 @@ for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*
     || { log "WARN: $JOB failed"; FAILED_JOBS="$FAILED_JOBS $JOB"; }
 done
 
-# Single commit for all successfully generated content.
-# Uses porcelain, not `git diff HEAD`, which cannot see untracked files — and
-# every new digest is untracked.
-BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-if [ "$BRANCH" != "main" ]; then
-  # Committing here would land on the wrong branch and `push origin main` would
-  # be a silent no-op that still logs success.
-  log "ERROR: on branch '$BRANCH', not main — refusing to commit or push."
-  FAILED_JOBS="$FAILED_JOBS commit(branch=$BRANCH)"
-elif [ -z "$(git -C "$REPO_DIR" status --porcelain -- src/content/)" ]; then
-  log "No new content to commit."
-else
-  git -C "$REPO_DIR" add -A src/content/
-  if git -C "$REPO_DIR" commit -m "digest: $DATE [automated]"; then
-    log "Committed $COMMITTED job(s)."
-  else
-    log "ERROR: commit failed."
-    FAILED_JOBS="$FAILED_JOBS commit"
-  fi
-fi
+# Single commit for all successfully generated content. All the guards — branch,
+# porcelain-not-diff, push split from commit with retry — live in
+# commit_and_push, shared with the studio repo so there is only one copy.
+commit_and_push "$REPO_DIR" "src/content/" "digest: $DATE [automated]" && CP_RC=0 || CP_RC=$?
+case "$CP_RC" in
+  0) log "Committed $COMMITTED job(s)." ;;
+  2) ;;  # nothing to commit — commit_and_push already said so
+  *) FAILED_JOBS="$FAILED_JOBS $COMMIT_PUSH_FAIL" ;;
+esac
 
-# Push separately so a push failure doesn't abort the run, and so unpushed
-# commits are retried on later nights.
-UNPUSHED=$(git -C "$REPO_DIR" rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
-if [ "$BRANCH" = "main" ] && [ "$UNPUSHED" != "0" ]; then
-  log "Pushing $UNPUSHED unpushed commit(s)..."
-  if git -C "$REPO_DIR" push origin HEAD:main 2>&1 | tee -a "$LOG_FILE"; then
-    log "Push OK."
-  else
-    log "ERROR: push failed — $UNPUSHED commit(s) remain local. Will retry next run."
-    FAILED_JOBS="$FAILED_JOBS push"
-  fi
-fi
+# No studio commit here yet. `kickoff` commits its own writes, and nothing in
+# the nightly run touches $STUDIO_DIR until Epic 4 adds the angles generator —
+# which is where that second commit_and_push call belongs (S4.5). Adding it now
+# would also sweep hand-edited drafts into an "[automated]" commit.
 
 # cleanup-old-digests.sh is intentionally not wired in — run it manually.
 

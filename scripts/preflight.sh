@@ -11,9 +11,16 @@ ok()   { printf "  \033[32mok\033[0m    %s\n" "$*"; }
 bad()  { printf "  \033[31mFAIL\033[0m  %s\n" "$*"; FAIL=1; }
 
 echo "shell syntax"
-for s in scripts/*.sh scripts/lib/*.sh scripts/studio/kickoff; do
+for s in scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh scripts/studio/kickoff; do
   [ -f "$s" ] || continue
   bash -n "$s" 2>/dev/null && ok "$s" || bad "$s"
+done
+
+echo "unit tests (scratch repos only — no network, no git writes here)"
+for t in scripts/tests/test-*.sh; do
+  [ -f "$t" ] || continue
+  if out="$(bash "$t" 2>&1)"; then ok "$(basename "$t")"
+  else bad "$(basename "$t")"; printf '%s\n' "$out" | sed 's/^/        /'; fi
 done
 
 echo "prompts"
