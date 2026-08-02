@@ -38,14 +38,21 @@ cat > "$PLIST" <<EOF
     <string>${RUN_SCRIPT}</string>
   </array>
 
-  <!-- Fire at 11:00 PM every night; each job gates itself on its own schedule -->
+  <!-- Two slots; each job additionally gates itself on its own schedule:
+         Mon–Sat 23:00  digest fetch  (weekdays, saturday)
+         Sun     04:00  generation    (sunday) — reads Saturday's synthesis
+       Sunday is deliberately absent from the 23:00 slot so a sunday job cannot
+       fire twice in one day. launchd Weekday: 0=Sun, 1=Mon … 6=Sat. -->
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key>
-    <integer>23</integer>
-    <key>Minute</key>
-    <integer>0</integer>
-  </dict>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>6</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
 
   <!-- If the machine was asleep at 11pm, fire as soon as it wakes -->
   <key>RunAtLoad</key>
@@ -56,7 +63,8 @@ cat > "$PLIST" <<EOF
   <key>StandardErrorPath</key>
   <string>${LOG_DIR}/launchd-stderr.log</string>
 
-  <!-- Retry up to 3 times if it crashes -->
+  <!-- Minimum seconds between respawns. Not a retry policy: without KeepAlive
+       launchd does not relaunch on failure, which is intended here. -->
   <key>ThrottleInterval</key>
   <integer>300</integer>
 </dict>
@@ -69,7 +77,8 @@ launchctl load -w "$PLIST"
 
 echo ""
 echo "✓ Installed: $LABEL"
-echo "  Fires daily at 11:00 PM local time; each job gates on its own schedule."
+echo "  Mon-Sat 23:00 (digest fetch) and Sun 04:00 (generation), local time."
+echo "  Each job additionally gates on its own schedule: field in its config."
 echo "  Logs: $LOG_DIR/"
 echo ""
 echo "  To test a manual run right now:"
