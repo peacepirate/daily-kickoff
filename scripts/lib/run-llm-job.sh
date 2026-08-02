@@ -30,6 +30,12 @@ ensure_venv() {  # sets PYTHON_BIN
 # Never log from here — callers capture stdout.
 render_placeholders() {
   local text="$1" var
+  # With no TPL_ vars set this would silently return the text unrendered, and
+  # the symptom surfaces later as a misleading prompt/output mismatch.
+  if [ -z "${TPL_DATE:-}" ]; then
+    echo "ERROR: render_placeholders called before set_tpl_vars" >&2
+    return 1
+  fi
   for var in ${!TPL_@}; do
     text="${text//\{\{${var#TPL_}\}\}/${!var}}"
   done
