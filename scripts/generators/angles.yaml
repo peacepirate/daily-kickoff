@@ -1,0 +1,31 @@
+# Angles — the corpus-selection knobs, ahead of the job that will use them.
+#
+# Epic 4 flips `schedule: never` to `sunday` and adds `prompt:` and `producer:`.
+# Until then this file exists so `select_corpus.py --job angles` has somewhere to
+# read its tuning from, and the weights can be tuned by eye a week before
+# anything depends on them.
+#
+# `name:`, `schedule:` and `output:` are here because run-jobs.sh requires them,
+# not because this job runs. It globs scripts/generators/*.yaml, and a config
+# with an empty `output:` or an unknown `schedule:` is marked FAILED — which
+# would put the nightly orchestrator at exit 1 every night until Epic 4.
+# `never` returns skip from job_scheduled_today() in scripts/lib/job-config.sh.
+name:     "Angles"
+schedule: never
+output:   $STUDIO_DIR/angles/{{DATE}}.md
+
+selection:
+  lookback_days: 14
+  collections: [leadership, ai, tech, rva-events]
+  half_life_days: 7
+  weights:
+    # leadership is weighted 3x against ai's 1x to offset a ~6:1 raw count
+    # imbalance (42 ai digests against 7 leadership today), so the anchor topic
+    # leads the bundle despite being outnumbered. Expect to retune over Q1 as
+    # leadership accumulates at ~4/month.
+    theme:   { leadership: 3.0, ai: 1.0, tech: 0.6, rva-events: 0.1 }
+    # Applied once per digest, not once per starred item — see rank() in
+    # scripts/studio/select_corpus.py for why.
+    starred: 1.5
+    noted:   2.0
+    done:    0.3

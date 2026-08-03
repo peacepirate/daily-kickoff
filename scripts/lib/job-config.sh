@@ -98,6 +98,11 @@ job_scheduled_today() {  # SCHEDULE DAY_OF_WEEK -> 0 run, 1 skip, 2 unknown voca
     weekdays) [ "$2" != "7" ] ;;   # Mon–Sat; digest sources are quiet on Sunday
     saturday) [ "$2" = "6" ] ;;
     sunday)   [ "$2" = "7" ] ;;
+    # A config that exists for its settings, not to run — generators/angles.yaml
+    # until Epic 4 turns it on. Without this word the orchestrator would mark it
+    # FAILED and exit 1 every night; deleting the config instead would leave
+    # select_corpus.py with nothing to read.
+    never)    return 1 ;;
     *)        return 2 ;;
   esac
 }

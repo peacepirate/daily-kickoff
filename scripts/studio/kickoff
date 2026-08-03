@@ -38,6 +38,8 @@ Commands:
   note --import <file> Ingest blank-line-separated blocks, one entry each
   note -- <text>       Everything after -- is body, even if it starts with '-'
   signals [path]       Merge a watchlist export into state/signals.json
+  corpus [--job <j>] [--date <YYYY-MM-DD>]
+                       Print the ranked corpus bundle to stdout (writes nothing)
   draft <angle-id>     Generate channel drafts           (Epic 5)
   approve <slug>       Publish a draft, copy to clipboard (Epic 6)
   engagement <slug>    Record post-hoc metrics           (Epic 7)
@@ -570,6 +572,39 @@ PY
   return 0
 }
 
+# ---------------------------------------------------------------------------
+# corpus — the ranked bundle, on stdout (S3.6)
+#
+# The same code path Epic 4's generator will use, available a week earlier so
+# the weights in generators/angles.yaml can be tuned by eye. It prints and
+# writes nothing: no file, no commit, and nothing under src/content/, which is
+# both the published site and the corpus it is reading.
+
+corpus_die() { echo "kickoff corpus: $*" >&2; exit 1; }
+
+cmd_corpus() {
+  local job="angles" date=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --job)  [ $# -ge 2 ] || corpus_die "--job needs a value"
+              job="$2"; shift 2 ;;
+      --date) [ $# -ge 2 ] || corpus_die "--date needs a value"
+              date="$2"; shift 2 ;;
+      -*)     corpus_die "unknown option: $1" ;;
+      *)      corpus_die "unexpected argument: $1 — usage: kickoff corpus [--job <j>] [--date <YYYY-MM-DD>]" ;;
+    esac
+  done
+
+  require_studio
+  ensure_venv
+
+  # STUDIO_DIR is exported, never re-resolved in Python: resolve_studio_dir()
+  # above is the single source of truth for where the studio is (D5).
+  local args=(--job "$job")
+  [ -n "$date" ] && args+=(--date "$date")
+  STUDIO_DIR="$STUDIO_DIR" "$PYTHON_BIN" "$REPO_DIR/scripts/studio/select_corpus.py" "${args[@]}"
+}
+
 cmd_doctor() {
   # Dynamically scoped, so doctor_signals and doctor_dangling_links accumulate
   # into it and this function sees the result.
@@ -762,6 +797,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     doctor)         cmd_doctor ;;
     note)           shift; cmd_note "$@" ;;
     signals)        shift; cmd_signals "$@" ;;
+    corpus)         shift; cmd_corpus "$@" ;;
     draft)          require_studio; not_yet draft "Epic 5" ;;
     approve)        require_studio; not_yet approve "Epic 6" ;;
     engagement)     require_studio; not_yet engagement "Epic 7" ;;
