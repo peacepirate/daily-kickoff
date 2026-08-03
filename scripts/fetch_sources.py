@@ -41,6 +41,12 @@ EVENT_WINDOW_START = TODAY + timedelta(days=2)   # Monday after Saturday run
 EVENT_WINDOW_END   = TODAY + timedelta(days=30)
 
 SCRIPT_DIR = Path(__file__).parent
+# scripts/lib carries the shared wire format. Put it on the path rather than
+# making scripts/ a package, so a producer at any depth (studio/) imports it
+# the same way and no invocation depends on the caller's cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from bundle import format_item  # noqa: E402  — needs the path line above
+
 CONFIG_PATH = SCRIPT_DIR / "topics" / f"{args.topic}.yaml"
 if not CONFIG_PATH.exists():
     print(f"ERROR: Topic config not found: {CONFIG_PATH}", file=sys.stderr)
@@ -64,16 +70,7 @@ def warn(msg: str) -> None:
     print(f"  [WARN] {msg}", file=sys.stderr)
 
 def print_item(source: str, title: str, url: str, date: str, summary: str) -> None:
-    print(f"**{title}**")
-    print(f"URL: {url}")
-    if date and date != "recent":
-        # Use uppercase DATE: for event-mode values (ISO dates and UNKNOWN),
-        # legacy lowercase Date: for RSS publication dates.
-        label = "DATE" if (date == "UNKNOWN" or re.match(r"\d{4}-\d{2}-\d{2}$", date)) else "Date"
-        print(f"{label}: {date}")
-    if summary:
-        print(f"Summary: {summary}")
-    print()
+    print(format_item(source, title, url, date, summary), end="")
 
 
 # ── Event date extraction ─────────────────────────────────────────────────────
