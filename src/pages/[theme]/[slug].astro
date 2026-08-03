@@ -135,12 +135,18 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
 
 <script>
   function getStoredValue(id: string): Record<string, unknown> {
-    try { return JSON.parse(localStorage.getItem(id) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(localStorage.getItem(id) ?? '{}'); } catch { return {}; }
+    // A stored `null`, array or scalar is not a value object, and callers index into it.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
   }
   function setStatus(id: string, status: 'done' | 'snoozed' | 'archived' | null): void {
     const v = getStoredValue(id);
     if (status === null) { delete v.status; } else { v.status = status; }
-    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+    try {
+      if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+    } catch {}
   }
 
   document.getElementById('mark-all-read')?.addEventListener('click', e => {
@@ -155,13 +161,23 @@ const totalActionCount = tryItems.length + shareItems.length + readDeeper.length
     // Collect first, mutate after: setStatus can remove a key, which shifts
     // every later index of a live localStorage.key(i) walk.
     const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(prefix)) keys.push(key);
-    }
-    keys.forEach(key => setStatus(key, 'done'));
-    document.dispatchEvent(new CustomEvent('watchlist-updated'));
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(prefix)) keys.push(key);
+      }
+    } catch {}
+    // Only items already carrying state have a key, so a match of zero is normal.
+    const changed = keys.filter(key => getStoredValue(key).status !== 'done');
+    changed.forEach(key => setStatus(key, 'done'));
+    if (changed.length > 0) document.dispatchEvent(new CustomEvent('watchlist-updated'));
     const btn = document.getElementById('mark-all-read');
-    if (btn) btn.textContent = '✓ Marked all done';
+    // Report what happened. Claiming success on a no-op teaches you to trust a control
+    // that did nothing, and this one matches zero keys more often than it looks.
+    if (btn) {
+      btn.textContent = changed.length === 0
+        ? '✓ Nothing to mark'
+        : `✓ Marked ${changed.length} done`;
+    }
   });
 </script>

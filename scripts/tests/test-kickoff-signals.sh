@@ -50,6 +50,19 @@ fresh_env() {
 sig_of()     { echo "$1/state/signals.json"; }
 commits_in() { git -C "$1" rev-list --count HEAD; }
 
+# exportedAt fixtures are RELATIVE to now. `kickoff signals` refuses a stamp in
+# the future, so absolute ones turn this suite red the moment the calendar
+# passes them — which is exactly what happened to the first version of this file.
+ago() { date -j -v"-${1}d" "+%Y-%m-%dT${2:-08:00:00}%z" | sed -E 's/([0-9]{2})([0-9]{2})$/\1:\2/'; }
+ago_date() { date -j -v"-${1}d" '+%Y-%m-%d'; }
+T7="$(ago 7)"; T6="$(ago 6 09:12:00)"; T5="$(ago 5 10:00:00)"; T5B="$(ago 5)"
+T3="$(ago 3)"; T2="$(ago 2)"; T1="$(ago 1)"; D1="$(ago_date 1)"; D4="$(ago_date 4)"
+
+# Item keys only need the valid 5-part shape; their date is an identifier, not a
+# time, so fixed past dates keep them stable. The import validates shape and
+# rejects junk, so bare labels like "k" cannot be used here.
+KA="wl:ai:2026-01-10:try:0"; KB="wl:ai:2026-01-11:try:0"; KC="wl:ai:2026-01-12:try:0"
+
 # Unquoted heredoc on purpose — the fields are meant to expand. No backticks in
 # any of the fixtures, so nothing else goes live.
 write_export() {  # PATH EXPORTED_AT SCHEMA ITEMS_JSON
@@ -76,19 +89,19 @@ echo "kickoff signals"
 
 # 1. First import creates the store, stamped with the export's own exportedAt.
 fresh_env; d="$(new_studio create)"; s="$(sig_of "$d")"
-write_export "$WORK/home/Downloads/kickoff-signals-2026-08-02.json" "2026-08-02T09:12:00-04:00" 2 \
+write_export "$WORK/home/Downloads/kickoff-signals-2026-08-02.json" "$T6" 2 \
   '{ "wl:ai:2026-08-01:try:0": { "starred": true, "status": "done" } }'
 run_signals "$d"
 [ "$RC" = 0 ] && [ -f "$s" ] && [ "$(jget "$s" 'd["schema"]')" = 2 ] \
   && ok "first import creates signals.json" || bad "create: rc=$RC out=$OUT"
-[ "$(jget "$s" 'd["items"]["wl:ai:2026-08-01:try:0"]["seenAt"]')" = "2026-08-02T09:12:00-04:00" ] \
+[ "$(jget "$s" 'd["items"]["wl:ai:2026-08-01:try:0"]["seenAt"]')" = "$T6" ] \
   && ok "each item carries seenAt from the export" || bad "seenAt missing: $(jget "$s" 'd["items"]')"
 grep -q '1 new, 0 updated, 0 retained' <<<"$OUT" \
   && ok "reports new / updated / retained" || bad "report line: $OUT"
 grep -q 'day(s) old' <<<"$OUT" && ok "reports export age in days" || bad "no age: $OUT"
 
 # 2. A newer exportedAt wins, and untouched keys survive the merge.
-write_export "$WORK/cwd/kickoff-signals-2026-08-03.json" "2026-08-03T10:00:00-04:00" 2 \
+write_export "$WORK/cwd/kickoff-signals-2026-08-03.json" "$T5" 2 \
   '{ "wl:ai:2026-08-01:try:0": { "starred": false, "status": "archived" },
      "wl:tech:2026-08-02:try:1": { "starred": true } }'
 run_signals "$d" "$WORK/cwd/kickoff-signals-2026-08-03.json"
@@ -98,7 +111,7 @@ grep -q '1 new, 1 updated, 0 retained' <<<"$OUT" \
   && ok "counts one new and one updated" || bad "counts: $OUT"
 
 # 3. An OLDER export must not overwrite what is already held.
-write_export "$WORK/cwd/kickoff-signals-2026-08-01.json" "2026-08-01T08:00:00-04:00" 2 \
+write_export "$WORK/cwd/kickoff-signals-2026-08-01.json" "$T7" 2 \
   '{ "wl:ai:2026-08-01:try:0": { "starred": true, "status": "stale" } }'
 run_signals "$d" "$WORK/cwd/kickoff-signals-2026-08-01.json"
 [ "$RC" = 0 ] && [ "$(jget "$s" 'd["items"]["wl:ai:2026-08-01:try:0"]["status"]')" = archived ] \
@@ -114,37 +127,37 @@ grep -q '0 new, 0 updated, 2 retained' <<<"$OUT" \
 # 5. ISO-8601 with offsets orders by instant, not by string. 09:00-04:00 is
 #    13:00Z — LATER than 12:00+00:00, yet it sorts EARLIER as text. A
 #    lexicographic merge gets both of the next two cases backwards.
-LATER_INSTANT="2026-08-04T09:00:00-04:00"    # 13:00Z, sorts low
-EARLIER_INSTANT="2026-08-04T12:00:00+00:00"  # 12:00Z, sorts high
+LATER_INSTANT="$(ago 4 09:00:00)"    # 13:00Z, sorts low
+EARLIER_INSTANT="${D4}T12:00:00+00:00"  # 12:00Z, sorts high
 
 fresh_env; d="$(new_studio offsets_a)"; s="$(sig_of "$d")"
-write_export "$WORK/cwd/a1.json" "$LATER_INSTANT"   2 '{ "k": { "status": "later" } }'
-write_export "$WORK/cwd/a2.json" "$EARLIER_INSTANT" 2 '{ "k": { "status": "earlier" } }'
+write_export "$WORK/cwd/a1.json" "$LATER_INSTANT"   2 "{ \"$KA\": { \"status\": \"later\" } }"
+write_export "$WORK/cwd/a2.json" "$EARLIER_INSTANT" 2 "{ \"$KA\": { \"status\": \"earlier\" } }"
 run_signals "$d" "$WORK/cwd/a1.json"
 run_signals "$d" "$WORK/cwd/a2.json"
-[ "$(jget "$s" 'd["items"]["k"]["status"]')" = later ] \
+[ "$(jget "$s" "d['items']['$KA']['status']")" = later ] \
   && ok "a string-greater but instant-older export does not overwrite" \
-  || bad "offset order: got $(jget "$s" 'd["items"]["k"]')"
+  || bad "offset order: got $(jget "$s" "d['items']['$KA']")"
 
 fresh_env; d="$(new_studio offsets_b)"; s="$(sig_of "$d")"
-write_export "$WORK/cwd/b1.json" "$EARLIER_INSTANT" 2 '{ "k": { "status": "earlier" } }'
-write_export "$WORK/cwd/b2.json" "$LATER_INSTANT"   2 '{ "k": { "status": "later" } }'
+write_export "$WORK/cwd/b1.json" "$EARLIER_INSTANT" 2 "{ \"$KA\": { \"status\": \"earlier\" } }"
+write_export "$WORK/cwd/b2.json" "$LATER_INSTANT"   2 "{ \"$KA\": { \"status\": \"later\" } }"
 run_signals "$d" "$WORK/cwd/b1.json"
 run_signals "$d" "$WORK/cwd/b2.json"
-[ "$(jget "$s" 'd["items"]["k"]["status"]')" = later ] \
+[ "$(jget "$s" "d['items']['$KA']['status']")" = later ] \
   && ok "a string-lesser but instant-newer export does overwrite" \
-  || bad "offset order (reverse): got $(jget "$s" 'd["items"]["k"]')"
+  || bad "offset order (reverse): got $(jget "$s" "d['items']['$KA']")"
 
 # 6. Newest of several in a Downloads-like directory, by mtime.
 fresh_env; d="$(new_studio newest)"; s="$(sig_of "$d")"
-write_export "$WORK/home/Downloads/kickoff-signals-2026-08-01.json" "2026-08-01T08:00:00-04:00" 2 '{ "old": {} }'
-write_export "$WORK/home/Downloads/kickoff-signals-2026-08-05.json" "2026-08-05T08:00:00-04:00" 2 '{ "newest": {} }'
-write_export "$WORK/home/Downloads/kickoff-signals-2026-08-03.json" "2026-08-03T08:00:00-04:00" 2 '{ "middle": {} }'
+write_export "$WORK/home/Downloads/kickoff-signals-2026-08-01.json" "$T7" 2 "{ \"$KA\": {} }"
+write_export "$WORK/home/Downloads/kickoff-signals-2026-08-05.json" "$T3" 2 "{ \"$KC\": {} }"
+write_export "$WORK/home/Downloads/kickoff-signals-2026-08-03.json" "$T5B" 2 "{ \"$KB\": {} }"
 touch -t 202608010800 "$WORK/home/Downloads/kickoff-signals-2026-08-01.json"
 touch -t 202608030800 "$WORK/home/Downloads/kickoff-signals-2026-08-03.json"
 touch -t 202608050800 "$WORK/home/Downloads/kickoff-signals-2026-08-05.json"
 run_signals "$d"
-[ "$RC" = 0 ] && [ "$(jget "$s" 'sorted(d["items"])')" = "['newest']" ] \
+[ "$RC" = 0 ] && [ "$(jget "$s" 'sorted(d["items"])')" = "['$KC']" ] \
   && ok "picks the newest export in ~/Downloads" || bad "newest: rc=$RC items=$(jget "$s" 'sorted(d["items"])')"
 [ -f "$WORK/home/Downloads/kickoff-signals-2026-08-01.json" ] \
   && [ -f "$WORK/home/Downloads/kickoff-signals-2026-08-03.json" ] \
@@ -153,7 +166,7 @@ run_signals "$d"
 # 7. The source is moved out of the way, and exactly one commit is made.
 fresh_env; d="$(new_studio moved)"; s="$(sig_of "$d")"
 src="$WORK/home/Downloads/kickoff-signals-2026-08-06.json"
-write_export "$src" "2026-08-06T08:00:00-04:00" 2 '{ "wl:ai:2026-08-06:try:0": { "starred": true } }'
+write_export "$src" "$T2" 2 '{ "wl:ai:2026-08-06:try:0": { "starred": true } }'
 before="$(commits_in "$d")"
 run_signals "$d"
 [ "$RC" = 0 ] && [ ! -e "$src" ] && ok "source is removed from its original path" || bad "source not moved"
@@ -184,11 +197,11 @@ run_signals "$d" "$WORK/cwd/absent.json"
 
 # 9. Malformed JSON leaves the store byte-identical and the source in place.
 fresh_env; d="$(new_studio malformed)"; s="$(sig_of "$d")"
-write_export "$WORK/cwd/good.json" "2026-08-06T08:00:00-04:00" 2 '{ "wl:ai:2026-08-06:try:0": { "starred": true } }'
+write_export "$WORK/cwd/good.json" "$T2" 2 '{ "wl:ai:2026-08-06:try:0": { "starred": true } }'
 run_signals "$d" "$WORK/cwd/good.json"
 cp "$s" "$WORK/before.json"
 before="$(commits_in "$d")"
-printf '{ "schema": 2, "exportedAt": "2026-08-07T08:00:00-04:00", "items": { oops\n' > "$WORK/cwd/bad.json"
+printf '{ "schema": 2, "exportedAt": "$T1", "items": { oops\n' > "$WORK/cwd/bad.json"
 run_signals "$d" "$WORK/cwd/bad.json"
 [ "$RC" != 0 ] && cmp -s "$s" "$WORK/before.json" \
   && ok "malformed JSON leaves signals.json byte-identical" || bad "malformed: rc=$RC store changed"
@@ -197,7 +210,7 @@ run_signals "$d" "$WORK/cwd/bad.json"
 grep -q 'not valid JSON' <<<"$OUT" && ok "malformed JSON is named as such" || bad "message: $OUT"
 
 # 10. A schema this build does not speak is rejected, naming what it found.
-write_export "$WORK/cwd/schema1.json" "2026-08-07T08:00:00-04:00" 1 '{ "k": {} }'
+write_export "$WORK/cwd/schema1.json" "$T1" 1 "{ \"$KA\": {} }"
 run_signals "$d" "$WORK/cwd/schema1.json"
 [ "$RC" != 0 ] && cmp -s "$s" "$WORK/before.json" \
   && ok "wrong schema rejected, store untouched" || bad "schema: rc=$RC"
@@ -205,13 +218,13 @@ grep -q 'declares schema 1' <<<"$OUT" && grep -q 'expected 2' <<<"$OUT" \
   && ok "rejection names the schema it found" || bad "schema message: $OUT"
 
 # 11. An export carrying nothing is refused rather than written through.
-write_export "$WORK/cwd/empty.json" "2026-08-07T08:00:00-04:00" 2 '{}'
+write_export "$WORK/cwd/empty.json" "$T1" 2 '{}'
 run_signals "$d" "$WORK/cwd/empty.json"
 [ "$RC" != 0 ] && cmp -s "$s" "$WORK/before.json" && [ -f "$WORK/cwd/empty.json" ] \
   && ok "a zero-item export is refused, not written through" || bad "empty export: rc=$RC"
 
 # 12. A stamp with no offset cannot be ordered, so it is refused up front.
-write_export "$WORK/cwd/naive.json" "2026-08-07T08:00:00" 2 '{ "k": {} }'
+write_export "$WORK/cwd/naive.json" "${D1}T08:00:00" 2 "{ \"$KA\": {} }"
 run_signals "$d" "$WORK/cwd/naive.json"
 [ "$RC" != 0 ] && cmp -s "$s" "$WORK/before.json" && grep -q 'no UTC offset' <<<"$OUT" \
   && ok "an exportedAt with no offset is refused" || bad "naive stamp: rc=$RC out=$OUT"
@@ -220,7 +233,7 @@ run_signals "$d" "$WORK/cwd/naive.json"
 #     paper over it.
 fresh_env; d="$(new_studio corruptstore)"; s="$(sig_of "$d")"
 printf 'not json at all\n' > "$s"
-write_export "$WORK/cwd/ok.json" "2026-08-07T08:00:00-04:00" 2 '{ "k": { "starred": true } }'
+write_export "$WORK/cwd/ok.json" "$T1" 2 "{ \"$KA\": { \"starred\": true } }"
 run_signals "$d" "$WORK/cwd/ok.json"
 [ "$RC" != 0 ] && [ "$(cat "$s")" = "not json at all" ] && [ -f "$WORK/cwd/ok.json" ] \
   && ok "a corrupt store is reported, never merged over" || bad "corrupt store: rc=$RC"

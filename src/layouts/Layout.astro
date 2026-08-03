@@ -150,6 +150,9 @@ const isHome = !activeTheme && Astro.url.pathname === B;
 
   function syncWatchlistCount() {
     let open = 0;
+    // The walk itself is guarded: reading localStorage.length throws outright on a
+    // sandboxed or storage-blocked origin, which would take the whole handler with it.
+    try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key?.startsWith('wl:')) continue;
@@ -161,9 +164,11 @@ const isHome = !activeTheme && Astro.url.pathname === B;
       if (key.split(':').length !== 5) continue;
       try {
         const v = JSON.parse(localStorage.getItem(key) ?? '{}');
-        if (!v.status) open++;
+        // A stored `null` would throw on the property read; treat any non-object as absent.
+        if (typeof v === 'object' && v !== null && !Array.isArray(v) && !v.status) open++;
       } catch {}
     }
+    } catch {}
     const sidebar = document.getElementById('sidebar-watchlist-count');
     if (sidebar) sidebar.textContent = open > 0 ? String(open) : '';
   }

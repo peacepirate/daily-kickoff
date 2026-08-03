@@ -23,6 +23,12 @@ interface WatchlistItem {
 }
 
 const allItems: WatchlistItem[] = [];
+/**
+ * date -> themes that published it, declared collections only. The key migration fans a
+ * pre-theme key out across this rather than across rendered rows, so a key still migrates
+ * when its row is filtered, paginated, or absent.
+ */
+const dateThemes: Record<string, string[]> = {};
 const allEntries = [
   ...aiEntries.map(e => ({ ...e, themeId: 'ai', themeLabel: 'AI Intelligence' })),
   ...leadershipEntries.map(e => ({ ...e, themeId: 'leadership', themeLabel: 'Eng Leadership' })),
@@ -35,6 +41,8 @@ for (const entry of allEntries) {
   const dateLabel = fmtDate(entry.data.date, { month: 'short', day: 'numeric' });
   const source = `${entry.themeLabel} · ${dateLabel}`;
   const digestHref = `${B}${entry.themeId}/${slug}`;
+  const themesForDate = (dateThemes[slug] ??= []);
+  if (!themesForDate.includes(entry.themeId)) themesForDate.push(entry.themeId);
   // Key shape is wl:<theme>:<date>:<type>:<i>. The theme segment is required because
   // `slug` is only the date — without it two themes publishing the same day collide.
   entry.data.actions.try.forEach((item, i) => {
@@ -84,6 +92,11 @@ const themeFilterLabels: Record<string, string> = {
 
   <h1>★ Watchlist</h1>
   <div class="page-meta" id="wl-page-meta">Action items across all themes</div>
+
+  {/* Read by the key migration. Values are ISO dates and collection ids, so the JSON
+      cannot contain a closing script tag. Emitted unconditionally — migration must not
+      depend on which rows this render happened to produce. */}
+  <script type="application/json" id="wl-date-themes" set:html={JSON.stringify(dateThemes)}></script>
 
   {allItems.length === 0 ? (
     <div class="wl-empty-state" style="border: 1px solid var(--border); border-radius: 6px; margin-top: 24px;">
@@ -297,13 +310,57 @@ const themeFilterLabels: Record<string, string> = {
 </style>
 
 <script>
+  // ── Storage access ──────────────────────────────────────────────────────────
+  // Every localStorage touch goes through these. A blocked store (sandboxed origin,
+  // third-party cookie blocking) throws on plain property access, and a full one throws
+  // on write; either would otherwise escape module top level and leave every listener
+  // registered below it unbound — a page that looks fine and silently does nothing.
+  let storageBroken = false;
+  function markStorageBroken(): void {
+    if (storageBroken) return;
+    storageBroken = true;
+    const msg = document.getElementById('wl-export-msg');
+    if (msg) msg.textContent = 'Browser storage is unavailable — stars, notes and status cannot be saved here.';
+  }
+  function readRaw(key: string): string | null {
+    try { return localStorage.getItem(key); } catch { markStorageBroken(); return null; }
+  }
+  /** Returns false if the write did not land, so callers that must not record partial
+   *  progress (the key migration's schema flag) can tell. */
+  function writeRaw(key: string, value: string): boolean {
+    try { localStorage.setItem(key, value); return true; } catch { markStorageBroken(); return false; }
+  }
+  function removeRaw(key: string): void {
+    try { localStorage.removeItem(key); } catch { markStorageBroken(); }
+  }
+  /** Snapshot of every key. Callers mutate while iterating, and a live key(i) walk
+   *  shifts indices when a write removes a key. */
+  function storageKeys(): string[] {
+    const keys: string[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k !== null) keys.push(k);
+      }
+    } catch { markStorageBroken(); }
+    return keys;
+  }
+
   function getStoredValue(id: string): Record<string, unknown> {
-    try { return JSON.parse(localStorage.getItem(id) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(readRaw(id) ?? '{}'); } catch { return {}; }
+    // A stored `null`, array or scalar is not a value object, and callers index straight
+    // into the result — returning it unguarded throws at the call site instead of here.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  }
+  function writeValue(id: string, v: Record<string, unknown>): void {
+    if (Object.keys(v).length === 0) { removeRaw(id); } else { writeRaw(id, JSON.stringify(v)); }
   }
   function setStatus(id: string, status: 'done' | 'snoozed' | 'archived' | null): void {
     const v = getStoredValue(id);
     if (status === null) { delete v.status; } else { v.status = status; }
-    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+    writeValue(id, v);
   }
   function isStarred(id: string): boolean {
     return getStoredValue(id).starred === true;
@@ -311,7 +368,7 @@ const themeFilterLabels: Record<string, string> = {
   function setStar(id: string, starred: boolean): void {
     const v = getStoredValue(id);
     if (starred) { v.starred = true; } else { delete v.starred; }
-    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+    writeValue(id, v);
   }
   function getNote(id: string): string {
     const note = getStoredValue(id).note;
@@ -321,7 +378,7 @@ const themeFilterLabels: Record<string, string> = {
     const v = getStoredValue(id);
     const trimmed = note.trim();
     if (trimmed) { v.note = trimmed; } else { delete v.note; }
-    if (Object.keys(v).length === 0) { localStorage.removeItem(id); } else { localStorage.setItem(id, JSON.stringify(v)); }
+    writeValue(id, v);
   }
 
   /**
@@ -332,12 +389,11 @@ const themeFilterLabels: Record<string, string> = {
    */
   function collectSignals(): Record<string, Record<string, unknown>> {
     const items: Record<string, Record<string, unknown>> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith('wl:')) continue;
+    for (const key of storageKeys()) {
+      if (!key.startsWith('wl:')) continue;
       if (key.split(':').length !== 5) continue;
       let parsed: unknown;
-      try { parsed = JSON.parse(localStorage.getItem(key) ?? ''); } catch { continue; }
+      try { parsed = JSON.parse(readRaw(key) ?? ''); } catch { continue; }
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue;
       if (Object.keys(parsed).length === 0) continue;
       items[key] = parsed as Record<string, unknown>;
@@ -374,7 +430,7 @@ const themeFilterLabels: Record<string, string> = {
   function renderExportAge(signalCount: number): void {
     const el = document.getElementById('wl-export-age');
     if (!el) return;
-    const stamp = localStorage.getItem(LAST_EXPORT_KEY);
+    const stamp = readRaw(LAST_EXPORT_KEY);
     const days = stamp ? daysSinceDateKey(stamp.slice(0, 10)) : null;
     let text: string;
     let stale: boolean;
@@ -382,7 +438,12 @@ const themeFilterLabels: Record<string, string> = {
       // Signals stored but never exported is the worst case: ranking runs on nothing.
       stale = signalCount > 0;
       text = stale ? 'never exported — ranking has nothing to read' : 'not exported yet';
-    } else if (days <= 0) {
+    } else if (days < 0) {
+      // A future stamp is a fault, not freshness: reading it as fresh would suppress the
+      // staleness warning indefinitely. `kickoff doctor` treats a negative age the same way.
+      stale = true;
+      text = 'export is dated in the future — this device’s clock looks wrong';
+    } else if (days === 0) {
       stale = false;
       text = 'exported today';
     } else {
@@ -429,32 +490,63 @@ const themeFilterLabels: Record<string, string> = {
   }
 
   const KEY_SCHEMA_KEY = 'wl:meta:key-schema';
-  /** wl:<theme>:<date>:<type>:<i> → the pre-theme wl:<date>:<type>:<i> it used to share. */
-  function legacyKeyFor(id: string): string | null {
-    const parts = id.split(':');
-    if (parts.length !== 5) return null;
-    return `${parts[0]}:${parts[2]}:${parts[3]}:${parts[4]}`;
+
+  /** Build-time date -> themes map. Absent or unparseable yields {}, which blocks the walk. */
+  function loadDateThemes(): Record<string, string[]> {
+    const el = document.getElementById('wl-date-themes');
+    if (!el?.textContent) return {};
+    try {
+      const parsed = JSON.parse(el.textContent) as unknown;
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+      return parsed as Record<string, string[]>;
+    } catch { return {}; }
   }
+
+  /**
+   * Pre-theme keys were `wl:<date>:<type>:<i>`, shared by every theme publishing that date.
+   * Driven by a walk of localStorage, not of rendered rows: a row can be absent for reasons
+   * that have nothing to do with whether its star should survive, and the flag below is
+   * one-shot, so anything missed on the migrating load is stranded for good.
+   */
   function migrateKeySchemaIfNeeded(): void {
-    if (localStorage.getItem(KEY_SCHEMA_KEY) === '2') return;
-    document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
-      const id = el.dataset.wlId!;
-      if (localStorage.getItem(id) !== null) return;
-      const legacyId = legacyKeyFor(id);
-      if (legacyId === null) return;
-      const legacyValue = localStorage.getItem(legacyId);
-      if (legacyValue === null) return;
-      // One legacy key fans out to every theme that published that date: over-credits, loses nothing.
-      localStorage.setItem(id, legacyValue);
-    });
+    if (readRaw(KEY_SCHEMA_KEY) === '2') return;
+
+    const legacyKeys = storageKeys().filter(k => k.startsWith('wl:') && k.split(':').length === 4);
+    const dateThemes = loadDateThemes();
+
+    // No dates at all means this render carried no digest data — a content or build fault,
+    // not a claim that nothing was ever published. Setting the flag here would strand every
+    // legacy key permanently, so leave it unset and let a healthy load do the work.
+    if (legacyKeys.length > 0 && Object.keys(dateThemes).length === 0) return;
+
+    let everyWriteLanded = true;
+    for (const legacyKey of legacyKeys) {
+      const [, date, type, index] = legacyKey.split(':') as [string, string, string, string];
+      const themes = dateThemes[date];
+      // No declared collection published that date — the retired local-llm and richmond
+      // digests are the live example. There is no item the star could attach to, so the key
+      // stays 4-part and every consumer's 5-part rule ignores it. That is preservation, not
+      // loss: inventing a theme for it would attribute the star to something never read.
+      if (!themes || themes.length === 0) continue;
+      const value = readRaw(legacyKey);
+      if (value === null) continue;
+      for (const theme of themes) {
+        const newKey = `wl:${theme}:${date}:${type}:${index}`;
+        if (readRaw(newKey) !== null) continue;
+        if (!writeRaw(newKey, value)) everyWriteLanded = false;
+      }
+    }
+    // Only once the walk actually completed and every copy landed. A quota failure leaves
+    // the flag unset so the next load retries, rather than declaring a partial migration
+    // done and stranding whatever did not fit.
     // Legacy keys stay: they are tiny and they are the only rollback path.
-    localStorage.setItem(KEY_SCHEMA_KEY, '2');
+    if (everyWriteLanded) writeRaw(KEY_SCHEMA_KEY, '2');
   }
 
   function runAutoArchiveIfNeeded(): void {
     const META_KEY = 'wl:meta:last-archive-run';
     const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem(META_KEY) === today) return;
+    if (readRaw(META_KEY) === today) return;
     const cutoff = new Date();
     cutoff.setUTCDate(cutoff.getUTCDate() - 60);
     const cutoffMs = cutoff.getTime();
@@ -472,17 +564,15 @@ const themeFilterLabels: Record<string, string> = {
       if (v.status === 'archived') return;
       setStatus(id, 'archived');
     });
-    localStorage.setItem(META_KEY, today);
+    writeRaw(META_KEY, today);
   }
 
   let activeStatusFilter = 'open';
   let activeThemeFilter = 'all';
 
   function getStatus(id: string): 'open' | 'done' | 'snoozed' | 'archived' {
-    try {
-      const v = JSON.parse(localStorage.getItem(id) ?? '{}');
-      if (v.status === 'done' || v.status === 'snoozed' || v.status === 'archived') return v.status;
-    } catch {}
+    const status = getStoredValue(id).status;
+    if (status === 'done' || status === 'snoozed' || status === 'archived') return status;
     return 'open';
   }
 
@@ -604,7 +694,10 @@ const themeFilterLabels: Record<string, string> = {
 
   document.getElementById('mark-visible-done')?.addEventListener('click', () => {
     document.querySelectorAll<HTMLElement>('.watchlist-item[data-wl-id]').forEach(el => {
-      if (el.style.display !== 'none' && el.dataset.status === 'open') {
+      // Status comes from the store, not from data-status: if the first render never ran,
+      // every row still carries its SSR default of "open" and this would bulk-overwrite
+      // archived and snoozed items alike.
+      if (el.style.display !== 'none' && getStatus(el.dataset.wlId!) === 'open') {
         setStatus(el.dataset.wlId!, 'done');
       }
     });
@@ -688,11 +781,6 @@ const themeFilterLabels: Record<string, string> = {
     renderAll();
   });
 
-  // Migration must precede auto-archive: archive reads the new key, and an unmigrated
-  // star would read as unstarred, archiving an item the star was meant to protect.
-  migrateKeySchemaIfNeeded();
-  runAutoArchiveIfNeeded();
-  renderAll();
 
 // ── Multi-select ──────────────────────────────────────────────────────────────
 let selectMode = false;
@@ -800,4 +888,17 @@ document.getElementById('wl-bulk-cancel')?.addEventListener('click', exitSelectM
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && selectMode) exitSelectMode();
 });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Runs last, and each step is isolated. Anything that throws here used to abort module
+// evaluation, so every listener registered after it never bound: the page rendered
+// normally and did nothing at all. Order still matters — migration before auto-archive,
+// because archive reads the new key and an unmigrated star reads as unstarred, archiving
+// the very item the star was meant to protect.
+function runStep(step: () => void): void {
+  try { step(); } catch { markStorageBroken(); }
+}
+runStep(migrateKeySchemaIfNeeded);
+runStep(runAutoArchiveIfNeeded);
+runStep(renderAll);
 </script>

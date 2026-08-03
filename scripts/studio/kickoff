@@ -33,9 +33,10 @@ Usage: kickoff <command> [args]
 
 Commands:
   note <text> [--tag a,b] [--link <theme>/<date>]
-                       Capture a field note
+                       Capture a field note (--tag repeats and merges)
   note -               Capture the body from stdin
   note --import <file> Ingest blank-line-separated blocks, one entry each
+  note -- <text>       Everything after -- is body, even if it starts with '-'
   signals [path]       Merge a watchlist export into state/signals.json
   draft <angle-id>     Generate channel drafts           (Epic 5)
   approve <slug>       Publish a draft, copy to clipboard (Epic 6)
@@ -54,6 +55,82 @@ EOF
 not_yet() {
   echo "kickoff $1: not implemented yet — lands in $2." >&2
   exit 2
+}
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+
+# Only the collections declared in src/content.config.ts render, and only they
+# reach Epic 3's corpus. src/content/{local-llm,richmond}/ still exist on disk
+# and are deliberately undeclared (CLAUDE.md), so a link into them is exactly
+# the silent zero-boost this tooling exists to catch — the file is there, and
+# it counts for nothing.
+DECLARED_THEMES=""
+declared_themes() {
+  if [ -z "$DECLARED_THEMES" ]; then
+    DECLARED_THEMES="$(grep -oE "^[[:space:]]*'?[a-z0-9-]+'?: defineCollection" \
+                       "$REPO_DIR/src/content.config.ts" 2>/dev/null \
+                       | sed -E "s/^[[:space:]]*'?([a-z0-9-]+)'?: defineCollection.*/\1/" \
+                       | tr '\n' ' ')" || true
+    # A parse failure must not declare every link dangling: an always-red gate
+    # is worse than no gate. Mirrors src/content.config.ts.
+    [ -n "${DECLARED_THEMES// /}" ] || DECLARED_THEMES="ai leadership rva-events tech "
+  fi
+  printf '%s' "$DECLARED_THEMES"
+}
+
+theme_is_declared() { case " $(declared_themes) " in *" $1 "*) return 0 ;; esac; return 1; }
+
+link_resolves() {  # THEME/DATE -> 0 when it names a digest in a declared collection
+  local theme date
+  case "$1" in */*) theme="${1%%/*}"; date="${1##*/}" ;; *) return 1 ;; esac
+  theme_is_declared "$theme" || return 1
+  [ -f "$REPO_DIR/src/content/$theme/$date.md" ]
+}
+
+# BSD has no `readlink -f`. Walk the symlink chain, then resolve the directory
+# physically, so neither `..` nor a symlinked parent can smuggle a path back
+# inside the studio.
+resolve_path() {  # PATH -> physical absolute path
+  local p="$1" target n=0 dir
+  while [ -L "$p" ] && [ "$n" -lt 32 ]; do
+    target="$(readlink -- "$p")"
+    case "$target" in
+      /*) p="$target" ;;
+      *)  case "$p" in */*) p="${p%/*}/$target" ;; *) p="$target" ;; esac ;;
+    esac
+    n=$((n + 1))
+  done
+  dir="${p%/*}"
+  [ "$dir" = "$p" ] && dir="."
+  dir="$(cd -- "$dir" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s' "${dir%/}" "${p##*/}"
+}
+
+# Every import moves its source into an .imported/ archive afterwards, so a
+# source inside the studio would be *removed from* the studio. Importing
+# notes/2026-08.md deletes the half of the corpus that cannot be regenerated,
+# commits the deletion, and reports success.
+refuse_studio_source() {  # LABEL FILE
+  local abs studio
+  abs="$(resolve_path "$2")" || return 0
+  studio="$(cd -- "$STUDIO_DIR" 2>/dev/null && pwd -P)" || return 0
+  case "$abs" in
+    "$studio"|"$studio"/*)
+      echo "kickoff $1: $2 resolves inside \$STUDIO_DIR ($studio)." >&2
+      echo "kickoff $1: importing moves the source into .imported/, which would delete it." >&2
+      echo "kickoff $1: copy it somewhere outside the studio first if you really mean this." >&2
+      exit 1 ;;
+  esac
+}
+
+# now_iso is minute-precise and export filenames are day-precise, so two
+# imports of one basename inside a minute would collide — and `mv` would
+# silently overwrite the only copy of the first raw original.
+free_path() {  # DIR NAME -> a path in DIR that does not exist yet
+  local path="$1/$2" n=2
+  while [ -e "$path" ]; do path="$1/$2.$n"; n=$((n + 1)); done
+  printf '%s' "$path"
 }
 
 # ---------------------------------------------------------------------------
@@ -98,20 +175,23 @@ format_tags() {  # "a,b" or "#a, #b" -> " #a #b"
   printf '%s' "$out"
 }
 
+# Declared collections only. Suggesting a retired theme would send the fix
+# straight back into the same silent dead end it is meant to rescue you from.
 link_near_matches() {  # THEME DATE -> " theme/date ..."
-  local theme="$1" date="$2" out="" d f base prev="" next=""
-  for d in "$REPO_DIR"/src/content/*/; do
-    base="$(basename "$d")"
-    if [ "$base" != "$theme" ] && [ -f "$d$date.md" ]; then out="$out $base/$date"; fi
+  local theme="$1" date="$2" out="" t f base prev="" next=""
+  for t in $(declared_themes); do
+    [ "$t" != "$theme" ] && [ -f "$REPO_DIR/src/content/$t/$date.md" ] && out="$out $t/$date"
   done
-  # Glob expansion is already date-sorted, so the last name below the target and
-  # the first above it are the neighbours.
-  for f in "$REPO_DIR/src/content/$theme"/*.md; do
-    [ -f "$f" ] || continue
-    base="$(basename "$f" .md)"
-    if [[ "$base" < "$date" ]]; then prev="$base"
-    elif [ -z "$next" ] && [[ "$base" > "$date" ]]; then next="$base"; fi
-  done
+  if theme_is_declared "$theme"; then
+    # Glob expansion is already date-sorted, so the last name below the target
+    # and the first above it are the neighbours.
+    for f in "$REPO_DIR/src/content/$theme"/*.md; do
+      [ -f "$f" ] || continue
+      base="${f##*/}"; base="${base%.md}"
+      if [[ "$base" < "$date" ]]; then prev="$base"
+      elif [ -z "$next" ] && [[ "$base" > "$date" ]]; then next="$base"; fi
+    done
+  fi
   [ -n "$prev" ] && out="$out $theme/$prev"
   [ -n "$next" ] && out="$out $theme/$next"
   printf '%s' "$out"
@@ -125,18 +205,39 @@ check_link() {  # THEME/DATE
     */*) theme="${link%%/*}"; date="${link##*/}" ;;
     *)   note "WARN: --link '$link' is not <theme>/<date> — recorded as given."; return 0 ;;
   esac
-  [ -f "$REPO_DIR/src/content/$theme/$date.md" ] && return 0
-  note "WARN: --link $link names no digest under $REPO_DIR/src/content/."
+  link_resolves "$link" && return 0
+  if theme_is_declared "$theme"; then
+    note "WARN: --link $link names no digest under $REPO_DIR/src/content/$theme/."
+  else
+    note "WARN: --link $link names '$theme', which src/content.config.ts does not declare."
+    note "      An undeclared collection renders nothing and reaches no corpus, so the"
+    note "      note earns its digest no ranking boost at all."
+  fi
   near="$(link_near_matches "$theme" "$date")"
   [ -n "$near" ] && note "      near matches:$near"
   note "      Writing the note anyway."
   return 0
 }
 
+# A body line shaped like an entry header parses as a second entry, carrying
+# forged tags and a forged link into Epic 3. Escape rather than reject: losing
+# the note is the worse outcome, and a leading backslash both defeats the ^##
+# anchor and renders as a literal '##' in markdown.
+note_escape_body() {  # BODY -> BODY with header-shaped lines escaped
+  local line out="" first=1 n=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ $line =~ $NOTE_HEADER_RE ]]; then line="\\$line"; n=$((n + 1)); fi
+    if [ "$first" = 1 ]; then out="$line"; first=0; else out="$out
+$line"; fi
+  done <<<"$1"
+  [ "$n" = 0 ] || note "WARN: escaped $n body line(s) shaped like an entry header."
+  printf '%s' "$out"
+}
+
 note_add_entry() {  # TS TAGS LINK BODY
   local header="## $1$2" body
   [ -n "$3" ] && header="$header → $3"
-  body="$(printf '%s' "$4")"   # drop trailing blank lines; the separator is ours
+  body="$(note_escape_body "$4")"   # also drops trailing blank lines; the separator is ours
   NOTE_PENDING="$NOTE_PENDING
 $header
 $body
@@ -149,12 +250,19 @@ cmd_note() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --tag|--tags) [ $# -ge 2 ] || note_die "--tag needs a value";   tags="$2";        shift 2 ;;
-      --link)       [ $# -ge 2 ] || note_die "--link needs a value";  link="$2";        shift 2 ;;
-      --import)     [ $# -ge 2 ] || note_die "--import needs a file"; import_file="$2"; shift 2 ;;
+      # --tag repeats and merges; --link and --import do not, because last-wins
+      # on those silently drops the one you meant.
+      --tag|--tags) [ $# -ge 2 ] || note_die "--tag needs a value"
+                    tags="${tags:+$tags,}$2"; shift 2 ;;
+      --link)       [ $# -ge 2 ] || note_die "--link needs a value"
+                    [ -z "$link" ] || note_die "--link given twice ('$link' then '$2') — a note links to one digest"
+                    link="$2"; shift 2 ;;
+      --import)     [ $# -ge 2 ] || note_die "--import needs a file"
+                    [ -z "$import_file" ] || note_die "--import given twice ('$import_file' then '$2')"
+                    import_file="$2"; shift 2 ;;
       -)            from_stdin=1; shift ;;
       --)           shift; while [ $# -gt 0 ]; do body="${body:+$body }$1"; shift; done ;;
-      -*)           note_die "unknown option: $1" ;;
+      -*)           note_die "unknown option: $1 — put -- before a body that starts with '-'" ;;
       *)            body="${body:+$body }$1"; shift ;;
     esac
   done
@@ -165,8 +273,12 @@ cmd_note() {
     [ -z "$body" ] || note_die "--import takes no inline text"
     mode="import"
   elif [ "$from_stdin" = 1 ]; then
+    # Same rule as --import: accepting both silently threw one of them away.
+    [ -z "$body" ] || note_die "- reads the body from stdin and takes no inline text"
     mode="stdin"
-  elif [ -z "$body" ]; then
+  elif [ -z "${body//[[:space:]]/}" ]; then
+    # Whitespace-only is empty. `note -` already refused it; the inline path
+    # wrote a headed entry with nothing under it.
     note_die 'nothing to capture. Usage: kickoff note "text" [--tag a,b] [--link <theme>/<date>]'
   fi
 
@@ -192,6 +304,7 @@ cmd_note() {
       ;;
     import)
       [ -f "$import_file" ] || note_die "no such file: $import_file"
+      refuse_studio_source note "$import_file"
       # Timestamped at import time, never inferred from the file: any inferred
       # time would be confidently wrong for every block but the last.
       local line block=""
@@ -219,13 +332,17 @@ cmd_note() {
     # Move rather than copy: a second import of the same file must be
     # impossible, and the raw original is worth keeping.
     mkdir -p "$STUDIO_DIR/notes/.imported"
-    mv "$import_file" "$STUDIO_DIR/notes/.imported/$ts-$(basename "$import_file")" \
+    # `--` and ${x##*/}, never bare `basename`: BSD basename reads a leading
+    # dash as an option, and the non-zero status would abort the run under
+    # `set -e` with the notes already written and not yet committed.
+    mv -- "$import_file" \
+       "$(free_path "$STUDIO_DIR/notes/.imported" "$ts-${import_file##*/}")" \
       || note "WARN: entries captured but $import_file could not be moved — re-importing would duplicate them."
   fi
 
   local msg rc=0
   if [ "$mode" = "import" ]; then
-    msg="note: import $NOTE_COUNT entries from $(basename "$import_file") ($ts)"
+    msg="note: import $NOTE_COUNT entries from ${import_file##*/} ($ts)"
   else
     msg="note: $ts"
   fi
@@ -274,7 +391,12 @@ cmd_signals() {
   local explicit=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      -*) signals_die "unknown option: $1" ;;
+      --) shift
+          while [ $# -gt 0 ]; do
+            [ -z "$explicit" ] || signals_die "one export at a time (got '$explicit' and '$1')"
+            explicit="$1"; shift
+          done ;;
+      -*) signals_die "unknown option: $1 — put -- before a path that starts with '-'" ;;
       *)  [ -z "$explicit" ] || signals_die "one export at a time (got '$explicit' and '$1')"
           explicit="$1"; shift ;;
     esac
@@ -301,6 +423,8 @@ cmd_signals() {
     fi
   fi
 
+  refuse_studio_source signals "$src"
+
   local dest="$STUDIO_DIR/state/signals.json" ts summary
   ts="$(now_iso)"
   signals_python
@@ -308,12 +432,17 @@ cmd_signals() {
   # Everything is validated before anything is written, and the store is
   # replaced atomically, so a bad export cannot leave a half-merged snapshot.
   # Quoted heredoc: the merge script must reach Python verbatim.
-  summary="$("$PYTHON_BIN" - "$src" "$dest" "$ts" <<'PY'
-import json, os, sys
+  summary="$("$PYTHON_BIN" - "$src" "$dest" "$ts" "$SIGNAL_FUTURE_SLACK_DAYS" <<'PY'
+import json, os, re, sys
 from datetime import datetime, timezone
 
 src, dest, merged_at = sys.argv[1], sys.argv[2], sys.argv[3]
+slack_days = int(sys.argv[4])
 SCHEMA = 2
+
+# The schema-2 trust boundary. A key of any other shape means nothing to the
+# site or to ranking, and once stored it is kept forever and counted as healthy.
+KEY_RE = re.compile(r"^wl:[^:]+:\d{4}-\d{2}-\d{2}:[^:]+:\d+$")
 
 
 def die(msg):
@@ -352,6 +481,15 @@ if export.get("schema") != SCHEMA:
         % (src, export.get("schema"), SCHEMA, dest))
 exported_at = export.get("exportedAt")
 exported = instant(exported_at, "exportedAt")
+# A stamp from the future freezes the store: newer-wins would discard every
+# genuine export until wall-clock passes it, and nothing about the file after
+# that looks wrong. Slack absorbs ordinary drift between browser and shell.
+ahead = (exported - datetime.now(timezone.utc)).total_seconds()
+if ahead > slack_days * 86400:
+    die("exportedAt %s is %.1f day(s) in the FUTURE. Refusing: it would freeze "
+        "the store until wall-clock catches up, silently discarding every real "
+        "export in between. Check the exporting machine's clock. %s untouched."
+        % (exported_at, ahead / 86400.0, dest))
 items = export.get("items")
 if not isinstance(items, dict):
     die("%s has no 'items' object — %s untouched." % (src, dest))
@@ -359,6 +497,10 @@ for key, value in items.items():
     if not isinstance(value, dict):
         die("item %r is a %s, expected an object — refusing the whole file."
             % (key, type(value).__name__))
+    if not KEY_RE.match(key):
+        die("item key %r is not wl:<theme>:<date>:<type>:<index> — refusing the "
+            "whole file. A key of another shape is stored forever and counted "
+            "as healthy. %s untouched." % (key, dest))
 # An export carrying nothing would write a snapshot that looks healthy and
 # holds no signal. Refuse it loudly instead.
 if not items:
@@ -415,7 +557,7 @@ PY
   # Move rather than copy, matching `note --import`. Re-importing is harmless
   # anyway — equal exportedAt is not newer — but pointless.
   mkdir -p "$STUDIO_DIR/state/.imported"
-  mv "$src" "$STUDIO_DIR/state/.imported/$ts-$(basename "$src")" \
+  mv -- "$src" "$(free_path "$STUDIO_DIR/state/.imported" "$ts-${src##*/}")" \
     || note "WARN: merged, but $src could not be moved out of the way."
 
   local rc=0
@@ -492,6 +634,11 @@ count_note_entries() {
 # in step.
 STALE_SIGNAL_DAYS=7
 
+# Tolerance for a stamp dated ahead of this machine. Clocks drift by seconds
+# between a browser and a shell; a day of slack absorbs that without letting a
+# genuinely skewed export through, in either the merge or the report.
+SIGNAL_FUTURE_SLACK_DAYS=1
+
 doctor_signals() {
   local store="$STUDIO_DIR/state/signals.json"
   if [ ! -f "$store" ]; then
@@ -502,33 +649,58 @@ doctor_signals() {
   fi
   ensure_venv
   local report
-  report="$("$PYTHON_BIN" - "$store" "$STALE_SIGNAL_DAYS" <<'PY'
+  report="$("$PYTHON_BIN" - "$store" "$SIGNAL_FUTURE_SLACK_DAYS" <<'PY'
 import json, sys
 from datetime import datetime, timezone
 
-path, stale_days = sys.argv[1], int(sys.argv[2])
+path, slack_days = sys.argv[1], int(sys.argv[2])
+
+
+def parse(stamp):
+    if not isinstance(stamp, str):
+        return None
+    s = stamp.strip()
+    if s[-1:] in ("Z", "z"):
+        s = s[:-1] + "+00:00"
+    if len(s) >= 5 and s[-5] in "+-" and s[-4:].isdigit():
+        s = s[:-2] + ":" + s[-2:]
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else None
+
+
+# One broad guard over read AND shape. A store that is valid JSON but the wrong
+# shape used to raise past this block, and `set -e` then aborted doctor midway
+# — skipping the dangling-link and seen.json checks with no sign it had.
 try:
-    doc = json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    if not isinstance(doc, dict) or not isinstance(doc.get("items"), dict):
+        raise ValueError("not a signals store — no 'items' object")
+    items = doc["items"]
+    starred = sum(1 for v in items.values() if v.get("starred"))
+    noted = sum(1 for v in items.values() if v.get("note"))
+    # Newest by INSTANT. max() over the raw strings is wrong for exactly the
+    # reason the merge documents: offsets do not sort lexicographically, so a
+    # -04:00 stamp can outrank a later +00:00 one and report a false age.
+    newest = None
+    for v in items.values():
+        dt = parse(v.get("seenAt"))
+        if dt is not None and (newest is None or dt > newest):
+            newest = dt
+    if newest is None:
+        age, skew = "?", "-"
+    else:
+        delta = (datetime.now(timezone.utc) - newest).total_seconds()
+        if delta < -slack_days * 86400:
+            age, skew = str(int(delta // 86400)), "future"
+        else:
+            age, skew = str(max(0, int(delta // 86400))), "-"
+    print("OK|%d|%d|%d|%s|%s" % (len(items), starred, noted, age, skew))
 except Exception as exc:
     print("CORRUPT|%s" % exc)
-    raise SystemExit(0)
-
-items = doc.get("items") or {}
-starred = sum(1 for v in items.values() if v.get("starred"))
-noted = sum(1 for v in items.values() if v.get("note"))
-stamps = [v["seenAt"] for v in items.values() if v.get("seenAt")]
-age = ""
-if stamps:
-    newest = max(stamps)
-    try:
-        s = newest.replace("Z", "+00:00").replace("z", "+00:00")
-        dt = datetime.fromisoformat(s)
-        if dt.tzinfo is None:
-            raise ValueError("no offset")
-        age = str((datetime.now(timezone.utc) - dt).days)
-    except Exception:
-        age = "?"
-print("OK|%d|%d|%d|%s" % (len(items), starred, noted, age))
 PY
 )"
   case "$report" in
@@ -537,10 +709,17 @@ PY
       echo "             re-export from the site and re-run 'kickoff signals'"
       DOCTOR_FAIL=$((DOCTOR_FAIL + 1)) ;;
     *)
-      local IFS='|'; read -r _ total starred noted age <<<"$report"
+      local IFS='|'; read -r _ total starred noted age skew <<<"$report"
       echo "signals      $total key(s), $starred starred, $noted noted"
       if [ "$age" = "?" ] || [ -z "$age" ]; then
         echo "             age unknown — no usable seenAt in the store"
+        DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+      elif [ "$skew" = "future" ]; then
+        # Never "OK": a future stamp freezes the merge, so every later export is
+        # discarded as older and the store quietly stops accepting signal.
+        echo "             SKEWED: newest signal is dated $((0 - age)) day(s) in the FUTURE"
+        echo "             the merge keeps the newer stamp, so real exports are being discarded"
+        echo "             check the exporting machine's clock, then re-export"
         DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
       elif [ "$age" -ge "$STALE_SIGNAL_DAYS" ]; then
         echo "             STALE: newest signal is $age days old — ranking is out of date"
@@ -556,10 +735,16 @@ PY
 # where they surface.
 doctor_dangling_links() {
   local dangling=0 link links
-  links="$(grep -h -oE '→ [^ ]+' "$STUDIO_DIR"/notes/*.md 2>/dev/null | sed 's/^→ //' | sort -u)" || true
+  # Header lines only, and the link is the last field on one. '→' is this
+  # project's own idiom for SHARE items, so note bodies use it in prose —
+  # grepping whole files turned the first such note into a permanent finding,
+  # and notes are append-only, so it could never clear. An always-red gate is
+  # worse than no gate.
+  links="$(grep -h -E "$NOTE_HEADER_RE" "$STUDIO_DIR"/notes/*.md 2>/dev/null \
+           | grep -oE '→ [^ ]+$' | sed 's/^→ //' | sort -u)" || true
   while IFS= read -r link; do
     [ -n "$link" ] || continue
-    [ -f "$REPO_DIR/src/content/$link.md" ] || { dangling=$((dangling + 1)); echo "             dangling: $link"; }
+    link_resolves "$link" || { dangling=$((dangling + 1)); echo "             dangling: $link"; }
   done <<<"$links"
   if [ "$dangling" = 0 ]; then
     echo "note links   all resolve  OK"
