@@ -79,6 +79,12 @@ cfg_get() {  # CONFIG KEY [DEFAULT]
 
 day_of_week() { date -j -f %Y-%m-%d "$1" +%u 2>/dev/null || date -d "$1" +%u; }  # 1=Mon … 7=Sun
 
+# %G, never %Y: the ISO week-numbering year diverges from the calendar year at
+# every turn of the year. 2027-01-01 is 2026-W53, and %Y would name it 2027-W53
+# — a week that does not exist, and a filename that would collide the following
+# December.
+iso_week() { date -j -f %Y-%m-%d "$1" +%G-W%V 2>/dev/null || date -d "$1" +%G-W%V; }
+
 # Saturday-scheduled jobs always take the full window; daily jobs take it on
 # Saturdays as a catchup for the week.
 weekly_window() {  # DATE SCHEDULE
@@ -89,7 +95,24 @@ set_tpl_vars() {  # DATE SCHEDULE — the placeholder vocabulary
   TPL_DATE="$1"
   TPL_DATE_PLUS_1="$(date_offset "$1" 1)"
   TPL_DATE_PLUS_30="$(date_offset "$1" 30)"
-  if weekly_window "$1" "$2"; then TPL_FORMAT="weekly-synthesis"; else TPL_FORMAT="daily"; fi
+  # ISO weeks start Monday, so Saturday and Sunday of the same weekend share a
+  # week: a Sunday generator names the week that just ended, and its corpus
+  # holds the Saturday synthesis that anchors it.
+  TPL_WEEK="$(iso_week "$1")"
+  # Always set, so there is one code path rather than one per job kind. This is
+  # inert for topics: resolve_studio_dir only computes a string — existence is
+  # require_studio_dir's job — so it cannot fail on a machine with no studio.
+  TPL_STUDIO_DIR="${STUDIO_DIR:-$(resolve_studio_dir)}"
+  # `--weekly` is a fetch_sources.py flag, so the config that wants it asks for
+  # it by name. The runner appending it to every producer handed select_corpus.py
+  # an argument it cannot parse.
+  if weekly_window "$1" "$2"; then
+    TPL_FORMAT="weekly-synthesis"
+    TPL_WEEKLY_FLAG="--weekly"
+  else
+    TPL_FORMAT="daily"
+    TPL_WEEKLY_FLAG=""
+  fi
 }
 
 job_scheduled_today() {  # SCHEDULE DAY_OF_WEEK -> 0 run, 1 skip, 2 unknown vocabulary
@@ -109,8 +132,15 @@ job_scheduled_today() {  # SCHEDULE DAY_OF_WEEK -> 0 run, 1 skip, 2 unknown voca
 
 # Never log from here — callers capture stdout.
 resolve_output() {  # OUTPUT_TEMPLATE -> absolute path
-  local tpl="$1" path
-  tpl="${tpl//\$STUDIO_DIR/${STUDIO_DIR:-$(resolve_studio_dir)}}"
+  local tpl="$1" path studio
+  studio="${STUDIO_DIR:-$(resolve_studio_dir)}"
+  # Both spellings. `${STUDIO_DIR}` is the form a shell author reaches for when
+  # the path continues without a separator, and left unsubstituted it resolved
+  # to a literal directory named '${STUDIO_DIR}' inside the repo — output
+  # written to a path nobody would look at. Brace form first: it is the longer
+  # match, and the bare pattern cannot match inside it.
+  tpl="${tpl//\$\{STUDIO_DIR\}/$studio}"
+  tpl="${tpl//\$STUDIO_DIR/$studio}"
   path="$(render_placeholders "$tpl")"
   case "$path" in
     /*) ;;
@@ -250,6 +280,17 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
 # Phase 2 reads the digest corpus; it must never write to it.
 assert_output_boundary() {  # KIND OUTPUT_PATH
   [ "$1" = "generators" ] || return 0
+  # A `..` segment defeats the prefix test below by pure string arithmetic:
+  # "$STUDIO_DIR/../daily-kickoff/site/src/content/ai/x.md" starts with
+  # "$STUDIO_DIR/" and still lands in the public repo — the one place this
+  # whole boundary exists to keep studio content out of. Refuse the segment
+  # rather than normalize, because the path need not exist yet and BSD has no
+  # `readlink -f`.
+  case "/$2/" in
+    */../*)
+      log "ERROR: generator output must not contain a '..' segment: $2"
+      return 1 ;;
+  esac
   local studio="${STUDIO_DIR:-$(resolve_studio_dir)}"
   studio="${studio%/}/"
   if [ "${2#$studio}" = "$2" ]; then

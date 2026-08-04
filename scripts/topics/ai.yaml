@@ -1,6 +1,6 @@
 name:     "AI Intelligence"
 schedule: weekdays
-producer: fetch_sources.py --topic ai
+producer: fetch_sources.py --topic ai {{WEEKLY_FLAG}}
 prompt:   scripts/prompts/ai.md
 output:   src/content/ai/{{DATE}}.md
 

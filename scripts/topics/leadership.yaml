@@ -1,6 +1,6 @@
 name:     "Engineering Leadership"
 schedule: saturday
-producer: fetch_sources.py --topic leadership
+producer: fetch_sources.py --topic leadership {{WEEKLY_FLAG}}
 prompt:   scripts/prompts/leadership.md
 output:   src/content/leadership/{{DATE}}.md
 

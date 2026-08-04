@@ -1,6 +1,6 @@
 name:     "Tech & Gadgets"
 schedule: weekdays
-producer: fetch_sources.py --topic tech
+producer: fetch_sources.py --topic tech {{WEEKLY_FLAG}}
 prompt:   scripts/prompts/tech.md
 output:   src/content/tech/{{DATE}}.md
 

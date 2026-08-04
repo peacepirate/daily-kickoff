@@ -2,12 +2,17 @@
 # Tier 1 — the shared LLM job core. Indifferent to producer, schedule,
 # destination and naming.
 #
-#   run_llm_job PROMPT_FILE BUNDLE_FILE OUTPUT_FILE [MODEL]
+#   run_llm_job PROMPT_FILE BUNDLE_FILE OUTPUT_FILE [MODEL] [SCHEMA]
 #
 # Environment:
 #   LOG_FILE     Required. Run log; also the quarantine directory for bad output.
 #   TPL_<NAME>   Substituted into the prompt wherever {{<NAME>}} appears.
 #   JOB_LABEL    Optional prefix for log lines.
+#   STUDIO_DIR   Required by `schema: angles` only, to resolve `[note …]` citations.
+#   KICKOFF_CLAUDE_BIN
+#                Explicit path to the CLI, winning over PATH. Tests set it to a
+#                stub; PATH alone is not enough, because this function extends
+#                PATH itself and a bare `claude` may resolve to the real one.
 
 KICKOFF_LIB_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -71,7 +76,37 @@ quarantine_output() {
   log "       moved invalid output to $dest"
 }
 
-validate_frontmatter() {
+# The frontmatter shapes a job config may declare. Callers validate against this
+# list at config load, so an unknown word costs nothing; validate_frontmatter
+# rejects it a second time because a shape with no validator must never pass
+# silently.
+JOB_SCHEMAS="digest angles"
+
+is_known_schema() { case " $JOB_SCHEMAS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+validate_frontmatter() {  # FILE [SCHEMA]
+  case "${2:-digest}" in
+    digest) validate_frontmatter_digest "$1" ;;
+    angles) validate_frontmatter_angles "$1" ;;
+    *)      log "ERROR: ${JOB_LABEL:+[$JOB_LABEL] }no validator for schema '${2:-digest}'"
+            return 1 ;;
+  esac
+}
+
+# Citations are resolved against disk here, not by the model — see
+# scripts/lib/validate_angles.py.
+validate_frontmatter_angles() {
+  ensure_venv
+  local problems
+  if ! problems=$("$PYTHON_BIN" "$KICKOFF_LIB_REPO_DIR/scripts/lib/validate_angles.py" \
+                    "$1" --repo-dir "$KICKOFF_LIB_REPO_DIR" 2>&1); then
+    log "ERROR: ${JOB_LABEL:+[$JOB_LABEL] }output fails the angles schema: $1"
+    log "       $problems"
+    return 1
+  fi
+}
+
+validate_frontmatter_digest() {
   ensure_venv
   local problems
   if ! problems=$("$PYTHON_BIN" - "$1" <<'PY' 2>&1
@@ -125,7 +160,12 @@ PY
 }
 
 # The claude CLI exits 0 whether or not it wrote anything.
-verify_output() {
+#
+# Exists, non-empty, opens with `---` are checked unconditionally and are not
+# pluggable: they are what turned a 13-night silent failure into a loud one, and
+# a caller allowed to skip them reintroduces that bug class. Only the
+# frontmatter *shape* varies by schema.
+verify_output() {  # FILE [SCHEMA]
   local label="${JOB_LABEL:+[$JOB_LABEL] }"
   if [ ! -s "$1" ]; then
     log "ERROR: ${label}Claude exited 0 but $1 is missing or empty."
@@ -137,7 +177,7 @@ verify_output() {
     quarantine_output "$1"
     return 1
   fi
-  if ! validate_frontmatter "$1"; then
+  if ! validate_frontmatter "$1" "${2:-digest}"; then
     quarantine_output "$1"
     return 1
   fi
@@ -145,16 +185,31 @@ verify_output() {
 
 run_llm_job() {
   local prompt_file="$1" bundle_file="$2" output_file="$3" model="${4:-claude-sonnet-5}"
+  local schema="${5:-digest}"
   local label="${JOB_LABEL:+[$JOB_LABEL] }"
+
+  if ! is_known_schema "$schema"; then
+    log "ERROR: ${label}unknown schema '$schema' (known: $JOB_SCHEMAS)"
+    return 1
+  fi
 
   [ -f "$prompt_file" ] || { log "ERROR: ${label}prompt file not found: $prompt_file"; return 1; }
   [ -f "$bundle_file" ] || { log "ERROR: ${label}bundle file not found: $bundle_file"; return 1; }
 
-  export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.npm-global/bin:$HOME/.local/bin:$PATH"
-  local claude_bin
-  claude_bin=$(command -v claude 2>/dev/null || true)
+  # Appended, never prepended. launchd runs with a minimal PATH, so the usual
+  # install locations have to be added — but prepending them silently shadowed
+  # anything the caller had already put on PATH, including a test's stub. Every
+  # suite that thought it was stubbing `claude` was calling the real CLI: real
+  # spend, real latency, and end-to-end tests that were never hermetic.
+  export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.npm-global/bin:$HOME/.local/bin"
+  local claude_bin="${KICKOFF_CLAUDE_BIN:-}"
+  [ -n "$claude_bin" ] || claude_bin=$(command -v claude 2>/dev/null || true)
   if [ -z "$claude_bin" ]; then
     log "ERROR: claude CLI not found on PATH."
+    return 1
+  fi
+  if [ ! -x "$claude_bin" ]; then
+    log "ERROR: claude CLI is not executable: $claude_bin"
     return 1
   fi
 
@@ -163,7 +218,9 @@ run_llm_job() {
   # Checked before the bundle is appended: scraped text may contain "TODAY".
   assert_no_placeholders "$prompt_text" "$prompt_file" || return 1
 
-  log "${label}Synthesizing with Claude ($claude_bin) → $output_file ..."
+  # The model is named because it is now a config value: a run whose quality
+  # changed must be attributable from the log alone.
+  log "${label}Synthesizing with Claude ($claude_bin, model $model, schema $schema) → $output_file ..."
 
   local full_prompt="$prompt_text
 
@@ -193,6 +250,6 @@ $(cat "$bundle_file")"
     return 1
   fi
 
-  verify_output "$output_file" || return 1
+  verify_output "$output_file" "$schema" || return 1
   log "${label}Wrote $(wc -c < "$output_file" | tr -d ' ') bytes to $output_file"
 }

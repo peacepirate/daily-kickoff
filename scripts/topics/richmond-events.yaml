@@ -1,6 +1,6 @@
 name:     richmond-events
 schedule: saturday
-producer: fetch_sources.py --topic richmond-events
+producer: fetch_sources.py --topic richmond-events {{WEEKLY_FLAG}}
 prompt:   scripts/prompts/richmond-events.md
 output:   src/content/rva-events/{{DATE}}.md
 
