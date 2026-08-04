@@ -236,9 +236,13 @@ echo "generators/angles.yaml — the run-jobs.sh gate"
 # ── D2 — the real config must survive the real orchestrator's per-config gate ─
 #
 # Replays exactly what run-jobs.sh does to every scripts/generators/*.yaml,
-# against the REAL angles.yaml. If `never` were dropped from the schedule
-# vocabulary, or `output:` emptied, the orchestrator would mark this job FAILED
-# and exit 1 every night until Epic 4 turns it on.
+# against the REAL angles.yaml. If `output:` were emptied, or the schedule word
+# became one the vocabulary does not know, the orchestrator would mark this job
+# FAILED and exit 1 — every night, not just on the day it runs.
+#
+# Epic 4 turned this job on: `sunday`, not the `never` it was parked at. The
+# vocabulary check further down still covers `never` itself, which stays in the
+# language as the honest way to park a future config.
 
 gate() {  # CONFIG STUDIO DATE -> prints one of: FAILED(...) | SKIP | RUN
   (
@@ -270,14 +274,16 @@ ANGLES="$REPO_DIR/scripts/generators/angles.yaml"
 
 # Every day of one full week, because a schedule word is only safe if it is safe
 # on all seven — a Sunday-only failure would be invisible for six days.
-allskip=1; verdicts=""
+# 2026-07-27 is a Monday, so 2026-08-02 is the Sunday.
+expected_gate() { [ "$1" = "2026-08-02" ] && echo RUN || echo SKIP; }
+gate_ok=1; verdicts=""
 for d in 2026-07-27 2026-07-28 2026-07-29 2026-07-30 2026-07-31 2026-08-01 2026-08-02; do
   v="$(gate "$ANGLES" "$S" "$d")"
   verdicts="$verdicts $d=$v"
-  [ "$v" = "SKIP" ] || allskip=0
+  [ "$v" = "$(expected_gate "$d")" ] || gate_ok=0
 done
-[ "$allskip" = 1 ] \
-  && ok "angles.yaml is SKIP, never FAILED, on all seven days of a week" \
+[ "$gate_ok" = 1 ] \
+  && ok "angles.yaml gates RUN on Sunday and SKIP Mon-Sat, never FAILED" \
   || bad "orchestrator gate:$verdicts"
 
 # The individual claims, so a failure above points at which one broke.
@@ -288,7 +294,7 @@ out_tpl="$( . "$REPO_DIR/scripts/lib/job-config.sh" >/dev/null 2>&1
   || bad "output: is empty"
 sched="$( . "$REPO_DIR/scripts/lib/job-config.sh" >/dev/null 2>&1
           ensure_venv >/dev/null 2>&1; cfg_get "$ANGLES" schedule daily )"
-[ "$sched" = "never" ] && ok "angles.yaml declares schedule: never" || bad "schedule is '$sched'"
+[ "$sched" = "sunday" ] && ok "angles.yaml declares schedule: sunday" || bad "schedule is '$sched'"
 
 # assert_output_boundary: generator output must resolve beneath $STUDIO_DIR,
 # because src/content/** is read-only to studio jobs.
@@ -296,7 +302,7 @@ sched="$( . "$REPO_DIR/scripts/lib/job-config.sh" >/dev/null 2>&1
   export STUDIO_DIR="$S"
   . "$REPO_DIR/scripts/lib/job-config.sh"
   LOG_FILE="$WORK/gate.log"
-  set_tpl_vars "$END" never
+  set_tpl_vars "$END" sunday
   resolved="$(resolve_output "$out_tpl")"
   case "$resolved" in "$S"/*) exit 0 ;; *) echo "$resolved"; exit 1 ;; esac
 ) && ok "angles.yaml output resolves beneath \$STUDIO_DIR" || bad "output escapes the studio"

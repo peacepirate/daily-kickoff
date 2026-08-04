@@ -1,18 +1,34 @@
-# Angles — the corpus-selection knobs, ahead of the job that will use them.
+# Weekly Angles — the Sunday generation run.
 #
-# Epic 4 flips `schedule: never` to `sunday` and adds `prompt:` and `producer:`.
-# Until then this file exists so `select_corpus.py --job angles` has somewhere to
-# read its tuning from, and the weights can be tuned by eye a week before
-# anything depends on them.
+# The first job in scripts/generators/, and the whole runtime of Epic 4: this
+# config, scripts/prompts/posts/angles.md, and scripts/studio/select_corpus.py.
+# It reads the ranked corpus bundle built from the digest archive, the field
+# notes and the watchlist signal, and produces 6–10 candidate angles for the
+# week that just ended. A human picks 2–3 and drafts them.
 #
-# `name:`, `schedule:` and `output:` are here because run-jobs.sh requires them,
-# not because this job runs. It globs scripts/generators/*.yaml, and a config
-# with an empty `output:` or an unknown `schedule:` is marked FAILED — which
-# would put the nightly orchestrator at exit 1 every night until Epic 4.
-# `never` returns skip from job_scheduled_today() in scripts/lib/job-config.sh.
-name:     "Angles"
-schedule: never
-output:   $STUDIO_DIR/angles/{{DATE}}.md
+# Sunday, because Saturday's `leadership` weekly synthesis then has a full day
+# to be read and starred before this consumes it — the stars are the ranking
+# signal, and an unread synthesis carries none.
+#
+# `producer:` is resolved relative to scripts/ — run-job.sh invokes it as
+# `"$PYTHON_BIN" scripts/$PRODUCER`. `--date {{DATE}}` is not decoration:
+# select_corpus.py defaults to Date.today(), so without it a bundle replayed on
+# any later day would select a different window than the run it belongs to.
+#
+# `output:` names the ISO week, not the day, so the artifact is the week's and a
+# second run on the same Sunday skips on the existing file. ISO year (%G), never
+# the calendar year — 2027-01-01 is 2026-W53.
+#
+# `never` stays in job_scheduled_today()'s vocabulary. It is the honest way to
+# park a config that must exist for its settings before its runtime does, which
+# is exactly what this file was between Epic 3 and Epic 4.
+name:     "Weekly Angles"
+schedule: sunday
+producer: studio/select_corpus.py --job angles --date {{DATE}}
+prompt:   scripts/prompts/posts/angles.md
+output:   $STUDIO_DIR/angles/{{WEEK}}.md
+model:    claude-opus-5
+schema:   angles
 
 selection:
   lookback_days: 14
