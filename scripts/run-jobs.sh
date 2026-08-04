@@ -93,10 +93,48 @@ case "$CP_RC" in
   *) FAILED_JOBS="$FAILED_JOBS $COMMIT_PUSH_FAIL" ;;
 esac
 
-# No studio commit here yet. `kickoff` commits its own writes, and nothing in
-# the nightly run touches $STUDIO_DIR until Epic 4 adds the angles generator —
-# which is where that second commit_and_push call belongs (S4.5). Adding it now
-# would also sweep hand-edited drafts into an "[automated]" commit.
+# The second commit: generated artifacts live in $STUDIO_DIR, not in this repo.
+# Two path-scoped commits, never crossed — this repo is public and the studio is
+# not, so the scoping is a confidentiality property, not tidiness.
+#
+# Scoped to angles/ because that is the only generator-owned directory in the
+# studio. notes/, drafts/ and published/ are hand-edited; an "[automated]"
+# commit must never claim someone else's half-written work.
+#
+# Unconditional, not gated on "a generator ran tonight". commit_and_push's own
+# `status --porcelain` check is the gate for *committing* — a failed job leaves
+# angles/ clean, because run-job.sh performs no git operations and quarantines
+# invalid output into scripts/logs/, outside this pathspec. Calling it every
+# night is also what retries a commit whose push failed: a generator runs one
+# day in seven, and a gated call would strand those commits for a week.
+#
+# An absent or non-git studio is a warning, never a run failure — most nights
+# there is nothing for it to do, and a machine with no studio clone must still
+# publish digests. Everything past that gate (wrong branch, failed push) is a
+# real publish failure and is surfaced exactly like the site repo's.
+if [ ! -d "$STUDIO_DIR" ]; then
+  log "No studio at $STUDIO_DIR — skipping the studio commit. Digests are unaffected."
+elif ! git -C "$STUDIO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  log "WARN: $STUDIO_DIR is not a git repository — anything generated there stays unversioned."
+elif [ "$(git -C "$STUDIO_DIR" rev-parse --show-toplevel 2>/dev/null || echo studio)" \
+     = "$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null || echo site)" ]; then
+  # `git -C <subdir>` walks up to the nearest repo, so a STUDIO_DIR misconfigured
+  # to somewhere inside this checkout would commit studio content to the public
+  # site repo under an "angles:" message. Refuse rather than publish.
+  #
+  # Both sides go through git so both are normalized: $REPO_DIR is `pwd`, which
+  # on macOS keeps /var/..., while rev-parse resolves it to /private/var/... —
+  # comparing the two directly silently never matches.
+  log "ERROR: STUDIO_DIR ($STUDIO_DIR) resolves inside this repo — refusing to commit studio content to it."
+  FAILED_JOBS="$FAILED_JOBS studio-inside-site-repo"
+else
+  commit_and_push "$STUDIO_DIR" "angles/" "angles: $DATE [automated]" && SP_RC=0 || SP_RC=$?
+  case "$SP_RC" in
+    0) log "Committed generated angles to $STUDIO_DIR." ;;
+    2) ;;  # nothing to commit — commit_and_push already said so
+    *) FAILED_JOBS="$FAILED_JOBS studio-$COMMIT_PUSH_FAIL" ;;
+  esac
+fi
 
 # cleanup-old-digests.sh is intentionally not wired in — run it manually.
 
