@@ -112,9 +112,12 @@ dry run. Default retention is 365 days.
 themes are not declared in `src/content.config.ts`, so Astro's content layer ignores them and they
 render nothing. They are retained as raw material for the studio corpus. Do not "clean them up."
 
-**The `ai` topic is intermittently refused** by the API on cyber-safeguard grounds (~18% of runs) —
-AI news carries exploit-disclosure content. The run fails loudly and writes nothing. Treat a gap as
-normal, not as breakage.
+**The `ai` topic misses about 15% of nights, but only about 6% are refusals.** Measured over 34
+logged scheduled nights: 5 missed. Two were refused by the API on cyber-safeguard grounds — AI news
+carries exploit-disclosure content — and those are not retryable. The other three were an idle
+timeout and two connection refusals, which are transient and which nothing currently retries. The
+run fails loudly and writes nothing either way. A gap is normal; a gap you could have retried is
+not.
 
 **`scripts/logs/` is gitignored and holds the only offline-backfill material.** Each
 `fetched-YYYY-MM-DD-<job>.txt` is exactly what the fetcher returned that night. These exist on one
