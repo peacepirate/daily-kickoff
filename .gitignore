@@ -26,3 +26,5 @@ pnpm-debug.log*
 # Python venv and runtime logs
 scripts/.venv/
 scripts/logs/
+__pycache__/
+*.pyc

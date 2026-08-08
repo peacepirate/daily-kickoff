@@ -25,7 +25,11 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 LIB="$REPO_DIR/scripts/lib/job-config.sh"
 ANGLES="$REPO_DIR/scripts/generators/angles.yaml"
-FIXTURE="$REPO_DIR/scripts/tests/fixtures/angles-valid-2026-W31.md"
+FIXTURES="$REPO_DIR/scripts/tests/fixtures"
+FIXTURE="$FIXTURES/angles-valid-2026-W31.md"          # v1, as Epic 4 shipped it
+SCORED="$FIXTURES/angles-valid-2026-W32-scored.md"    # v2, as generated
+JUDGED="$FIXTURES/angles-judged-2026-W32.md"          # v2, after a human
+V1_JUDGED="$FIXTURES/angles-v1-verdicts-2026-W31.md"  # v1 + verdicts at slot 7
 
 PYBIN="$REPO_DIR/scripts/.venv/bin/python3"
 [ -x "$PYBIN" ] || PYBIN="$(command -v python3)"
@@ -55,13 +59,22 @@ cat > "$STUDIO/notes/2026-07.md" <<'EOF'
 ## 2026-07-29T14:03-04:00 #rollout
 Three teams stalled at the same place. Not the tooling.
 EOF
+cat > "$STUDIO/notes/2026-08.md" <<'EOF'
+# Notes — 2026-08
+
+## 2026-08-05T09:12-04:00 #pipeline
+The local run looked healthy for days while nothing published.
+EOF
 
 # A scratch corpus carrying exactly the digests the fixture cites, so citation
 # resolution is hermetic rather than coupled to the real archive.
 CONTENT="$WORK/content"
 for f in leadership/2026-08-01 leadership/2026-07-25 \
          ai/2026-07-31 ai/2026-07-30 ai/2026-07-28 ai/2026-07-27 \
-         ai/2026-07-25 ai/2026-07-22 tech/2026-08-01 tech/2026-07-31; do
+         ai/2026-07-25 ai/2026-07-22 tech/2026-08-01 tech/2026-07-31 \
+         leadership/2026-08-08 leadership/2026-08-05 \
+         ai/2026-08-07 ai/2026-08-06 ai/2026-08-04 \
+         tech/2026-08-07 tech/2026-08-05; do
   mkdir -p "$CONTENT/$(dirname "$f")"
   printf -- '---\ntitle: "t"\ndate: %s\n---\n' "$(basename "$f")" > "$CONTENT/$f.md"
 done
@@ -348,6 +361,15 @@ check_says() {  # LABEL PATTERN
   grep -qiF "$2" "$PROMPT" || strat_fail="$strat_fail
         missing: $1"
 }
+# check_says is a substring grep, so it cannot tell a rule that was replaced from
+# one that was merely added beside its predecessor. The vantage-point test could
+# only be passed by having a rollout of one's own, and it is the diagnosed cause
+# of five unpostable angles in the first real week; the two tests that replace it
+# are contradicted by it, so its absence is asserted rather than assumed.
+check_says_not() {  # LABEL PATTERN
+  grep -qiF "$2" "$PROMPT" && strat_fail="$strat_fail
+        still present: $1"
+}
 check_says "the thesis"            "change-management problem, not a tooling problem"
 check_says "pillar 1"              "Agentic coding at enterprise scale"
 check_says "pillar 2"              "Engineering leadership in the AI era"
@@ -356,10 +378,19 @@ check_says "pillar 4"              "The adoption gap"
 check_says "the anchor pillar"     "anchor pillar"
 check_says "enterprise altitude"   "altitude: enterprise"
 check_says "the smb gate"          "out of bounds"
-check_says "the vantage-point test" "no rollout of their own"
+check_says_not "the vantage-point test" "no rollout of their own"
+check_says "the provability test"  "would the thesis still stand"
+check_says "the edge test"         "reach this thesis in one step"
+check_says "nothing rests on access" "Nothing may rest on privileged access"
 check_says "coverage is copied"    "verbatim"
 check_says "no invented dates"     "Never invent a date"
 check_says "the 6-10 range"        "6 to 10 angles"
+check_says "score honestly"        "never withhold an angle because of the number"
+check_says "spread is a standard"  "no spread in \`provability\` or \`consequence\`"
+check_says "the model never judges" "verdict:** pending"
+for dim in provability consequence edge readiness; do
+  check_says "the $dim anchors" "score $dim:"
+done
 [ -z "$strat_fail" ] \
   && ok "the prompt still encodes the thesis, four pillars, altitude gate and anti-fabrication rules" \
   || bad "the prompt lost part of its strategy:$strat_fail"
@@ -372,7 +403,7 @@ cat > "$CHECK" <<'PY'
 """A second implementation of the angles-file contract, written from the epic
 brief rather than from the runner, so a disagreement between the two is visible.
 
-    check_angles.py FILE --content-dir DIR --studio-dir DIR [--angle-only]
+    check_angles.py FILE --content-dir DIR --studio-dir DIR [--angle-only] [--judged]
 
 Prints one problem per line and exits 1, or prints OK and exits 0.
 """
@@ -384,19 +415,31 @@ import sys
 import yaml
 
 HEADING = re.compile(r"^## A(\d+) — (\S.*)$")
+OTHER_HEADING = re.compile(r"^## ")
 FIELD = re.compile(r"^- \*\*([a-z ]+):\*\*[ ]?(.*)$")
-NESTED = re.compile(r"^  - (\S.*)$")
+NESTED = re.compile(r"^(\s+)- (\S.*)$")
 CITE = re.compile(r"`\[([^\]]+)\]`")
+BARE_CITE = re.compile(r"(?<!`)\[((?:[a-z0-9-]+/|note )\d{4}-\d{2}-\d{2})\](?!`)")
 THEME_CITE = re.compile(r"^([a-z0-9-]+)/(\d{4}-\d{2}-\d{2})$")
 NOTE_CITE = re.compile(r"^note (\d{4}-\d{2}-\d{2})$")
 WEEK = re.compile(r"^\d{4}-W\d{2}$")
-FIELDS = ["pillar", "altitude", "thesis", "why now", "evidence", "risk"]
+SCORE = re.compile(r"^([0-3])\s+—\s+(\S.*)$")
+VERDICT = re.compile(r"^(\S+)(?:\s+—\s+(.*))?$")
+
+BASE = ["pillar", "altitude", "thesis", "why now", "evidence"]
+DIMENSIONS = ["provability", "consequence", "edge", "readiness"]
+SCORES = ["score " + d for d in DIMENSIONS]
+ORDER = {1: BASE + ["risk", "verdict"], 2: BASE + ["blocker", "prep", "verdict"] + SCORES}
+NEEDED = {1: BASE + ["risk"], 2: BASE + ["blocker", "prep", "verdict"] + SCORES}
+VERDICTS = ["pending", "post", "maybe", "pass"]
+TAGS = ["P:", "C:", "E:", "R:", "—:"]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("path")
 ap.add_argument("--content-dir", required=True)
 ap.add_argument("--studio-dir", required=True)
 ap.add_argument("--angle-only", action="store_true")
+ap.add_argument("--judged", action="store_true")
 args = ap.parse_args()
 
 text = open(args.path, encoding="utf-8").read()
@@ -412,6 +455,9 @@ def split_angles(body_lines):
         if m:
             cur = (int(m.group(1)), m.group(2), [])
             angles.append(cur)
+        elif OTHER_HEADING.match(line):
+            cur = None
+            stray.append(line)
         elif cur is not None:
             cur[2].append(line)
         elif line.strip():
@@ -419,8 +465,63 @@ def split_angles(body_lines):
     return angles, stray
 
 
-def check_angle(n, title, body):
+def check_cites(where, blob, require_one):
+    """Resolve every citation in `blob`. Every model-written field is passed here;
+    `verdict:` never is — a human's verdict reason may mention a digest in prose."""
+    tokens = CITE.findall(blob)
+    for bare in BARE_CITE.findall(blob):
+        problems.append("%s: citation [%s] is missing its backticks" % (where, bare))
+    if require_one and not tokens:
+        problems.append("%s: evidence bullet carries no `[citation]`: %s"
+                        % (where, blob[:60]))
+    for tok in tokens:
+        m = THEME_CITE.match(tok)
+        if m:
+            path = os.path.join(args.content_dir, m.group(1), m.group(2) + ".md")
+            if not os.path.isfile(path):
+                problems.append("%s: citation [%s] does not resolve (%s)"
+                                % (where, tok, path))
+            continue
+        m = NOTE_CITE.match(tok)
+        if m:
+            day = m.group(1)
+            path = os.path.join(args.studio_dir, "notes", day[:7] + ".md")
+            if not os.path.isfile(path):
+                problems.append("%s: note citation [%s] has no month file (%s)"
+                                % (where, tok, path))
+            elif not re.search(r"^## %s T?" % re.escape(day).replace(" ", ""),
+                               open(path, encoding="utf-8").read().replace(
+                                   day + "T", day + " T"),
+                               re.M):
+                problems.append("%s: no note headed %s in %s" % (where, day, path))
+            continue
+        problems.append("%s: malformed citation token [%s]" % (where, tok))
+
+
+def check_verdict(where, value):
+    m = VERDICT.match(value)
+    if not m:
+        problems.append("%s: verdict must be '<verdict>' or '<verdict> — <reason>'"
+                        % where)
+        return
+    word, reason = m.group(1), (m.group(2) or "").strip()
+    if word not in VERDICTS:
+        problems.append("%s: verdict %r is not one of %s"
+                        % (where, word, "|".join(VERDICTS)))
+        return
+    if not args.judged:
+        if value != "pending":
+            problems.append("%s: verdict %r — a generated file may only say 'pending'"
+                            % (where, value))
+        return
+    # A missing reason or dimension tag is a warning in `kickoff judge`, never a
+    # rejection here: the field is human-written, and refusing the commit costs
+    # more signal than the tag carries.
+
+
+def check_angle(n, title, body, version):
     where = "A%s" % n
+    canonical, needed = ORDER[version], NEEDED[version]
     seen, order = {}, []
     i = 0
     while i < len(body):
@@ -431,29 +532,62 @@ def check_angle(n, title, body):
             nested = []
             j = i + 1
             while j < len(body) and NESTED.match(body[j]):
-                nested.append(NESTED.match(body[j]).group(1))
+                nested.append(NESTED.match(body[j]))
                 j += 1
             seen[name] = (value, nested)
             i = j
             continue
+        if body[i].strip():
+            problems.append("%s: line is neither a '- **field:**' nor an evidence "
+                            "bullet — every field is one line: %r"
+                            % (where, body[i].rstrip()))
         i += 1
 
-    for f in FIELDS:
+    for name, (_value, nested) in seen.items():
+        if nested and name != "evidence":
+            problems.append("%s: has a nested bullet under %r — only 'evidence' takes "
+                            "a nested list" % (where, name))
+
+    for f in needed:
         if f not in seen:
             problems.append("%s: missing required field %r" % (where, f))
-    extra = [f for f in order if f not in FIELDS]
-    if extra:
-        problems.append("%s: unknown field(s) %s" % (where, ", ".join(extra)))
-    if [f for f in order if f in FIELDS] != FIELDS and not [
-        f for f in FIELDS if f not in seen
-    ]:
-        problems.append("%s: fields out of order: %s" % (where, ", ".join(order)))
+    for f in order:
+        if f in canonical:
+            continue
+        if f in SCORES:
+            problems.append("%s: field %r requires schemaVersion 2" % (where, f))
+        elif f == "risk":
+            problems.append("%s: field 'risk' — schemaVersion 2 uses 'blocker'/'prep'"
+                            % where)
+        else:
+            problems.append("%s: unknown field %r" % (where, f))
+    ranked = [f for f in order if f in canonical]
+    if ranked != [f for f in canonical if f in ranked]:
+        problems.append("%s: fields out of order: %s" % (where, ", ".join(ranked)))
 
-    for f in FIELDS:
+    for f in needed:
         if f == "evidence":
             continue
         if f in seen and not seen[f][0].strip():
             problems.append("%s: %s is empty" % (where, f))
+
+    if version == 2:
+        for f in SCORES:
+            if f in seen and seen[f][0].strip() and not SCORE.match(seen[f][0].strip()):
+                problems.append("%s: %s must be '<0-3> — <justification>', got %r"
+                                % (where, f, seen[f][0].strip()))
+
+    if "verdict" in seen and seen["verdict"][0].strip():
+        check_verdict(where, seen["verdict"][0].strip())
+
+    # Every field the model writes is scanned; only the human's `verdict:` is
+    # exempt. An allowlist of `why now:` and `evidence:` would quietly stop
+    # checking a citation invented in `thesis:`, `blocker:` or `prep:`.
+    for name, (value, _nested) in seen.items():
+        if name in ("verdict", "evidence"):
+            continue
+        if value.strip():
+            check_cites(where, value, False)
 
     if "evidence" in seen:
         value, nested = seen["evidence"]
@@ -461,33 +595,11 @@ def check_angle(n, title, body):
             problems.append("%s: evidence must be a nested list, not inline text" % where)
         if not nested:
             problems.append("%s: evidence has no bullets (at least one is required)" % where)
-        for bullet in nested:
-            tokens = CITE.findall(bullet)
-            if not tokens:
-                problems.append("%s: evidence bullet carries no `[citation]`: %s"
-                                % (where, bullet[:60]))
-            for tok in tokens:
-                m = THEME_CITE.match(tok)
-                if m:
-                    path = os.path.join(args.content_dir, m.group(1), m.group(2) + ".md")
-                    if not os.path.isfile(path):
-                        problems.append("%s: citation [%s] does not resolve (%s)"
-                                        % (where, tok, path))
-                    continue
-                m = NOTE_CITE.match(tok)
-                if m:
-                    day = m.group(1)
-                    path = os.path.join(args.studio_dir, "notes", day[:7] + ".md")
-                    if not os.path.isfile(path):
-                        problems.append("%s: note citation [%s] has no month file (%s)"
-                                        % (where, tok, path))
-                    elif not re.search(r"^## %s T?" % re.escape(day).replace(" ", ""),
-                                       open(path, encoding="utf-8").read().replace(
-                                           day + "T", day + " T"),
-                                       re.M):
-                        problems.append("%s: no note headed %s in %s" % (where, day, path))
-                    continue
-                problems.append("%s: malformed citation token [%s]" % (where, tok))
+        for m in nested:
+            if m.group(1) != "  ":
+                problems.append("%s: evidence bullet must be indented exactly 2 spaces: %s"
+                                % (where, m.group(0).rstrip()))
+            check_cites(where, m.group(2), True)
 
     if "altitude" in seen and seen["altitude"][0].strip() != "enterprise":
         problems.append("%s: altitude is %r, and only 'enterprise' is in scope"
@@ -505,7 +617,12 @@ if args.angle_only:
     if len(angles) != 1:
         problems.append("expected exactly one angle, found %d" % len(angles))
     for n, title, body in angles:
-        check_angle(n, title, body)
+        # No frontmatter to dispatch on: a lone angle is v2 if it carries any
+        # field only v2 has. Keeps the prompt's worked example checkable across
+        # the migration without the extractor having to know which side it is on.
+        names = [FIELD.match(x).group(1) for x in body if FIELD.match(x)]
+        check_angle(n, title, body,
+                    2 if [x for x in names if x in SCORES + ["blocker", "prep"]] else 1)
 else:
     if lines[0].strip() != "---":
         problems.append("no opening frontmatter delimiter")
@@ -536,6 +653,12 @@ else:
         if gen is not None and not re.match(r"^\d{4}-\d{2}-\d{2}$", str(gen)):
             problems.append("generated %r is not a YYYY-MM-DD date" % (gen,))
 
+        raw = fm.get("schemaVersion")
+        version = 1 if raw is None else raw
+        if isinstance(version, bool) or version not in (1, 2):
+            problems.append("schemaVersion must be 1 or 2, got %r" % (raw,))
+            version = None
+
         angles, stray = split_angles(lines[end + 1:])
         if stray:
             problems.append("content outside any angle: %s" % stray[0][:60])
@@ -556,8 +679,9 @@ else:
                                 % (i, n))
                 break
 
-        for n, title, body in angles:
-            check_angle(n, title, body)
+        if version is not None:
+            for n, title, body in angles:
+                check_angle(n, title, body, version)
 
 if problems:
     print("\n".join(problems))
@@ -565,15 +689,21 @@ if problems:
 print("OK")
 PY
 
+# Set to --judged around the cases that read a file a human has already judged.
+# Both implementations must be given the same mode, or the differential compares
+# two different contracts.
+MODE=""
+
 run_check() {  # FILE [EXTRA_ARGS...] -> prints problems
   local f="$1"; shift
-  "$PYBIN" "$CHECK" "$f" --content-dir "$CONTENT" --studio-dir "$STUDIO" "$@" 2>&1
+  "$PYBIN" "$CHECK" "$f" --content-dir "$CONTENT" --studio-dir "$STUDIO" \
+    ${MODE:+$MODE} "$@" 2>&1
 }
 
 # The shipped validator — the one scripts/lib/run-llm-job.sh actually invokes.
 run_shipped() {  # FILE -> prints problems, or nothing on success
   "$PYBIN" "$REPO_DIR/scripts/lib/validate_angles.py" "$1" \
-    --content-dir "$CONTENT" --studio-dir "$STUDIO" 2>&1
+    --content-dir "$CONTENT" --studio-dir "$STUDIO" ${MODE:+$MODE} 2>&1
 }
 
 # The differential. check_angles.py above is a second, independent reading of the
@@ -581,14 +711,17 @@ run_shipped() {  # FILE -> prints problems, or nothing on success
 # compared. Asserting only against the copy would leave the shipped validator
 # completely untested while looking like thorough coverage.
 #
-# Verdicts are compared, not messages: two independent implementations are
-# expected to word a problem differently, and demanding identical text would
-# make this fail for the one reason that does not matter.
+# Wording is not compared — two independent implementations are expected to word
+# a problem differently. *Which rule fired* is: agreeing on accept/reject alone
+# lets a file that breaks two rules be rejected by each implementation for a
+# different one, which reads as agreement and hides a real divergence.
 DIFF_FAIL=""
-agree() {  # LABEL FILE
+CHECK_OUT=""
+SHIPPED_OUT=""
+agree() {  # LABEL FILE — leaves each implementation's output in CHECK_OUT/SHIPPED_OUT
   local a b
-  run_check "$2" >/dev/null 2>&1 && a=accept || a=reject
-  run_shipped "$2" >/dev/null 2>&1 && b=accept || b=reject
+  CHECK_OUT="$(run_check "$2")" && a=accept || a=reject
+  SHIPPED_OUT="$(run_shipped "$2")" && b=accept || b=reject
   [ "$a" = "$b" ] || DIFF_FAIL="$DIFF_FAIL
         $1: contract copy says $a, scripts/lib/validate_angles.py says $b"
 }
@@ -623,51 +756,234 @@ fi
 # A contract checker nobody has mutated is a checker that passes everything.
 # Each case below breaks the fixture in one way and must be caught.
 
-mutate() {  # LABEL SED_EXPR EXPECTED_SUBSTRING
-  local f="$WORK/mutant.md"
-  sed "$2" "$FIXTURE" > "$f"
-  if [ "$(cat "$f")" = "$(cat "$FIXTURE")" ]; then
-    bad "mutation '$1' changed nothing — the sed no longer matches"
-    return
-  fi
-  agree "$1" "$f"
-  local out; out="$(run_check "$f")"
-  if [ "$out" = "OK" ]; then
-    bad "mutation '$1' was accepted"
-  elif grep -qF "$3" <<<"$out"; then
-    ok "rejected: $1"
+judge_mutant() {  # LABEL FILE EXPECTED_IN_COPY EXPECTED_IN_SHIPPED
+  agree "$1" "$2"
+  if [ "$CHECK_OUT" = "OK" ]; then
+    bad "mutation '$1' was accepted by the contract copy"
+  elif ! grep -qF "$3" <<<"$CHECK_OUT"; then
+    bad "mutation '$1' — the contract copy rejected for the wrong reason: $CHECK_OUT"
+  elif [ -z "$SHIPPED_OUT" ]; then
+    bad "mutation '$1' was accepted by scripts/lib/validate_angles.py"
+  elif ! grep -qF "$4" <<<"$SHIPPED_OUT"; then
+    bad "mutation '$1' — validate_angles.py rejected for the wrong reason: $SHIPPED_OUT"
   else
-    bad "mutation '$1' rejected for the wrong reason: $out"
+    ok "rejected: $1"
   fi
 }
 
+mutate_on() {  # BASE LABEL SED_EXPR EXPECTED_IN_COPY EXPECTED_IN_SHIPPED
+  local f="$WORK/mutant.md"
+  sed "$3" "$1" > "$f"
+  if [ "$(cat "$f")" = "$(cat "$1")" ]; then
+    bad "mutation '$2' changed nothing — the sed no longer matches"
+    return
+  fi
+  judge_mutant "$2" "$f" "$4" "$5"
+}
+
+mutate() {  # LABEL SED_EXPR EXPECTED_IN_COPY EXPECTED_IN_SHIPPED
+  mutate_on "$FIXTURE" "$@"
+}
+
 mutate "a citation that does not resolve on disk" \
-  's|\[leadership/2026-08-01\]|[leadership/2026-06-13]|' "does not resolve"
+  's|\[leadership/2026-08-01\]|[leadership/2026-06-13]|' \
+  "does not resolve" "does not resolve"
 mutate "an invented note date" \
-  's|\[note 2026-07-29\]|[note 2026-07-28]|' "no note headed"
+  's|\[note 2026-07-29\]|[note 2026-07-28]|' \
+  "no note headed 2026-07-28" "no note dated 2026-07-28"
 mutate "a malformed citation token" \
-  's|`\[ai/2026-07-27\]`|`[ai 2026-07-27]`|' "malformed citation token"
+  's|`\[ai/2026-07-27\]`|`[ai 2026-07-27]`|' \
+  "malformed citation token" "is neither \`[<theme>/<YYYY-MM-DD>]\`"
 mutate "angleCount disagreeing with the headings" \
-  's|^angleCount: 8$|angleCount: 7|' "angleCount is 7 but there are 8"
+  's|^angleCount: 8$|angleCount: 7|' \
+  "angleCount is 7 but there are 8" "angleCount is 7 but the file has 8"
 mutate "a week that is not an ISO week" \
-  's|^week: 2026-W31$|week: 2026-08-02|' "does not match YYYY-Www"
-mutate "a missing frontmatter field" 's|^corpusCoverage: .*$||' "missing required field: corpusCoverage"
-mutate "a dropped required field" 's|^- \*\*risk:\*\* the sharpest.*$||' "missing required field 'risk'"
+  's|^week: 2026-W31$|week: 2026-08-02|' \
+  "does not match YYYY-Www" "week must match YYYY-Www"
+mutate "a missing frontmatter field" 's|^corpusCoverage: .*$||' \
+  "missing required field: corpusCoverage" "missing required field: corpusCoverage"
+mutate "a dropped required field" 's|^- \*\*risk:\*\* the sharpest.*$||' \
+  "missing required field 'risk'" "is missing the 'risk' field"
 mutate "an angle with no evidence bullets" \
-  's|^  - `\[leadership/2026-08-01\]` a direct warning.*$||' "evidence has no bullets"
+  's|^  - `\[leadership/2026-08-01\]` a direct warning.*$||' \
+  "evidence has no bullets" "has no nested bullets"
 mutate "evidence inlined instead of nested" \
-  's|^- \*\*evidence:\*\*$|- **evidence:** the leadership weekly|' "must be a nested list"
+  's|^- \*\*evidence:\*\*$|- **evidence:** the leadership weekly|' \
+  "must be a nested list" "must be a nested list"
 mutate "an smb-altitude angle" \
-  's|^- \*\*altitude:\*\* enterprise$|- **altitude:** smb|' "only 'enterprise' is in scope"
+  's|^- \*\*altitude:\*\* enterprise$|- **altitude:** smb|' \
+  "only 'enterprise' is in scope" "only enterprise is in scope"
 mutate "a pillar outside 1-4" \
-  's|^- \*\*pillar:\*\* 2 — Engineering|- **pillar:** 5 — Engineering|' "pillar must open with a digit"
-mutate "a gap in the angle numbering" 's|^## A2 —|## A3 —|' "numbering must run 1..n"
+  's|^- \*\*pillar:\*\* 2 — Engineering|- **pillar:** 5 — Engineering|' \
+  "pillar must open with a digit" "must open with a digit 1-4"
+mutate "a gap in the angle numbering" 's|^## A2 —|## A3 —|' \
+  "numbering must run 1..n" "must number sequentially from 1"
 mutate "a fifth angle dropped, taking the set below six" \
-  '/^## A[5678] /,$d' "the range is 6 to 10"
+  '/^## A[5678] /,$d' "the range is 6 to 10" "expected 6-10 angles"
 mutate "an empty thesis" \
-  's|^- \*\*thesis:\*\* Agentic coding moves.*$|- **thesis:**|' "thesis is empty"
+  's|^- \*\*thesis:\*\* Agentic coding moves.*$|- **thesis:**|' \
+  "thesis is empty" "has an empty 'thesis' field"
 mutate "prose smuggled in outside an angle" \
-  's|^## A1 — Review|Some preamble.\n\n## A1 — Review|' "content outside any angle"
+  's|^## A1 — Review|Some preamble.\n\n## A1 — Review|' \
+  "content outside any angle" "content outside any angle"
+
+# ── The assertion that keeps the differential honest ─────────────────────────
+#
+# Agreeing on accept/reject is not agreement. This file breaks two rules at once
+# — an evidence bullet indented 3 spaces, carrying a citation that also does not
+# resolve — and each implementation is required to name the *same* one. Without
+# this, a later mutation aimed at one rule can be rejected by both for a
+# different rule and still report success.
+mutate "two broken rules at once, both implementations naming the same one" \
+  's|^  - `\[leadership/2026-08-01\]` a direct warning|   - `[leadership/2026-06-13]` a direct warning|' \
+  "evidence bullet must be indented exactly 2 spaces" \
+  "evidence bullet must be indented exactly 2 spaces"
+
+mutate "an unrecognised field" \
+  's|^- \*\*risk:\*\* the sharpest|- **vibe:** the sharpest|' \
+  "unknown field 'vibe'" "unrecognised field: 'vibe'"
+# Structural mutations sed cannot express without portability contortions. The
+# expression runs against `lines`; whatever it leaves there is the mutant.
+mutate_lines() {  # BASE LABEL PY_EXPR EXPECTED_IN_COPY EXPECTED_IN_SHIPPED
+  local f="$WORK/mutant.md"
+  "$PYBIN" - "$1" "$3" > "$f" <<'PY'
+import sys
+lines = open(sys.argv[1], encoding="utf-8").read().split("\n")
+exec(sys.argv[2])
+sys.stdout.write("\n".join(lines))
+PY
+  if [ "$(cat "$f")" = "$(cat "$1")" ]; then
+    bad "mutation '$2' changed nothing"
+    return
+  fi
+  judge_mutant "$2" "$f" "$4" "$5"
+}
+
+mutate_lines "$FIXTURE" "fields in a non-canonical order" \
+  'i = lines.index("- **altitude:** enterprise"); lines[i:i+2] = [lines[i+1], lines[i]]' \
+  "fields out of order" "fields are out of order"
+mutate_lines "$FIXTURE" "a '## Notes' heading after the last angle" \
+  'lines += ["", "## Notes", "a thought that faces none of the checks above"]' \
+  "content outside any angle" "content outside any angle"
+
+echo
+echo "schemaVersion 2 — scores, blocker/prep and verdict"
+
+agree "the v2 scored fixture" "$SCORED"
+[ "$CHECK_OUT" = "OK" ] && [ -z "$SHIPPED_OUT" ] \
+  && ok "a v2 file with four scores and every verdict 'pending' is valid by default" \
+  || bad "the v2 fixture fails: copy=$CHECK_OUT shipped=$SHIPPED_OUT"
+
+sv() { mutate_on "$SCORED" "$@"; }
+
+sv "a score above the range" \
+  's|^- \*\*score provability:\*\* 3 — every load-bearing|- **score provability:** 4 — every load-bearing|' \
+  "score provability must be" "'score provability' must be"
+sv "a negative score" \
+  's|^- \*\*score provability:\*\* 3 — every load-bearing|- **score provability:** -1 — every load-bearing|' \
+  "score provability must be" "'score provability' must be"
+sv "a fractional score" \
+  's|^- \*\*score provability:\*\* 3 — every load-bearing|- **score provability:** 2.5 — every load-bearing|' \
+  "score provability must be" "'score provability' must be"
+sv "a word where a score belongs" \
+  's|^- \*\*score provability:\*\* 3 — every load-bearing|- **score provability:** high — every load-bearing|' \
+  "score provability must be" "'score provability' must be"
+sv "a score with no justification clause" \
+  's|^- \*\*score provability:\*\* 3 — every load-bearing.*$|- **score provability:** 3|' \
+  "score provability must be" "'score provability' must be"
+sv "a v2 angle missing one dimension" \
+  's|^- \*\*score edge:\*\* 3 — reframes a measurement.*$||' \
+  "missing required field 'score edge'" "is missing the 'score edge' field"
+
+# The whole reason SCORE_FIELDS is an explicit four-name constant. A `score `
+# prefix whitelist accepts this line: it clears the unknown-field guard because
+# it looks like a score, and clears the four-required guard because all four are
+# still present.
+sv "a fifth, invented score dimension" \
+  's|^- \*\*score readiness:\*\* 1 — needs a proposed|- **score vibes:** 3 — feels right\n- **score readiness:** 1 — needs a proposed|' \
+  "unknown field 'score vibes'" "unrecognised field: 'score vibes'"
+
+sv "risk: surviving into a v2 file" \
+  's|^- \*\*blocker:\*\* none$|- **risk:** none|' \
+  "schemaVersion 2 uses 'blocker'/'prep'" "schemaVersion 2 replaces it with 'blocker' and 'prep'"
+sv "a v2 angle with no blocker:" \
+  's|^- \*\*blocker:\*\* none$||' \
+  "missing required field 'blocker'" "is missing the 'blocker' field"
+sv "a v2 angle with no prep:" \
+  's|^- \*\*prep:\*\* needs a proposed replacement metric.*$||' \
+  "missing required field 'prep'" "is missing the 'prep' field"
+
+# The model commits to scores; it does not get to record the human's decision.
+sv "the model writing a verdict of its own" \
+  's|^- \*\*verdict:\*\* pending$|- **verdict:** post — this one is obviously good|' \
+  "may only say 'pending'" "may only carry 'pending'"
+sv "a verdict outside the vocabulary" \
+  's|^- \*\*verdict:\*\* pending$|- **verdict:** yes|' \
+  "is not one of pending|post|maybe|pass" "it must be one of pending | post | maybe | pass"
+sv "schemaVersion 3" 's|^schemaVersion: 2$|schemaVersion: 3|' \
+  "schemaVersion must be 1 or 2" "schemaVersion must be 1 or 2"
+sv "a v2 file declaring itself v1" 's|^schemaVersion: 2$|schemaVersion: 1|' \
+  "requires schemaVersion 2" "score fields require schemaVersion: 2"
+
+echo
+echo "--judged — the human's half of the contract"
+
+MODE="--judged"
+
+agree "the judged v2 fixture" "$JUDGED"
+[ "$CHECK_OUT" = "OK" ] && [ -z "$SHIPPED_OUT" ] \
+  && ok "a judged v2 file with tagged maybe/pass reasons is valid under --judged" \
+  || bad "the judged fixture fails: copy=$CHECK_OUT shipped=$SHIPPED_OUT"
+
+# A5's reason carries an un-backticked [leadership/2026-06-13] — a token that is
+# both malformed and unresolvable. Punishing an honest verdict reason with a
+# mechanical rule teaches the human to stop writing reasons, and the reason is
+# the only free-text signal the calibration loop has.
+grep -qF 'pass — P: the [leadership/2026-06-13] framing is stale' "$JUDGED" \
+  && ok "the judged fixture really does carry a bare, unresolvable citation in a verdict reason" \
+  || bad "the judged fixture no longer exercises the citation-scoping rule"
+
+# The tag is warned about by `kickoff judge`, never rejected here. Enforce hard
+# on what the model writes; warn on what the human writes — refusing to commit a
+# whole week's verdicts over one missing letter makes deleting the reason the
+# cheapest way out, and the reason is the only free-text signal there is.
+sed 's|^- \*\*verdict:\*\* pass — C: nothing a reader owns.*$|- **verdict:** pass — nothing a reader owns actually changes|' \
+  "$JUDGED" > "$WORK/untagged.md"
+agree "a maybe/pass verdict with no dimension tag" "$WORK/untagged.md"
+[ "$CHECK_OUT" = "OK" ] && [ -z "$SHIPPED_OUT" ] \
+  && ok "an untagged verdict reason validates — the tag is a warning, not a gate" \
+  || bad "an untagged verdict reason was rejected: copy=$CHECK_OUT shipped=$SHIPPED_OUT"
+
+# Structural, version-independent, and the reason angles_index.py cannot be the
+# stricter of the two: a wrapped field that validates here reaches Epic 5's
+# parser as a truncated value, after the run has committed and pushed.
+mutate_on "$JUDGED" "a wrapped field — a body line that is neither a field nor a bullet" \
+  's|^- \*\*altitude:\*\* enterprise$|- **altitude:** enterprise\
+  and this continuation line belongs to no field|' \
+  "neither a" "neither a"
+mutate_on "$JUDGED" "a nested bullet under a field that does not take one" \
+  's|^- \*\*altitude:\*\* enterprise$|- **altitude:** enterprise\
+  - a bullet under the wrong field|' \
+  "nested bullet under" "nested bullet under"
+mutate_on "$JUDGED" "a verdict outside the vocabulary, under --judged too" \
+  's|^- \*\*verdict:\*\* post — the arithmetic.*$|- **verdict:** yes|' \
+  "is not one of pending|post|maybe|pass" "it must be one of pending | post | maybe | pass"
+
+agree "the v1 fixture with verdicts at slot 7" "$V1_JUDGED"
+[ "$CHECK_OUT" = "OK" ] && [ -z "$SHIPPED_OUT" ] \
+  && ok "2026-W31 plus verdict lines validates under --judged, scores and all absent" \
+  || bad "the v1+verdicts fixture fails: copy=$CHECK_OUT shipped=$SHIPPED_OUT"
+
+mutate_on "$V1_JUDGED" "a score field smuggled into a v1 file" \
+  's|^- \*\*verdict:\*\* post — the team-variance.*$|&\n- **score provability:** 3 — public throughout|' \
+  "requires schemaVersion 2" "score fields require schemaVersion: 2"
+
+MODE=""
+
+agree "the v1 fixture with verdicts, read in default mode" "$V1_JUDGED"
+[ "$CHECK_OUT" != "OK" ] && [ -n "$SHIPPED_OUT" ] \
+  && ok "and the same file is rejected without --judged — the generator may not write verdicts" \
+  || bad "a judged file passed the generator's own strict reading"
 
 [ -z "$DIFF_FAIL" ] \
   && ok "the shipped validator and this independent contract copy agree on every case" \

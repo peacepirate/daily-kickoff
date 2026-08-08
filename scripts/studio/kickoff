@@ -40,6 +40,9 @@ Commands:
   signals [path]       Merge a watchlist export into state/signals.json
   corpus [--job <j>] [--date <YYYY-MM-DD>]
                        Print the ranked corpus bundle to stdout (writes nothing)
+  judge                Show each week's judged state (non-zero if the latest is not)
+  judge <week>         Validate a judged week, print it, commit the verdicts
+  judge --since <n>    The calibration report over the last n weeks with files
   draft <angle-id>     Generate channel drafts           (Epic 5)
   approve <slug>       Publish a draft, copy to clipboard (Epic 6)
   engagement <slug>    Record post-hoc metrics           (Epic 7)
@@ -605,6 +608,88 @@ cmd_corpus() {
   STUDIO_DIR="$STUDIO_DIR" "$PYTHON_BIN" "$REPO_DIR/scripts/studio/select_corpus.py" "${args[@]}"
 }
 
+# ---------------------------------------------------------------------------
+# judge — the human loop (S4.5.7) and the calibration report (S4.5.8)
+#
+# The one command in this CLI that records a human judgement. Everything it
+# commits was typed by a person, which is why the message says [judged] and must
+# never say [automated]: next Sunday's generator run commits to the same
+# directory, and a human verdict swept into a machine-labelled commit is
+# indistinguishable from a machine's afterwards.
+#
+# Angle files are read through scripts/studio/angles_index.py, never re-parsed
+# here — three consumers, one parser.
+
+judge_die() { echo "kickoff judge: $*" >&2; exit 1; }
+
+judge_report() {  # ARGS... -> the report module, against the resolved studio
+  STUDIO_DIR="$STUDIO_DIR" "$PYTHON_BIN" "$REPO_DIR/scripts/studio/judge_report.py" "$@"
+}
+
+cmd_judge() {
+  local week="" since=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --since) [ $# -ge 2 ] || judge_die "--since needs a number"
+               [ -z "$since" ] || judge_die "--since given twice ('$since' then '$2')"
+               since="$2"; shift 2 ;;
+      -*)      judge_die "unknown option: $1 — usage: kickoff judge [<week> | --since <n>]" ;;
+      *)       [ -z "$week" ] || judge_die "one week at a time (got '$week' and '$1')"
+               week="$1"; shift ;;
+    esac
+  done
+  [ -z "$week" ] || [ -z "$since" ] || judge_die "pass a week or --since, not both"
+
+  require_studio
+  ensure_venv
+
+  # Both read-only modes. Neither commits, and neither may be able to: a report
+  # that could write is a report that could lose a verdict.
+  if [ -n "$since" ]; then judge_report --since "$since"; return; fi
+  if [ -z "$week" ]; then judge_report --status; return; fi
+
+  case "$week" in
+    [0-9][0-9][0-9][0-9]-W[0-9][0-9]) ;;
+    *) judge_die "week must look like 2026-W32, got '$week'" ;;
+  esac
+
+  local file="$STUDIO_DIR/angles/$week.md"
+  [ -f "$file" ] || judge_die "no angles file for $week at $file — nothing to judge."
+
+  # The human's edit is held to the contract the generator was held to. --judged
+  # relaxes the verdict vocabulary and nothing else, so a hand-edit that broke
+  # the format stops here, before anything is staged.
+  if ! "$PYTHON_BIN" "$REPO_DIR/scripts/lib/validate_angles.py" "$file" \
+        --judged --repo-dir "$REPO_DIR" --studio-dir "$STUDIO_DIR"; then
+    judge_die "$week failed validation — committed nothing, the file is untouched."
+  fi
+
+  # File order, band as a column. Sorting by composite would let the composite
+  # select, which is the one thing the band rule exists to stop it doing.
+  judge_report --week "$week"
+
+  local rc=0
+  # Current shell, never $(...): COMMIT_PUSH_FAIL is a global out-parameter.
+  commit_and_push "$STUDIO_DIR" "angles/" "angles: $week verdicts [judged]" || rc=$?
+  case "$rc" in
+    0) echo; echo "judge: $week verdicts committed." ;;
+    2) echo; echo "judge: $week is already recorded — nothing new to commit." ;;
+    *) note "ERROR: $week verdicts are on disk but git did not record them (${COMMIT_PUSH_FAIL:-unknown})."
+       exit 1 ;;
+  esac
+  echo "judge: those verdicts live only in $file — regenerating $week destroys them."
+}
+
+# The verdict is the only calibration label this loop collects, and an unjudged
+# week is invisible everywhere else in the toolchain.
+doctor_verdicts() {
+  ensure_venv
+  local out rc=0
+  out="$(judge_report --doctor 2>&1)" || rc=$?
+  printf '%s\n' "$out"
+  [ "$rc" = 0 ] || DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+}
+
 cmd_doctor() {
   # Dynamically scoped, so doctor_signals and doctor_dangling_links accumulate
   # into it and this function sees the result.
@@ -642,6 +727,7 @@ cmd_doctor() {
 
   doctor_signals
   doctor_dangling_links
+  doctor_verdicts
 
   # seen.json has no writer until Epic 6. Say so explicitly: this project already
   # carries one protection with no producer — cleanup-old-digests.sh honours a
@@ -798,6 +884,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     note)           shift; cmd_note "$@" ;;
     signals)        shift; cmd_signals "$@" ;;
     corpus)         shift; cmd_corpus "$@" ;;
+    judge)          shift; cmd_judge "$@" ;;
     draft)          require_studio; not_yet draft "Epic 5" ;;
     approve)        require_studio; not_yet approve "Epic 6" ;;
     engagement)     require_studio; not_yet engagement "Epic 7" ;;

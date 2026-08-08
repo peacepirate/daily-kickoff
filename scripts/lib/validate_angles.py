@@ -2,6 +2,7 @@
 """Validate a generated angles file — Epic 4, S4.3 (shape) and S4.8 (citations).
 
     python3 scripts/lib/validate_angles.py FILE [--repo-dir DIR] [--studio-dir DIR]
+                                                [--judged]
 
 Exits 0 silently, or prints every problem on one `; `-joined line to stderr and
 exits 1. Called by validate_frontmatter() in scripts/lib/run-llm-job.sh for a job
@@ -15,13 +16,14 @@ Every problem is reported, not just the first, and every failing citation is
 named in full. A validator that says "a citation failed" makes the operator diff
 eight angles by hand.
 
-The contract (Epic 4):
+The contract (Epic 4.5, `schemaVersion: 2`):
 
     ---
-    week: 2026-W31
-    generated: 2026-08-02
+    week: 2026-W32
+    generated: 2026-08-09
     corpusCoverage: "leadership 2/2 · ai 11/12 (gap 2026-07-29)"
     angleCount: 8
+    schemaVersion: 2
     ---
 
     ## A1 — Review became the bottleneck, and nobody owned it
@@ -32,9 +34,26 @@ The contract (Epic 4):
     - **evidence:**
       - `[leadership/2026-08-01]` AI-coding agents kill collaboration — https://…
       - `[note 2026-07-29]` three teams stalled at the same place
-    - **risk:** touches internal specifics
+    - **blocker:** none
+    - **prep:** verify the throughput figure against the primary source
+    - **verdict:** pending
+    - **score provability:** 3 — every load-bearing item is a public digest
+    - **score consequence:** 2 — a reader would go look at their review queue
+    - **score edge:** 2 — combines two feed items into what neither says alone
+    - **score readiness:** 2 — one verification pass, then it drafts
 
-Seven required things per angle: the heading title, and the six labelled fields.
+`schemaVersion` absent or `1` is the legacy shape: `risk:` in place of `blocker:`
+and `prep:`, no score fields, `verdict:` optional. Anything other than 1 or 2 is
+rejected — a field the model may silently drop is fail-open.
+
+Field order is part of the contract, not a preference: Epic 5's reader parses
+these files positionally and this validator is deliberately the stricter of the
+two readings so that it can.
+
+`--judged` relaxes the verdict vocabulary. The default requires every `verdict:`
+to be exactly `pending`, which is what keeps the generation path — the caller in
+scripts/lib/run-llm-job.sh — free of any flag: only a human-facing reader passes
+`--judged`, and only the model's own output goes through the default.
 """
 from __future__ import annotations
 
@@ -82,7 +101,35 @@ TITLE_RE = re.compile(r"^\s*—\s*\S")
 
 FIELD_RE = re.compile(r"^-\s+\*\*([^:*]+):\*\*\s*(.*)$")
 NESTED_BULLET_RE = re.compile(r"^\s+-\s+\S")
-REQUIRED_FIELDS = ("pillar", "altitude", "thesis", "why now", "evidence", "risk")
+BULLET_INDENT_RE = re.compile(r"^( *)-")
+EVIDENCE_INDENT = 2
+
+# An explicit four-name constant rather than a `score ` prefix rule. A prefix
+# whitelist accepts `score vibes: 3 — feels right`, which clears both the
+# unknown-field guard and the four-required guard — the extensibility mechanism
+# would hole the guard it was added beside. Adding a dimension stays a one-line
+# edit here, and the whitelist, the required set and the order slots all derive
+# from it.
+SCORE_FIELDS = ("provability", "consequence", "edge", "readiness")
+SCORE_LABELS = tuple("score %s" % dim for dim in SCORE_FIELDS)
+SCORE_RE = re.compile(r"^([0-3])\s+—\s+(\S.*)$")
+
+# The canonical field order, per version. `verdict:` sits above the scores so a
+# reader going top-down reaches their own field before the model's numbers.
+BASE_FIELDS = ("pillar", "altitude", "thesis", "why now", "evidence")
+V1_ORDER = BASE_FIELDS + ("risk", "verdict")
+V2_ORDER = BASE_FIELDS + ("blocker", "prep", "verdict") + SCORE_LABELS
+V1_REQUIRED = BASE_FIELDS + ("risk",)
+V2_REQUIRED = V2_ORDER
+
+VERDICTS = ("pending", "post", "maybe", "pass")
+# `maybe` and `pass` are the rows the calibration report is built from, and a
+# scalar disagreement count cannot tell "the model over-predicted C" from "the C
+# anchor is too generous" — opposite repairs, identical data. The tag is what
+# separates them. `—:` is the none-of-the-above escape and the underfit signal.
+VERDICT_TAGS = ("P:", "C:", "E:", "R:", "—:")
+TAGGED_VERDICTS = ("maybe", "pass")
+VERDICT_RE = re.compile(r"^(\S+)(?:\s+—\s+(.*))?$")
 
 # Months 1-3 are enterprise altitude only. The small-business surface is gated
 # behind an unresolved employer-policy question, so an `smb` angle is not a
@@ -158,6 +205,20 @@ def check_frontmatter(fm: dict, heading_count: int) -> list:
     return problems
 
 
+def schema_version(fm: dict) -> tuple:
+    """(1 | 2 | None, problem-or-None). Absent means 1: the only real output that
+    exists predates the field, and requiring it unconditionally would retroactively
+    invalidate it. Optional *forever* is the fail-open class this codebase keeps
+    finding, so an unrecognised value is refused rather than treated as legacy."""
+    raw = fm.get("schemaVersion")
+    if raw is None:
+        return 1, None
+    # bool first: `True == 1` would otherwise pass the membership test.
+    if isinstance(raw, bool) or raw not in (1, 2):
+        return None, "schemaVersion must be 1 or 2, got %r" % (raw,)
+    return int(raw), None
+
+
 def parse_angles(lines: list, start: int) -> tuple:
     """([{n, title_tail, body lines}], problems). Body runs to the next `## `."""
     angles, problems, stray = [], [], []
@@ -196,25 +257,120 @@ def parse_angles(lines: list, start: int) -> tuple:
     return angles, problems
 
 
-def check_angle_fields(angle: dict) -> list:
+def evidence_bullets(body: list, idx: int) -> list:
+    """The nested lines directly beneath `evidence:` at index `idx`. A blank stops
+    the list rather than being skipped over: the contract puts the bullets
+    immediately beneath the label, and Epic 5 has to parse these files —
+    tolerating a gap here means tolerating it there."""
+    bullets = []
+    for line in body[idx + 1:]:
+        if NESTED_BULLET_RE.match(line):
+            bullets.append(line)
+        else:
+            break
+    return bullets
+
+
+def check_verdict(label: str, value: str, judged: bool) -> list:
+    problems = []
+    match = VERDICT_RE.match(value)
+    if not match:
+        return ["%s 'verdict' must be '<verdict>' or '<verdict> — <reason>', got %r"
+                % (label, value)]
+    word, reason = match.group(1), (match.group(2) or "").strip()
+
+    if word not in VERDICTS:
+        return ["%s 'verdict' is %r — it must be one of %s"
+                % (label, word, " | ".join(VERDICTS))]
+    if not judged:
+        # The generator may commit to scores; it may not record the human's
+        # decision. Strict-by-default is also what keeps run-llm-job.sh's call
+        # site free of a flag.
+        if value != "pending":
+            problems.append("%s 'verdict' is %r — a generated file may only carry "
+                            "'pending' (pass --judged to read a judged file)"
+                            % (label, value))
+        return problems
+
+    # Enforce hard on what the model writes; warn on what the human writes. The
+    # model retries for free, a person does not — and refusing to commit nine
+    # verdicts over one missing tag makes deleting the reason the cheapest way
+    # out, which costs more signal than the tag was worth. `kickoff judge`
+    # warns on a missing reason or tag; nothing here rejects one.
+    return problems
+
+
+def check_angle_fields(angle: dict, version: int, judged: bool) -> list:
     problems = []
     label = "A%d" % angle["n"]
     if not TITLE_RE.match(angle["tail"]):
         problems.append("%s heading has no '— <title>': %r" % (label, angle["heading"]))
 
+    canonical = V2_ORDER if version == 2 else V1_ORDER
+    required = V2_REQUIRED if version == 2 else V1_REQUIRED
+
     seen = {}
     order = []
+    last = None
     for idx, line in enumerate(angle["body"]):
         match = FIELD_RE.match(line)
         if match:
             name = match.group(1).strip().lower()
             seen[name] = (idx, match.group(2).strip())
             order.append(name)
-    for field in REQUIRED_FIELDS:
+            last = name
+            continue
+        # Everything else has to be an evidence bullet. A wrapped field would
+        # otherwise pass here and reach angles_index.py — the parser Epic 5
+        # drafts from — as a truncated value, after the run had committed and
+        # pushed. Quarantining at generation is the recoverable end of that.
+        if NESTED_BULLET_RE.match(line):
+            if last != "evidence":
+                problems.append("%s has a nested bullet under %r — only 'evidence' "
+                                "takes a nested list: %r"
+                                % (label, last or "no field", line.rstrip()))
+            continue
+        if line.strip():
+            problems.append("%s has a line that is neither a '- **field:**' nor an "
+                            "evidence bullet — every field is one line: %r"
+                            % (label, line.rstrip()))
+
+    for name in order:
+        if name in canonical:
+            continue
+        if name in SCORE_LABELS:
+            problems.append("%s has %r — score fields require schemaVersion: 2"
+                            % (label, name))
+        elif name == "risk":
+            problems.append("%s has 'risk' — schemaVersion 2 replaces it with "
+                            "'blocker' and 'prep'" % label)
+        else:
+            problems.append("%s has an unrecognised field: %r" % (label, name))
+
+    # Only the recognised fields are ranked: an unknown one is already its own
+    # problem, and ranking it would report the same line twice.
+    ranked = [f for f in order if f in canonical]
+    expect = [f for f in canonical if f in ranked]
+    if ranked != expect:
+        problems.append("%s fields are out of order: expected %s, got %s"
+                        % (label, ", ".join(expect), ", ".join(ranked)))
+
+    for field in required:
         if field not in seen:
             problems.append("%s is missing the '%s' field" % (label, field))
         elif field != "evidence" and not seen[field][1]:
             problems.append("%s has an empty '%s' field" % (label, field))
+
+    if version == 2:
+        for name in SCORE_LABELS:
+            if name not in seen or not seen[name][1]:
+                continue
+            if not SCORE_RE.match(seen[name][1]):
+                problems.append("%s '%s' must be '<0-3> — <justification>', got %r"
+                                % (label, name, seen[name][1]))
+
+    if "verdict" in seen and seen["verdict"][1]:
+        problems += check_verdict(label, seen["verdict"][1], judged)
 
     if "pillar" in seen and seen["pillar"][1] and not PILLAR_RE.match(seen["pillar"][1]):
         problems.append("%s 'pillar' must open with a digit 1-4, got %r"
@@ -228,19 +384,14 @@ def check_angle_fields(angle: dict) -> list:
         if seen["evidence"][1]:
             problems.append("%s 'evidence' has text on its own line (%r) — it must be a "
                             "nested list beneath it" % (label, seen["evidence"][1]))
-        idx = seen["evidence"][0]
-        bullets = 0
-        evidence_lines = []
-        # A blank stops the list rather than being skipped over. The contract
-        # puts the bullets immediately beneath `evidence:`, and Epic 5 has to
-        # parse these files — tolerating a gap here means tolerating it there.
-        for line in angle["body"][idx + 1:]:
-            if NESTED_BULLET_RE.match(line):
-                bullets += 1
-                evidence_lines.append(line)
-            else:
-                break
-        if bullets == 0:
+        evidence_lines = evidence_bullets(angle["body"], seen["evidence"][0])
+        for line in evidence_lines:
+            indent = BULLET_INDENT_RE.match(line)
+            if not indent or len(indent.group(1)) != EVIDENCE_INDENT:
+                problems.append("%s evidence bullet must be indented exactly %d "
+                                "spaces: %r"
+                                % (label, EVIDENCE_INDENT, line.rstrip()))
+        if not evidence_lines:
             problems.append("%s 'evidence' has no nested bullets" % label)
         elif not CITATION_RE.search("\n".join(evidence_lines)):
             # Checking citations only where they appear would let an angle opt
@@ -264,6 +415,32 @@ def resolve_note(studio: Path, day: str) -> bool:
             if entry["date"] == day:
                 return True
     return False
+
+
+def citation_scope(angles: list) -> str:
+    """Every field the model writes, and none the human writes.
+
+    Handed the whole file the guard also reads `verdict:`, where a human writing
+    `pass — E: the [leadership/2026-08-01] framing is stale` hard-rejects the
+    entire week over an honest note. The learned behaviour is to stop writing
+    reasons, and the reason is the only free-text signal the calibration loop
+    has. Same shape as punishing an honest `blocker:`.
+
+    Excluding `verdict:` rather than including a short allowlist keeps the
+    anti-fabrication guard at full strength: a citation invented in `thesis:`,
+    `blocker:` or `prep:` is still the model inventing evidence, and an
+    allowlist of `why now:` and `evidence:` would stop checking it."""
+    scoped = []
+    for angle in angles:
+        for idx, line in enumerate(angle["body"]):
+            match = FIELD_RE.match(line)
+            if not match:
+                continue
+            if match.group(1).strip().lower() == "verdict":
+                continue
+            scoped.append(line)
+            scoped += evidence_bullets(angle["body"], idx)
+    return "\n".join(scoped)
 
 
 def check_citations(text: str, content_dir: Path, studio) -> list:
@@ -321,6 +498,11 @@ def main() -> int:
     ap.add_argument("--studio-dir", default=os.environ.get("STUDIO_DIR") or "",
                     help="Studio path, for resolving [note <date>] citations. "
                          "Defaults to $STUDIO_DIR; never resolved here (D5)")
+    ap.add_argument("--judged", action="store_true",
+                    help="Read a file a human has judged: `verdict:` may carry the "
+                         "full vocabulary, and maybe/pass must name the dimension "
+                         "that decided it. Without it every verdict must be "
+                         "'pending', which is what the generator produces")
     args = ap.parse_args()
 
     try:
@@ -336,19 +518,25 @@ def main() -> int:
         return 1
 
     angles, problems = parse_angles(lines, end + 1)
+    version, ver_problem = schema_version(fm)
     if fm_problem:
         problems.insert(0, fm_problem)
     else:
         problems = check_frontmatter(fm, len(angles)) + problems
-    for angle in angles:
-        problems += check_angle_fields(angle)
+    if ver_problem:
+        # Per-angle checks are skipped rather than run against a guessed version:
+        # every field would be reported unrecognised, burying the one real cause.
+        problems.append(ver_problem)
+    else:
+        for angle in angles:
+            problems += check_angle_fields(angle, version, args.judged)
     if not angles:
         problems.append("no '## A<n>' angle headings found")
 
     studio = Path(args.studio_dir) if args.studio_dir else None
     content_dir = Path(args.content_dir) if args.content_dir \
         else Path(args.repo_dir) / "src" / "content"
-    problems += check_citations(text, content_dir, studio)
+    problems += check_citations(citation_scope(angles), content_dir, studio)
 
     if problems:
         print("; ".join(problems), file=sys.stderr)
