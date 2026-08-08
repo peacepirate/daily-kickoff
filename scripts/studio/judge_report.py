@@ -141,6 +141,27 @@ def tag_warnings(angles: list) -> list:
             if a.verdict in ("maybe", "pass") and not a.verdict_dimension]
 
 
+def blocker_warnings(angles: list) -> list:
+    """An angle that names something it cannot publish and still claims P >= 2.
+
+    Reported, never enforced. A validator rejection here would make `blocker:
+    none` the cheapest route to a valid file, and the field would stop being
+    honest -- which is the one thing that made the W31 failure diagnosable at
+    all. Scoring it wrong is detectable; not writing it is not.
+    """
+    out = []
+    for a in angles:
+        if not a.scored:
+            continue
+        blocker = (a.field("blocker") or "").strip()
+        p = a.scores.get("provability")
+        if blocker and blocker.lower() != "none" and p is not None and p >= 2:
+            out.append("%s names a blocker and still scores provability %d — the "
+                       "P=1 anchor is 'the sharp version needs material that cannot "
+                       "be disclosed': %s" % (a.id, p, blocker[:70]))
+    return out
+
+
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
 
@@ -188,7 +209,7 @@ def render_week(angles: list, out) -> list:
         out.write("  %d DRAFT angle(s) still pending: %s\n"
                   % (len(state["draft_pending"]), ", ".join(state["draft_pending"])))
 
-    warnings = tag_warnings(angles)
+    warnings = blocker_warnings(angles) + tag_warnings(angles)
     if warnings:
         out.write("\n")
         for warning in warnings:

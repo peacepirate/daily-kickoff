@@ -280,6 +280,42 @@ run_kickoff "$S" judge --since 1
 says "$OUT" "WARN.*A5 verdict 'maybe' has no dimension tag" \
   && ok "an untagged maybe is warned about by name" || bad "no warning for the untagged verdict"
 
+# ── A blocker plus a high provability WARNS, and never fails ────────────────
+#
+# The first real v2 run produced four angles whose `blocker:` restated the P=1
+# anchor verbatim -- "the sharp version wants an actual internal X, which cannot
+# be published" -- while scoring provability 2, putting all four in DRAFT. That
+# is the W31 failure wearing a passing score, and it is the reason the model
+# grading its own gating dimension is bounded weakly.
+#
+# Warned, never enforced: a validator rejection makes `blocker: none` the
+# cheapest route to a valid file, and an honest blocker with a wrong score is
+# detectable where a suppressed blocker is not.
+
+S="$(new_studio blocker_vs_p)"
+seed_week "$S" 2026-W33
+# A plain substitution, not `0,/re/` — that address form is GNU-only and BSD sed
+# applies it to nothing, which would leave the file untouched and this assertion
+# passing for the wrong reason.
+sed -i '' -E 's/^- \*\*blocker:\*\* none$/- **blocker:** the sharp version wants an internal number that cannot be published/' \
+  "$S/angles/2026-W33.md"
+grep -q "sharp version wants an internal number" "$S/angles/2026-W33.md" \
+  || bad "the blocker mutation changed nothing — the sed no longer matches"
+run_kickoff "$S" judge 2026-W33
+[ "$RC" = 0 ] && ok "a blocker beside a high provability does not fail the week" \
+  || bad "blocker-vs-P: rc=$RC"
+says "$OUT" "WARN.*names a blocker and still scores provability" \
+  && ok "an angle claiming provability >= 2 while naming a blocker is warned about" \
+  || bad "no warning for a blocker beside provability >= 2"
+
+# The other direction must stay silent, or the warning is noise on every run.
+S="$(new_studio blocker_none)"
+seed_week "$S" 2026-W33
+run_kickoff "$S" judge 2026-W33
+says "$OUT" "names a blocker and still scores" \
+  && bad "warned about an angle whose blocker is 'none'" \
+  || ok "an angle with 'blocker: none' is not warned about"
+
 # ── The calibration report: three sections ──────────────────────────────────
 
 S="$(new_studio report)"
