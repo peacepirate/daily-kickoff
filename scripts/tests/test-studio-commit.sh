@@ -67,6 +67,11 @@ YAML
 new_studio() {  # NAME [--no-git|--no-remote|--broken-remote|--no-angles]
   local dir="$WORK/$1" mode="${2:-}"
   mkdir -p "$dir"/{notes,drafts,published,engagement,state}
+  # The real studio carries the blocklist, and run-jobs.sh refuses to commit
+  # src/content/ without it. A scratch studio without one is not a studio the
+  # orchestrator will publish from — modelling that here rather than special-
+  # casing the guard. A synthetic term: this repo is public.
+  printf '# scratch fixture\nZorbex Dynamics\n' > "$dir/state/blocklist.txt"
   [ "$mode" = "--no-angles" ] || mkdir -p "$dir/angles"
   if [ "$mode" = "--no-git" ]; then echo "$dir"; return; fi
   git -C "$dir" init -q -b main
@@ -281,19 +286,34 @@ run_jobs "$site" "$studio" "$MONDAY"
   && ok "push-fail: the next run pushes it without re-committing" \
   || bad "push-fail: retry left studio at $(commits_in "$studio") commits, synced=$?"
 
-# ── 8. No studio at all — the digest must still publish ───────────────────────
+# ── 8. No studio at all — the digest must NOT publish ─────────────────────────
+#
+# This case used to assert the opposite: no studio, digests unaffected. The
+# blocklist changed it. The list lives in the studio, so without a studio there
+# is no way to know tonight's digests are clean, and this repo is public.
+#
+# The trade was made explicitly: a machine that cannot check its content does not
+# get to publish it. What it must not do is fail quietly, so the run exits 1, the
+# log says why, and the generated files are left on disk to publish by hand.
 site="$(new_site s8)"
 digest_file "$site"
 run_jobs "$site" "$WORK/there-is-no-studio-here" "$SUNDAY"
 
-[ "$RJ_RC" = 0 ] \
-  && ok "no-studio: the run still exits 0" || bad "no-studio: rc=$RJ_RC — $RJ_OUT"
+[ "$RJ_RC" = 1 ] \
+  && ok "no-studio: the run exits 1 rather than publishing unchecked" \
+  || bad "no-studio: rc=$RJ_RC — $RJ_OUT"
 grep -q "there-is-no-studio-here" <<<"$RJ_OUT" \
   && ok "no-studio: the log names the studio it could not find" \
   || bad "no-studio: silent — [$RJ_OUT]"
+grep -q "blocklist" <<<"$RJ_OUT" \
+  && ok "no-studio: the log says the blocklist is why nothing published" \
+  || bad "no-studio: did not say why — [$RJ_OUT]"
 grep -q "src/content/ai/2026-08-02.md" <<<"$(head_files "$site")" \
-  && ok "no-studio: the digest is committed anyway" \
-  || bad "no-studio: site commit = [$(head_files "$site")]"
+  && bad "no-studio: the digest was committed without ever being checked" \
+  || ok "no-studio: the digest is NOT committed"
+[ -f "$site/src/content/ai/2026-08-02.md" ] \
+  && ok "no-studio: the generated digest is left on disk, recoverable by hand" \
+  || bad "no-studio: the generated digest was destroyed"
 
 # ── 9. A studio that is not a git repo — loud, but not fatal ──────────────────
 site="$(new_site s9)"; studio="$(new_studio st9 --no-git)"

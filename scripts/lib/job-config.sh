@@ -329,6 +329,72 @@ assert_no_blocked() {  # LABEL FILE...
   return $rc
 }
 
+# ── Failure visibility ───────────────────────────────────────────────────────
+#
+# A failed nightly run is otherwise invisible. The dated log is gitignored and
+# never leaves the machine, launchd surfaces only an exit code nobody reads, and
+# every serious failure this project has had looked exactly like a quiet night.
+#
+# Two channels, because each misses differently. The notification is immediate
+# and easy to miss at 06:00; the marker file is durable and only seen if
+# something reads it, which `kickoff doctor` does.
+
+FAILURE_MARKER_NAME="LAST-RUN-FAILED"
+
+notify_desktop() {  # TITLE MESSAGE
+  command -v osascript >/dev/null 2>&1 || return 0
+  # Strip quotes and backslashes rather than escaping them: this string is built
+  # from job names and is not worth an AppleScript injection surface.
+  local title msg
+  title="$(printf '%s' "$1" | tr -d '"\\')"
+  msg="$(printf '%s' "$2" | tr -d '"\\')"
+  osascript -e "display notification \"$msg\" with title \"$title\"" >/dev/null 2>&1 || true
+}
+
+# mark_run_failed LOG_DIR SUMMARY   — durable, read by `kickoff doctor`
+mark_run_failed() {  # LOG_DIR SUMMARY
+  [ -d "$1" ] || return 0
+  printf '%s\n%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$2" > "$1/$FAILURE_MARKER_NAME" 2>/dev/null || true
+}
+
+clear_run_failed() {  # LOG_DIR
+  rm -f "$1/$FAILURE_MARKER_NAME" 2>/dev/null || true
+}
+
+# assert_no_blocked_tree LABEL DIR...
+#
+# Recursive form of assert_no_blocked, for gating a whole content directory
+# before it is committed. Same fail-closed semantics, same refusal to echo the
+# term: it names the files, which is what you need to fix it, and not the string,
+# which is what you are trying not to write down.
+assert_no_blocked_tree() {  # LABEL DIR...
+  local label="$1"; shift
+  local terms term squashed d hits rc=0
+  if ! terms="$(blocklist_terms)"; then
+    log "ERROR: blocklist is missing, unreadable or empty: $(resolve_blocklist_file)"
+    return 1
+  fi
+  while IFS= read -r term; do
+    [ -n "$term" ] || continue
+    squashed="$(tr -d ' ' <<<"$term")"
+    for d in "$@"; do
+      [ -e "$d" ] || continue
+      hits="$(grep -rliF -- "$term" "$d" 2>/dev/null || true)"
+      if [ "$squashed" != "$term" ]; then
+        hits="$hits
+$(grep -rliF -- "$squashed" "$d" 2>/dev/null || true)"
+      fi
+      hits="$(printf '%s\n' "$hits" | grep -v '^$' | sort -u || true)"
+      if [ -n "$hits" ]; then
+        log "ERROR: $label contains a blocked term — see $(resolve_blocklist_file):"
+        printf '%s\n' "$hits" | head -10 | while IFS= read -r f; do log "         $f"; done
+        rc=1
+      fi
+    done
+  done <<<"$terms"
+  return $rc
+}
+
 assert_output_boundary() {  # KIND OUTPUT_PATH
   [ "$1" = "generators" ] || return 0
   # A `..` segment defeats the prefix test below by pure string arithmetic:

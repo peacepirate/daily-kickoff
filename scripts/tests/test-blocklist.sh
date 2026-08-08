@@ -91,6 +91,51 @@ else
   bad "the failure message does not say which file matched"
 fi
 
+echo "── assert_no_blocked_tree: the recursive form ────────────────────────────"
+mkdir -p "$TMP/tree/sub"
+printf 'all clear here\n'                     > "$TMP/tree/clean.md"
+printf 'nothing here either\n'                > "$TMP/tree/sub/clean2.md"
+run_tree() {  # LIST DIR
+  ( KICKOFF_BLOCKLIST="$1"; . "$LIB" >/dev/null 2>&1
+    assert_no_blocked_tree "test" "$2" ) >/dev/null 2>&1
+}
+run_tree "$TMP/list.txt" "$TMP/tree"; got=$?
+[ "$got" -eq 0 ] && ok "a clean tree passes" || bad "a clean tree passes (exit $got)"
+
+printf 'a mention of %s buried deep\n' "$TERM_SPACED" > "$TMP/tree/sub/dirty.md"
+run_tree "$TMP/list.txt" "$TMP/tree"; got=$?
+[ "$got" -eq 1 ] && ok "a term nested in a subdirectory is caught" || bad "nested term caught (exit $got)"
+
+run_tree "$TMP/nosuchlist.txt" "$TMP/tree"; got=$?
+[ "$got" -eq 1 ] && ok "a missing list fails the tree scan closed" || bad "missing list fails closed (exit $got)"
+
+tree_msg="$( ( KICKOFF_BLOCKLIST="$TMP/list.txt"; . "$LIB" >/dev/null 2>&1
+               assert_no_blocked_tree "test" "$TMP/tree" ) 2>&1 )"
+grep -qiF "Zorbex" <<<"$tree_msg" \
+  && bad "the tree scan repeats the matched term" \
+  || ok "the tree scan does not repeat the matched term"
+grep -qF "dirty.md" <<<"$tree_msg" \
+  && ok "the tree scan names the offending file" \
+  || bad "the tree scan does not name the offending file"
+rm -f "$TMP/tree/sub/dirty.md"
+
+echo "── the nightly run is actually gated ─────────────────────────────────────"
+# The unit tests above prove the checker works. This proves something invokes it
+# on the path that publishes. run-jobs.sh is never executed here — it commits and
+# pushes to a public repo — so the wiring is asserted structurally instead.
+RJ="$REPO_DIR/scripts/run-jobs.sh"
+gate_line="$(grep -n 'assert_no_blocked_tree' "$RJ" | head -1 | cut -d: -f1)"
+push_line="$(grep -n 'commit_and_push "\$REPO_DIR" "src/content/"' "$RJ" | head -1 | cut -d: -f1)"
+if [ -z "$gate_line" ]; then
+  bad "run-jobs.sh does not call assert_no_blocked_tree — the check runs only in tests"
+elif [ -z "$push_line" ]; then
+  bad "could not find the src/content commit in run-jobs.sh — this assertion needs updating"
+elif [ "$gate_line" -lt "$push_line" ]; then
+  ok "run-jobs.sh checks the blocklist before committing src/content (line $gate_line before $push_line)"
+else
+  bad "run-jobs.sh checks the blocklist AFTER committing — too late to matter"
+fi
+
 echo "── the real list ─────────────────────────────────────────────────────────"
 # Existence and non-emptiness only. Never printed, never asserted against a
 # known value — this file is public.

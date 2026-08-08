@@ -86,7 +86,29 @@ done
 # Single commit for all successfully generated content. All the guards — branch,
 # porcelain-not-diff, push split from commit with retry — live in
 # commit_and_push, shared with the studio repo so there is only one copy.
-commit_and_push "$REPO_DIR" "src/content/" "digest: $DATE [automated]" && CP_RC=0 || CP_RC=$?
+# The blocklist gate. This repo is public, and this is the last moment before
+# tonight's content leaves the machine.
+#
+# Placed before the commit rather than after generation, because a quarantined
+# digest is recoverable and a pushed one is not: history can be rewritten over,
+# never actually recalled. Everything else this orchestrator does can be retried
+# tomorrow. This cannot.
+#
+# Fails CLOSED, including when the list itself cannot be read. The list lives in
+# the private studio, so a machine without a studio cannot publish. That is the
+# intended trade — with no list there is no way to know the content is clean, and
+# "publish anyway" is the answer that makes the whole guard decorative.
+#
+# Scoped to src/content/ only. The studio commit below is deliberately not gated:
+# the studio is private, and its notes legitimately carry the terms this list
+# exists to keep out of *this* repo.
+if ! assert_no_blocked_tree "tonight's content" "$REPO_DIR/src/content"; then
+  log "ERROR: refusing to commit or push. The generated files are on disk and untouched."
+  FAILED_JOBS="$FAILED_JOBS blocklist"
+  CP_RC=2
+else
+  commit_and_push "$REPO_DIR" "src/content/" "digest: $DATE [automated]" && CP_RC=0 || CP_RC=$?
+fi
 case "$CP_RC" in
   0) log "Committed $COMMITTED job(s)." ;;
   2) ;;  # nothing to commit — commit_and_push already said so
@@ -144,5 +166,9 @@ log "=== run-jobs finished $(date) ==="
 # gitignored and never leaves this machine.
 if [ -n "$FAILED_JOBS" ]; then
   log "FAILED jobs:$FAILED_JOBS"
+  mark_run_failed "$LOG_DIR" "$DATE failed:$FAILED_JOBS"
+  notify_desktop "Daily Kickoff — $DATE failed" \
+                 "Not published:$FAILED_JOBS. Run: kickoff doctor"
   exit 1
 fi
+clear_run_failed "$LOG_DIR"
