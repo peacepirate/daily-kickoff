@@ -409,16 +409,20 @@ cmd_signals() {
 
   require_studio
 
-  local downloads="$HOME/Downloads" here="$PWD" src=""
+  # Downloads itself, and the folder exports are filed into. The glob is not
+  # recursive, so a subfolder is invisible without naming it.
+  local downloads="$HOME/Downloads" filed="$HOME/Downloads/KickOff-signals"
+  local here="$PWD" src=""
   if [ -n "$explicit" ]; then
     [ -f "$explicit" ] || signals_die "no such export: $explicit — signals.json unchanged."
     src="$explicit"
   else
-    src="$(newest_export "$downloads" "$here")"
+    src="$(newest_export "$filed" "$downloads" "$here")"
     if [ -z "$src" ]; then
       # Naming every location matters: the alternative is a plausible-looking
       # empty snapshot, which is the failure this whole epic exists to prevent.
       note "ERROR: no $SIGNALS_GLOB found. Looked in:"
+      note "  $filed"
       note "  $downloads"
       note "  $here"
       note ""
