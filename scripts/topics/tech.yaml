@@ -94,10 +94,8 @@ sources:
       kind: rss
       url: "https://producthunt.com/feed"
       max_items: 5
-    - name: "Every"
-      kind: rss
-      url: "https://every.to/feed"
-      max_items: 5
+    # "Every" removed here: https://every.to/feed answers 200 but is not a
+    # parseable feed — feedparser finds zero entries in it.
     # Wearables
     - name: "DC Rainmaker"
       kind: rss

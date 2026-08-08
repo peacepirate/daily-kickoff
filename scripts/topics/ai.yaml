@@ -18,9 +18,9 @@ sources:
       kind: html
       url: "https://www.anthropic.com/engineering"
       max_items: 5
-    - name: "OpenAI Releases"
-      kind: releasebot
-      url: "https://releasebot.io/updates/openai"
+    - name: "OpenAI News"
+      kind: rss
+      url: "https://openai.com/news/rss.xml"
       max_items: 5
     - name: "AWS ML Blog"
       kind: rss
@@ -31,8 +31,8 @@ sources:
       url: "https://blog.google/technology/ai/rss/"
       max_items: 8
     - name: "DeepMind Blog"
-      kind: html
-      url: "https://deepmind.google/discover/blog/"
+      kind: rss
+      url: "https://deepmind.google/blog/rss.xml"
       max_items: 5
     - name: "Mistral News"
       kind: html

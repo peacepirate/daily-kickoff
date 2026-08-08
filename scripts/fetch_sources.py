@@ -141,17 +141,29 @@ _DATE_CLASS_RE = re.compile(
 )
 
 
-def extract_event_date(container) -> Date | None:
-    """
-    Walk an HTML container (BeautifulSoup element) and return the best date found,
-    or None if no parseable date is present.
+# Article indexes label their dates differently from event listings: `post-date`,
+# `entry-date`, `published`, `pubdate`. Kept separate from _DATE_CLASS_RE rather
+# than merged into it, so that broadening article coverage cannot shift what the
+# Saturday events digest extracts.
+_ARTICLE_DATE_CLASS_RE = re.compile(
+    r'post.?date|entry.?date|article.?date|pub(?:lish(?:ed)?)?.?date|published'
+    r'|date.?published|byline.?date|timestamp|(?:^|\s)date(?:\s|$)',
+    re.I,
+)
 
-    Priority:
-    1. <time datetime="..."> attribute (ISO — most reliable)
-    2. <time> inner text
-    3. Elements whose CSS class matches date-hinting patterns
-    4. data-date / data-start / data-start-date attributes
-    5. Full container text scan (lowest confidence)
+
+def _marked_up_date(container, class_re) -> Date | None:
+    """
+    The date a page states *about itself*, from markup that exists to carry a
+    date: <time>, date-hinting CSS classes, data-* attributes. Returns None when
+    the page never marks one up.
+
+    Split out from extract_event_date so article recency can use these four
+    signals without the fifth. Scanning an article's body text for a date finds
+    dates the article merely *mentions*, and dropping a fresh post because its
+    prose says "2024" loses content silently — the worst failure available here.
+    An event listing can afford that scan because a date is the point of the
+    listing; an article cannot.
     """
     # 1 & 2 — <time> tags
     for t in container.find_all("time"):
@@ -165,7 +177,7 @@ def extract_event_date(container) -> Date | None:
             return d
 
     # 3 — date-hinting CSS classes
-    for el in container.find_all(class_=_DATE_CLASS_RE):
+    for el in container.find_all(class_=class_re):
         d = parse_date_text(el.get_text(" ", strip=True))
         if d:
             return d
@@ -179,8 +191,25 @@ def extract_event_date(container) -> Date | None:
                 if d:
                     return d
 
+    return None
+
+
+def extract_event_date(container) -> Date | None:
+    """
+    The best date in an event listing, or None. Marked-up signals first, then a
+    full-text scan of the container — broadest, and prone to false positives,
+    but an undated event listing is useless and a wrong date is visible.
+    """
+    d = _marked_up_date(container, _DATE_CLASS_RE)
+    if d:
+        return d
     # 5 — full container text (broadest scan, risk of false positives)
     return parse_date_text(container.get_text(" ", strip=True))
+
+
+def extract_article_date(container) -> Date | None:
+    """The date an article page states about itself, or None. Marked up only."""
+    return _marked_up_date(container, _ARTICLE_DATE_CLASS_RE)
 
 
 # ── Releasebot.io ─────────────────────────────────────────────────────────────
@@ -317,7 +346,22 @@ def fetch_html(name: str, url: str, max_items: int,
                     ev_date_str = event_date.strftime("%Y-%m-%d")
                 items.append({"title": title, "url": href, "date": ev_date_str, "summary": summary})
             else:
-                items.append({"title": title, "url": href, "date": "recent", "summary": summary})
+                # Recency, the same rule fetch_rss applies. Without this a news
+                # index re-emits its whole front page every night: measured
+                # across the stored bundles, two thirds of the ai bundle was
+                # content it had already served, and six sources contributing
+                # 15.6 items a night yielded 1.6 new ones.
+                #
+                # Drops only what it can prove is stale. An item whose page
+                # marks up no date passes, because "no date found" and "old"
+                # are different claims and only one of them justifies dropping
+                # a story.
+                pub = extract_article_date(block)
+                if pub is not None and pub < SINCE.date():
+                    continue
+                items.append({"title": title, "url": href,
+                              "date": pub.strftime("%Y-%m-%d") if pub else "recent",
+                              "summary": summary})
 
             if len(items) >= max_items:
                 break

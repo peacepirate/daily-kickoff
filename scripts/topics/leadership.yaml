@@ -40,14 +40,6 @@ sources:
       kind: rss
       url: "https://larahogan.me/feed.xml"
       max_items: 5
-    - name: "First Round Review"
-      kind: rss
-      url: "https://review.firstround.com/feed.xml"
-      max_items: 5
-    - name: "Manager Tools"
-      kind: rss
-      url: "https://feeds.feedburner.com/ManagerToolsPodcast"
-      max_items: 3
 
   tier3:
     - name: "Hacker News"
