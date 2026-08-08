@@ -107,34 +107,36 @@ else
 fi
 
 echo "── this repo ─────────────────────────────────────────────────────────────"
-# The machinery only — prompts, configs, library, tooling. NOT src/content/,
-# where the published digests still carry the name pending S1.8. A check that
-# fails every run for a known, already-scheduled reason is a check people learn
-# to ignore, and then it is worth nothing on the day it means something.
+# Everything: prompts, configs, library, tooling AND the published digests.
+# src/content/ was excluded while the 39 digests still carried the name; that
+# exclusion is gone now that they do not, which is the whole point of having
+# said so here rather than in a plan document nobody greps.
 #
-# Widen this to the whole repo the moment S1.8 lands. That is the point of
-# saying so here rather than in a plan document nobody greps.
+# src/content/ is the published site and the Phase 2 corpus, so this assertion
+# is also the one that notices if a future nightly run writes the name back.
 # No `mapfile` — macOS ships bash 3.2, where it does not exist. It fails to
 # stderr and leaves the array unset, which under `set -u` without `set -e`
 # skipped straight past this check while the suite still printed PASS. A leak
 # guard that reports success because it never ran is the exact shape this file
 # exists to prevent, so the list goes through a file and the count is asserted.
-find "$REPO_DIR/scripts" "$REPO_DIR/.claude" \
+find "$REPO_DIR/scripts" "$REPO_DIR/.claude" "$REPO_DIR/src" \
      -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \
-                -o -name '*.sh' -o -name '*.py' -o -name '*.ts' \) \
+                -o -name '*.sh' -o -name '*.py' -o -name '*.ts' -o -name '*.astro' \) \
      -not -path '*/.venv/*' -not -path '*/logs/*' -not -path '*/__pycache__/*' \
      2>/dev/null | sort > "$TMP/machinery.txt"
 mach_count="$(wc -l < "$TMP/machinery.txt" | tr -d ' ')"
 
-if [ "${mach_count:-0}" -lt 20 ]; then
-  bad "only ${mach_count:-0} machinery files found — the find expression is wrong, not the repo"
+# 100, not 20: the digests alone are ~90 files. A find expression that silently
+# stopped matching them would still clear a threshold set for the scripts.
+if [ "${mach_count:-0}" -lt 100 ]; then
+  bad "only ${mach_count:-0} files found — the find expression is wrong, not the repo"
 elif ( . "$LIB" >/dev/null 2>&1
        set --
        while IFS= read -r f; do set -- "$@" "$f"; done < "$TMP/machinery.txt"
-       assert_no_blocked "repo machinery" "$@" ) 2>/dev/null; then
-  ok "no prompt, config, script or planning doc names a blocked term ($mach_count files)"
+       assert_no_blocked "repo" "$@" ) 2>/dev/null; then
+  ok "no prompt, config, script, planning doc or published digest names a blocked term ($mach_count files)"
 else
-  bad "a blocked term is present in this repo's machinery — run the check by hand to see which file"
+  bad "a blocked term is present in this repo — run the check by hand to see which file"
 fi
 
 echo
