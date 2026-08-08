@@ -4,7 +4,7 @@
 A personal AI-curated digest site. Astro 6 + Tailwind v4, deployed to GitHub Pages at priyesh.fyi. Content is auto-generated nightly via a macOS launchd job that runs Python (source fetching) + Claude Code CLI (synthesis).
 
 ## Owner
-Priyesh Jain — Senior Engineering Manager, Capital One, Richmond VA. Leads agentic coding adoption across 6–10 engineering teams. Works on AI/ML document ingestion (OCR, Azure AI Search, RAG) for small business card underwriting. Uses Claude Code via AWS Bedrock at work. Side project: Gods of the Future Past (kids' mythology content platform using local LLM inference).
+Priyesh Jain — Senior Engineering Manager, a large regulated financial-services company, Richmond VA. Leads agentic coding adoption across 6–10 engineering teams. Works on AI/ML document ingestion (OCR, Azure AI Search, RAG) for small business card underwriting. Uses Claude Code via AWS Bedrock at work. Side project: Gods of the Future Past (kids' mythology content platform using local LLM inference).
 
 ## Tech Stack
 - Site: Astro 6, Tailwind v4, TypeScript, MDX

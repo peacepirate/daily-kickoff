@@ -102,13 +102,13 @@ Not applicable — no UX design specification. Site changes are additive (~15 li
 
 FR-E01: A 30-day forward window must be applied from the Saturday run date. Events occurring in the past must never appear in the digest. Events occurring on TODAY or TODAY+1 belong in the `richmond` news digest, not `rva-events`.
 
-FR-E02: Sources and synthesis must apply distance weighting in priority order: (1) RVA — Richmond city proper + Henrico, Chesterfield, Midlothian; (2) Metro — Hanover, Colonial Heights, Petersburg, Hopewell; (3) Extended Metro — Charlottesville, Williamsburg, Fredericksburg (≤60 min drive + exceptional events only); (4) VA-Wide — only if Capital One community or major RVA tech significance, noting distance explicitly.
+FR-E02: Sources and synthesis must apply distance weighting in priority order: (1) RVA — Richmond city proper + Henrico, Chesterfield, Midlothian; (2) Metro — Hanover, Colonial Heights, Petersburg, Hopewell; (3) Extended Metro — Charlottesville, Williamsburg, Fredericksburg (≤60 min drive + exceptional events only); (4) VA-Wide — only if large-employer community or major RVA tech significance, noting distance explicitly.
 
 FR-E03: In-scope event categories: family/kids, arts/culture, food/dining events, tech meetups, outdoor/parks, community festivals, civic/political events with direct access to elected officials (hackathons, listening sessions, public forums) — capped at 1–2 items per digest.
 
 FR-E04: Out-of-scope (drop silently): sports scores/schedules, pure partisan fundraisers (campaign rallies, party galas), generic charity 5Ks with no community draw, events outside the distance zones, past events.
 
-FR-E05: Sparsity fallback: if RVA events total < 4, expand to Metro zone; if < 2 RVA events, lead TL;DR with "Light event calendar" and pull in Extended Metro exceptional events; if < 2 of any zone, note "Quiet month for events" and output VA-wide tech/Capital One items if any.
+FR-E05: Sparsity fallback: if RVA events total < 4, expand to Metro zone; if < 2 RVA events, lead TL;DR with "Light event calendar" and pull in Extended Metro exceptional events; if < 2 of any zone, note "Quiet month for events" and output VA-wide tech/a large regulated enterprise items if any.
 
 FR-E06: The `richmond-events` topic must run on Saturdays only (`schedule: weekly`). The orchestrator's existing weekly schedule logic handles this automatically.
 
@@ -120,7 +120,7 @@ FR-E09: The existing `digestSchema` must be used unchanged. Action semantics: `t
 
 FR-E10: Deduplication boundary: events occurring on the Saturday run date (TODAY) or Sunday (TODAY+1) belong in the `richmond` news digest and must be excluded from `rva-events`.
 
-FR-E11: `scripts/topics/richmond-events.yaml` must define 14 sources across 3 tiers: tier1 (3 RVA RSS feeds with event `filter_regex`), tier2 (7 venue HTML calendars: VMFA, Maymont, The Valentine, SMV, Hardywood, Strangeways, Capital One Hall), tier3 (4 community aggregators: Visit Richmond, Richmond Family, RVAtech, Startup Virginia).
+FR-E11: `scripts/topics/richmond-events.yaml` must define 14 sources across 3 tiers: tier1 (3 RVA RSS feeds with event `filter_regex`), tier2 (7 venue HTML calendars: VMFA, Maymont, The Valentine, SMV, Hardywood, Strangeways, the venue source), tier3 (4 community aggregators: Visit Richmond, Richmond Family, RVAtech, Startup Virginia).
 
 FR-E12: Six Astro files must be updated to wire the `rva-events` collection into the site: `src/content.config.ts`, `src/layouts/Layout.astro`, `src/pages/index.astro`, `src/pages/watchlist.astro`, `src/pages/[theme]/index.astro`, `src/pages/[theme]/[slug].astro`.
 
@@ -377,7 +377,7 @@ So that I get actionable engineering management signal in ≤20 min every Saturd
 
 **Given** `scripts/prompts/leadership.md` is reviewed
 **When** its content is checked
-**Then** it contains: WHO PRIYESH IS section with EM/Capital One context, KEEP rules (EM techniques, agentic org, SDLC governance, hiring), DROP rules (startup founder advice, generic empathy content), action tag definitions for APPLY IN 1:1 and BRING TO STAFF MEETING, weekly-synthesis output format section
+**Then** it contains: WHO PRIYESH IS section with EM/a large regulated enterprise context, KEEP rules (EM techniques, agentic org, SDLC governance, hiring), DROP rules (startup founder advice, generic empathy content), action tag definitions for APPLY IN 1:1 and BRING TO STAFF MEETING, weekly-synthesis output format section
 **And** Step 2 (Write file) targets `src/content/leadership/DATE.md`
 **And** Step 3 instructs Claude to write file only — no git operations
 
@@ -414,7 +414,7 @@ So that I know what's happening locally for weekend planning and professional ne
 
 **Given** `scripts/prompts/richmond.md` is reviewed
 **When** its content is checked
-**Then** it contains: distance-weighting rule (Richmond city/Henrico/Chesterfield always first; VA-wide only if RVA items < 4), sparsity fallback rule, KEEP rules (tech events, family activities, dining, development, Capital One–relevant business news), DROP rules (crime, weather, sports, national politics with Richmond dateline), ATTEND/BRING FAMILY/WATCH/SHARE action tag definitions
+**Then** it contains: distance-weighting rule (Richmond city/Henrico/Chesterfield always first; VA-wide only if RVA items < 4), sparsity fallback rule, KEEP rules (tech events, family activities, dining, development, a large regulated enterprise–relevant business news), DROP rules (crime, weather, sports, national politics with Richmond dateline), ATTEND/BRING FAMILY/WATCH/SHARE action tag definitions
 **And** targets `src/content/richmond/DATE.md` with no git operations
 
 **Dev Notes:**
@@ -646,13 +646,13 @@ So that every Saturday I automatically receive a 30-day calendar of upcoming RVA
 **When** parsed as YAML
 **Then** it contains `name: richmond-events`, `theme: rva-events`, `schedule: weekly`, `output_collection: rva-events`, `prompt: scripts/prompts/richmond-events.md`
 **And** `sources.tier1` includes 3 RVA RSS sources each with an event-focused `filter_regex`: Style Weekly Events, RICtoday Events, Richmond Magazine Events
-**And** `sources.tier2` includes 7 venue HTML calendar pages: VMFA, Maymont, The Valentine, Science Museum of Virginia, Hardywood, Strangeways, Capital One Hall
+**And** `sources.tier2` includes 7 venue HTML calendar pages: VMFA, Maymont, The Valentine, Science Museum of Virginia, Hardywood, Strangeways, the venue source
 **And** `sources.tier3` includes 4 community aggregators: Visit Richmond Events (html), Richmond Family Magazine Calendar (html), RVAtech Events (html), Startup Virginia Events (html)
 **And** every source entry has `name`, `kind`, `url`, `max_items`
 
 **Given** `scripts/prompts/richmond-events.md` is created
 **When** its content is reviewed
-**Then** it contains a WHO PRIYESH IS section with Richmond/family/tech/Capital One context
+**Then** it contains a WHO PRIYESH IS section with Richmond/family/tech/a large regulated enterprise context
 **And** it contains the 4-zone distance weighting rule (RVA → Metro → Extended Metro → VA-Wide) with explicit priority order
 **And** it contains CATEGORIES — INCLUDE list: family/kids, arts/culture, food/dining, tech/professional, outdoor/parks, civic/political (at ≤2 items cap with "direct access to elected officials" qualifier)
 **And** it contains CATEGORIES — DROP SILENTLY list: sports, pure partisan fundraisers, generic charity runs, out-of-zone events, past events
@@ -677,7 +677,7 @@ So that every Saturday I automatically receive a 30-day calendar of upcoming RVA
 - The tier1 `filter_regex` for event filtering: `\b(event|concert|festival|exhibit|opening|workshop|market|fair|show|performance)\b` — adjust per-source as needed
 - Tier2 venue pages are pure HTML event calendars — set `kind: html`, no filter needed (they only publish events)
 - No Eventbrite: removed public RSS in 2023; Visit Richmond and Richmond Family already aggregate from Eventbrite
-- Prompt distance weighting verbatim zones: RVA (Richmond city + Henrico, Chesterfield, Midlothian) — always; Metro (Hanover, Colonial Heights, Petersburg, Hopewell) — include if 4+ RVA; Extended Metro (Charlottesville, Williamsburg, Fredericksburg) — only ≤60 min AND exceptional; VA-Wide — Capital One/RVA tech only, state distance explicitly
+- Prompt distance weighting verbatim zones: RVA (Richmond city + Henrico, Chesterfield, Midlothian) — always; Metro (Hanover, Colonial Heights, Petersburg, Hopewell) — include if 4+ RVA; Extended Metro (Charlottesville, Williamsburg, Fredericksburg) — only ≤60 min AND exceptional; VA-Wide — a large regulated enterprise/RVA tech only, state distance explicitly
 - Civic/political rule: cap at 1–2 items; require "direct community access to elected officials" justification; [ATTEND] only if genuine networking or civic-influence angle exists
 - Test: `scripts/.venv/bin/python3 scripts/fetch_sources.py --topic richmond-events --weekly 2>&1 | grep "###"` — should show all 14 source headers (some HTML sources may return 0 items if pages are JS-rendered — that's expected; the test is that headers appear)
 - Reference: RICHMOND_EVENTS_PROPOSAL.md §3.2 for full YAML, §5 for complete prompt template

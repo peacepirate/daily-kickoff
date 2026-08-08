@@ -278,6 +278,57 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
 }
 
 # Phase 2 reads the digest corpus; it must never write to it.
+# ── Blocklist ────────────────────────────────────────────────────────────────
+# Strings that must never reach this repo or anything it publishes. The list
+# itself lives in the private studio; see state/blocklist.txt there for why.
+#
+# Everything here fails closed. An unreadable or empty list is an error, because
+# the alternative — an empty denylist — passes every string in the world and
+# looks exactly like success.
+
+resolve_blocklist_file() {
+  echo "${KICKOFF_BLOCKLIST:-$(resolve_studio_dir)/state/blocklist.txt}"
+}
+
+# One term per line, comments and blanks stripped. Non-zero if the list cannot
+# be read or contains no terms.
+blocklist_terms() {
+  local file out
+  file="$(resolve_blocklist_file)"
+  [ -r "$file" ] || return 1
+  out="$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$file" \
+         | grep -v '^$')" || true
+  [ -n "$out" ] || return 1
+  printf '%s\n' "$out"
+}
+
+# assert_no_blocked LABEL FILE...
+#
+# Never prints the matched term — a guard that echoes what it caught writes the
+# leak into the log it was protecting. The message names the file and points at
+# the list.
+assert_no_blocked() {  # LABEL FILE...
+  local label="$1"; shift
+  local terms term squashed f rc=0
+  if ! terms="$(blocklist_terms)"; then
+    log "ERROR: blocklist is missing, unreadable or empty: $(resolve_blocklist_file)"
+    return 1
+  fi
+  while IFS= read -r term; do
+    [ -n "$term" ] || continue
+    squashed="$(tr -d ' ' <<<"$term")"
+    for f in "$@"; do
+      [ -e "$f" ] || continue
+      if grep -qiF -- "$term" "$f" \
+         || { [ "$squashed" != "$term" ] && grep -qiF -- "$squashed" "$f"; }; then
+        log "ERROR: $label contains a blocked term — see $(resolve_blocklist_file): $f"
+        rc=1
+      fi
+    done
+  done <<<"$terms"
+  return $rc
+}
+
 assert_output_boundary() {  # KIND OUTPUT_PATH
   [ "$1" = "generators" ] || return 0
   # A `..` segment defeats the prefix test below by pure string arithmetic:

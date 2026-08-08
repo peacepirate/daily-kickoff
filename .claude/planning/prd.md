@@ -2,7 +2,7 @@
 
 **Project:** Daily Kickoff — priyesh.fyi  
 **Version:** 2.0  
-**Owner:** Priyesh Jain, Senior Engineering Manager, Capital One  
+**Owner:** Priyesh Jain, Senior Engineering Manager, a large regulated enterprise  
 **Date:** 2026-05-17
 
 ---
@@ -17,7 +17,7 @@ Daily Kickoff is a personal AI-curated digest site (Astro 6 + Tailwind v4, GitHu
 
 ## User Context
 
-- **User:** Priyesh Jain, Senior Engineering Manager at Capital One, Richmond VA
+- **User:** Priyesh Jain, Senior Engineering Manager at a large regulated financial-services company, Richmond VA
 - **Manages:** 6–10 engineering teams using Claude Code / AWS Bedrock
 - **Work focus:** AI/ML document ingestion (OCR, Azure AI Search, RAG) for card underwriting
 - **Side project:** Gods of the Future Past (kids' mythology platform; needs local LLM inference)

@@ -77,8 +77,8 @@ sources:
       event_mode: true
       url: "https://startupva.com/events/"
       max_items: 5
-    - name: "Capital One Hall Events"
-      kind: html
-      event_mode: true
-      url: "https://www.capitalonehall.com/events/"
-      max_items: 4
+    # A venue source was removed here: its name and domain both carried the
+    # employer's name, and this repo is public. Restoring it would need an
+    # exception inside the blocklist, and an allowlist in a leak guard is how
+    # the next leak gets through. Other RVA arts and music sources cover the
+    # same category.

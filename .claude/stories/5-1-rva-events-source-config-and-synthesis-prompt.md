@@ -14,7 +14,7 @@ so that every Saturday I automatically receive a 30-day calendar of upcoming RVA
 
 2. **Given** the YAML **When** sources are inspected **Then** `sources.tier1` contains 3 RVA RSS sources with event `filter_regex`: Style Weekly Events, RICtoday Events, Richmond Magazine Events
 
-3. **Given** the YAML **When** tier2 is inspected **Then** it contains 7 venue HTML calendar pages: VMFA, Maymont, The Valentine, Science Museum of Virginia, Hardywood, Strangeways, Capital One Hall
+3. **Given** the YAML **When** tier2 is inspected **Then** it contains 7 venue HTML calendar pages: VMFA, Maymont, The Valentine, Science Museum of Virginia, Hardywood, Strangeways, the venue source
 
 4. **Given** the YAML **When** tier3 is inspected **Then** it contains 4 community aggregators (html): Visit Richmond Events, Richmond Family Magazine Calendar, RVAtech Events, Startup Virginia Events
 
@@ -29,7 +29,7 @@ so that every Saturday I automatically receive a 30-day calendar of upcoming RVA
 - [x] Create `scripts/topics/richmond-events.yaml` (AC: 1, 2, 3, 4)
   - [x] Header fields: name, theme, schedule, output_collection, prompt
   - [x] tier1: 3 RSS sources with filter_regex (Style Weekly, RICtoday, Richmond Magazine)
-  - [x] tier2: 7 HTML venue calendar pages (VMFA, Maymont, Valentine, SMV, Hardywood, Strangeways, Capital One Hall)
+  - [x] tier2: 7 HTML venue calendar pages (VMFA, Maymont, Valentine, SMV, Hardywood, Strangeways, the venue source)
   - [x] tier3: 4 HTML aggregators (Visit Richmond, Richmond Family, RVAtech, Startup Virginia)
 - [x] Create `scripts/prompts/richmond-events.md` (AC: 5)
   - [x] WHO PRIYESH IS section
@@ -48,9 +48,9 @@ so that every Saturday I automatically receive a 30-day calendar of upcoming RVA
 
 ### Review Findings (code review 2026-05-17)
 
-- [x] [Review][Decision] Capital One Hall geographic placement — moved from tier2 to tier3; URL trailing slash added. User decision: keep it, McLean/Tysons events → tier3 (VA-Wide). West Creek campus (Richmond) noted as future candidate. [`scripts/topics/richmond-events.yaml`]
+- [x] [Review][Decision] the venue source geographic placement — moved from tier2 to tier3; URL trailing slash added. User decision: keep it, McLean/Tysons events → tier3 (VA-Wide). West Creek campus (Richmond) noted as future candidate. [`scripts/topics/richmond-events.yaml`]
 - [x] [Review][Patch] AC1: `name` field must be lowercase hyphenated — fixed: `name: richmond-events` [`scripts/topics/richmond-events.yaml`:1]
-- [x] [Review][Patch] Capital One Hall URL missing trailing slash — fixed: `https://www.capitalonehall.com/events/` [`scripts/topics/richmond-events.yaml`]
+- [x] [Review][Patch] the venue source URL missing trailing slash — fixed: `https://www.a large regulated enterprisehall.com/events/` [`scripts/topics/richmond-events.yaml`]
 - [x] [Review][Defer] filter_regex case-sensitivity — `re.IGNORECASE` status unverified; uppercase event words may be missed. Pre-existing behavior across all topic configs; not introduced by this story. [`scripts/topics/richmond-events.yaml` tier1] — deferred, pre-existing
 - [x] [Review][Defer] Dedup boundary assumes Saturday run — prompt logic references "Saturday run date"; if pipeline runs on another day the TODAY+1 rule misbehaves. Pre-existing system assumption (launchd scheduled for Saturdays). [`scripts/prompts/richmond-events.md` STEP 1] — deferred, pre-existing
 - [x] [Review][Defer] `rva-events` missing from `src/content.config.ts` — Story 5.2 explicit scope. [`src/content.config.ts`] — deferred, pre-existing
@@ -136,9 +136,9 @@ Use `scripts/prompts/richmond.md` as the base structure. The key differences for
   kind: html
   url: "https://strangewaysbrewing.com/events/"
   max_items: 4
-- name: "Capital One Hall Events"
+- name: "the venue source Events"
   kind: html
-  url: "https://www.capitalonehall.com/events"
+  url: "https://www.a large regulated enterprisehall.com/events"
   max_items: 6
 ```
 
@@ -171,7 +171,7 @@ Use `scripts/prompts/richmond.md` as the base structure. The key differences for
 1. RVA (Richmond city + Henrico, Chesterfield, Midlothian) — always lead
 2. Metro (Hanover, Colonial Heights, Petersburg, Hopewell) — include if 4+ RVA items
 3. Extended Metro (Charlottesville, Williamsburg, Fredericksburg ≤60 min) — only if exceptional + strong signal
-4. VA-Wide — Capital One community or major RVA tech significance only; state distance explicitly
+4. VA-Wide — large-employer community or major RVA tech significance only; state distance explicitly
 ```
 
 **Item format (must appear verbatim in prompt):**
@@ -293,7 +293,7 @@ claude-sonnet-4-6
 
 - YAML validated via `scripts/.venv/bin/python3 -c "import yaml; yaml.safe_load(...)"` — passed
 - settings.json validated via `python3 -m json.tool` — passed
-- `fetch_sources.py --topic richmond-events --weekly` — all 14 source headers returned; JS-rendered venues (VMFA, SMV, Hardywood, Strangeways, Capital One Hall, Style Weekly Events, Startup Virginia) returned 0 items as expected; Maymont (6), Valentine (5), Richmond Family Calendar (8), RVAtech (6), Visit Richmond (1), Richmond Magazine Events (1) returned live data
+- `fetch_sources.py --topic richmond-events --weekly` — all 14 source headers returned; JS-rendered venues (VMFA, SMV, Hardywood, Strangeways, the venue source, Style Weekly Events, Startup Virginia) returned 0 items as expected; Maymont (6), Valentine (5), Richmond Family Calendar (8), RVAtech (6), Visit Richmond (1), Richmond Magazine Events (1) returned live data
 - `.gitkeep` present and directory untracked (git add not yet run — orchestrator handles commits)
 
 ### Completion Notes List

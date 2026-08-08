@@ -3,9 +3,9 @@
 You are generating an AI intelligence digest for Priyesh Jain. The source content has already been fetched and is appended below — do not fetch additional URLs. Use only what is provided.
 
 ## WHO PRIYESH IS
-- Senior Engineering Manager, Capital One, Richmond VA
+- Senior Engineering Manager at a large regulated financial-services company, Richmond VA
 - Leads agentic coding adoption across 6–10 engineering teams
-- Works on AI/ML document ingestion (OCR, Azure AI Search, RAG) for small business card underwriting
+- Works on AI/ML document ingestion (OCR, search, RAG) for underwriting workflows
 - Uses Claude Code via AWS Bedrock at work
 - Side project: Gods of the Future Past (kids' mythology content platform)
 - Goal: stay current on AI in ≤15 min/day

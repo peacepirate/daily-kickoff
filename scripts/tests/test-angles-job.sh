@@ -333,21 +333,20 @@ left="$( ( set -uo pipefail
   && ok "every {{PLACEHOLDER}} in the prompt is one the runner renders" \
   || bad "unrenderable placeholders in the prompt: $left"
 
-# This repo is public. The employer's name is not hardcoded here either — it is
-# read out of an existing prompt at run time, so the denylist cannot itself leak
-# it. If that extraction ever fails this assertion fails loudly rather than
-# passing on an empty denylist.
-EMPLOYER="$(sed -n 's/^- Senior Engineering Manager, \([^,]*\),.*$/\1/p' \
-            "$REPO_DIR/scripts/prompts/ai.md" | head -1)"
-if [ -z "$EMPLOYER" ]; then
-  bad "could not derive the employer denylist from scripts/prompts/ai.md — check by hand"
+# This repo is public. The denylist is not hardcoded here — it is read from the
+# private studio, so the list cannot itself leak what it protects. It used to be
+# derived at run time from a profile line in scripts/prompts/ai.md, which worked
+# only while that line existed; removing the line would have silently disarmed
+# the guard. blocklist_terms fails closed, so an unreadable or empty list fails
+# this assertion rather than passing everything.
+blocklist_path="$( . "$LIB" >/dev/null 2>&1; resolve_blocklist_file )"
+if ! ( . "$LIB" >/dev/null 2>&1; blocklist_terms >/dev/null 2>&1 ); then
+  bad "blocklist is missing, unreadable or empty — check ${blocklist_path:-<unresolved>} by hand"
 else
-  squashed="$(tr -d ' ' <<<"$EMPLOYER")"
-  if grep -qiF "$EMPLOYER" "$PROMPT" || grep -qiF "$squashed" "$PROMPT" \
-     || grep -qiF "$EMPLOYER" "$ANGLES" || grep -qiF "$squashed" "$ANGLES"; then
-    bad "the employer is named in the angles prompt or config — this repo is public"
+  if ( . "$LIB" >/dev/null 2>&1; assert_no_blocked "the angles prompt or config" "$PROMPT" "$ANGLES" >/dev/null 2>&1 ); then
+    ok "neither the prompt nor the config names anything on the blocklist"
   else
-    ok "neither the prompt nor the config names the employer"
+    bad "the angles prompt or config names a blocked term — this repo is public"
   fi
   grep -qF "a large regulated enterprise" "$PROMPT" \
     && ok "the prompt supplies the neutral phrasing to use instead" \

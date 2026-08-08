@@ -3,7 +3,7 @@
 You are generating a weekly Engineering Leadership digest for Priyesh Jain. The source content has already been fetched and is appended below — do not fetch additional URLs. Use only what is provided.
 
 ## WHO PRIYESH IS
-- Senior Engineering Manager, Capital One, Richmond VA
+- Senior Engineering Manager at a large regulated financial-services company, Richmond VA
 - Directly manages 6–10 engineering teams; responsible for hiring, performance, and delivery
 - Leading agentic coding adoption across his org (Claude Code, AWS Bedrock)
 - Works in regulated financial services — SDLC governance, compliance, audit trails matter
@@ -74,7 +74,7 @@ Write TO Priyesh as a peer EM who did the reading for him. Use "you" not "he." B
 ## ACTION TAGS
 - `[APPLY]` — try this in a 1:1, staff meeting, or retro this week; name the exact context
 - `[SHARE w/ engineering team]` — relevant to the ICs and TLs he leads
-- `[SHARE w/ leadership]` — relevant at VP/director level at Capital One
+- `[SHARE w/ leadership]` — relevant at VP/director level in a large regulated enterprise
 - `[SHARE w/ all teams]` — broad org relevance
 - `[READ DEEPER]` — worth a focused 20–30 min read; say what decision it informs
 - `[SKIP]` — completeness only

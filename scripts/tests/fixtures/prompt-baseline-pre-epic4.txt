@@ -1,43 +1,50 @@
 # Frozen reference: the assembled prompt and producer command line for every
-# topic x every day of the week, captured from the pre-Epic-4 runner at commit
-# 7705b54 with a clean tree.
+# topic x every day of the week.
 #
-# Epic 4 changes set_tpl_vars, the producer command line and the prompt/output
-# assert. Digest output is non-deterministic, so this — the assembled prompt —
-# is the only regression surface that can be compared byte-for-byte. Captured
-# BEFORE the change deliberately: a reference regenerated from the new code
-# would compare it with itself and pass no matter what broke.
+# Originally captured from the pre-Epic-4 runner at commit 7705b54 with a clean
+# tree. Digest output is non-deterministic, so this — the assembled prompt — is
+# the only regression surface that can be compared byte-for-byte.
+#
+# NEVER regenerate this file to make the suite pass. A reference regenerated
+# from the code it is meant to check compares that code with itself and passes
+# no matter what broke. A deliberate prompt edit is the one legitimate reason to
+# re-freeze, and it must happen in the same commit as the edit, and be said out
+# loud in the commit message.
+#
+# Re-frozen 2026-08-08 (public-feed S1.3). All 28 prompt hashes changed in one
+# go because the same edit touched all four topic prompts: the block naming the
+# employer was removed from every one of them, this repo being public. No
+# producer line, output path or schedule word moved — only the prompt hashes —
+# which is what a pure prompt edit is supposed to look like here.
 #
 # Dates 2026-08-03..09 are a Mon..Sun run, so every schedule word is exercised.
-# A legitimate prompt edit will fail this file; re-freeze it in the same commit
-# and say so in the message.
 #
 # Format:  job=… date=… dow=… schedule=… | output | producer | prompt_sha256
-job=ai date=2026-08-03 dow=1 schedule=weekdays | src/content/ai/2026-08-03.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=8f25d99716b04166cb415e03aab20e824743cb815ff192f363e8b7d2e2964e06
-job=ai date=2026-08-04 dow=2 schedule=weekdays | src/content/ai/2026-08-04.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=081e9b0eefabace5e1ed16f58fe348fd46fbdefddce791b1d9e07f5db01d271c
-job=ai date=2026-08-05 dow=3 schedule=weekdays | src/content/ai/2026-08-05.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=3a962dae3931de2e2b02ecd2098610a7fe625c2a9913a584fc42dca754efd55e
-job=ai date=2026-08-06 dow=4 schedule=weekdays | src/content/ai/2026-08-06.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=d75e7e315327296cbefd036d8a3d3ea8a4cf4c49decd606b92636ae795f1163b
-job=ai date=2026-08-07 dow=5 schedule=weekdays | src/content/ai/2026-08-07.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=2088d4a4971248f12c81154e25e0e4f94fb2fd248a9a15f5c107230b98a0a3ee
-job=ai date=2026-08-08 dow=6 schedule=weekdays | src/content/ai/2026-08-08.md | producer=scripts/fetch_sources.py --topic ai --weekly | prompt_sha256=bde79d287e9fd59c0a1c90afc5a93bb3942b042f5999baf633d0864d2b157bf2
-job=ai date=2026-08-09 dow=7 schedule=weekdays | src/content/ai/2026-08-09.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=bd1f078ee8b57b263c7337c477a1269cb060ea72058fbdcccbb12f27346cb084
-job=leadership date=2026-08-03 dow=1 schedule=saturday | src/content/leadership/2026-08-03.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=b8031a61344699560d62c7b44e96e9425ae89c2173e6573f5422a61872e0dd28
-job=leadership date=2026-08-04 dow=2 schedule=saturday | src/content/leadership/2026-08-04.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=4226cf62022acadaa9da71d647f61ad6f8e81fd56f49d8208fa7fe9061718d7c
-job=leadership date=2026-08-05 dow=3 schedule=saturday | src/content/leadership/2026-08-05.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=916a8b90f1189d76ac9d71f58eac4e053331f290d05364344b121506bf59d866
-job=leadership date=2026-08-06 dow=4 schedule=saturday | src/content/leadership/2026-08-06.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=fd1163329722f7aab194a89521ce0b6b2ea669088f64c93120ceb83d595997a1
-job=leadership date=2026-08-07 dow=5 schedule=saturday | src/content/leadership/2026-08-07.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=663e3add2727b7b48abdd53ce2620e09a59de81413e7ca39ea0ec83e0e9f5afc
-job=leadership date=2026-08-08 dow=6 schedule=saturday | src/content/leadership/2026-08-08.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=9a62409c263f8b9b8afa1aae20fd71412364a3adbf23604c59848c4cdb48ba6e
-job=leadership date=2026-08-09 dow=7 schedule=saturday | src/content/leadership/2026-08-09.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=394265e687d0caa09d0fa3768f135baf53af4bab37c7089af6273d04d7bd2477
-job=richmond-events date=2026-08-03 dow=1 schedule=saturday | src/content/rva-events/2026-08-03.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=d9aaf1e6428b111d7a166e473347bcfc7c7ec75e115f7abc6ed418d1dad11f66
-job=richmond-events date=2026-08-04 dow=2 schedule=saturday | src/content/rva-events/2026-08-04.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=959728e07092ece974dbd30fae1020ec235832d0ca8f9322e1c714486fdd7edc
-job=richmond-events date=2026-08-05 dow=3 schedule=saturday | src/content/rva-events/2026-08-05.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=815d95c66a2922833fdb228664cb80656ff97f2121d8af0fe6b1ee0b7ff297ec
-job=richmond-events date=2026-08-06 dow=4 schedule=saturday | src/content/rva-events/2026-08-06.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=a7f418ed46a3ceb7eda4d8ea1edbcaa9a6f025b31b3cc61e0ca2325b6c6696cf
-job=richmond-events date=2026-08-07 dow=5 schedule=saturday | src/content/rva-events/2026-08-07.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=cfc8c2dadf1162fbf2c844e4703958720f3bea3e4a892c34378a933ee0489565
-job=richmond-events date=2026-08-08 dow=6 schedule=saturday | src/content/rva-events/2026-08-08.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=3e28cb7209141a28e52f41bc99617b07e3b510b145e03146479f9d9d30bf7e0d
-job=richmond-events date=2026-08-09 dow=7 schedule=saturday | src/content/rva-events/2026-08-09.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=436606919ff5315c09e0e0647eff81fee1116d533a0e85826382433b41887d28
-job=tech date=2026-08-03 dow=1 schedule=weekdays | src/content/tech/2026-08-03.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=a1ce4761da70dabcb3c34b41377f688f5f89669c65242ca271f1cf647147079b
-job=tech date=2026-08-04 dow=2 schedule=weekdays | src/content/tech/2026-08-04.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=72cdbf0bce54e2aacae557aaf6a4bae54ae540f5ebde3bf811db2d42172fb600
-job=tech date=2026-08-05 dow=3 schedule=weekdays | src/content/tech/2026-08-05.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=ec29e79c4c4744e66545170a39ee1c2b5068d1e187fc8937eba0a513da3f90ee
-job=tech date=2026-08-06 dow=4 schedule=weekdays | src/content/tech/2026-08-06.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=3d2df6ab8c8d1d62b0baa554906c3db83bb6acfc8025d28bc2a32c433313f261
-job=tech date=2026-08-07 dow=5 schedule=weekdays | src/content/tech/2026-08-07.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=522ea0565c9160f1b01180ca45e4d7d5749bbaecdf5ce73a19d85978ddb52430
-job=tech date=2026-08-08 dow=6 schedule=weekdays | src/content/tech/2026-08-08.md | producer=scripts/fetch_sources.py --topic tech --weekly | prompt_sha256=a18c27e0a5c8f0c1a3145c122d6d1576b898dca726d47c9f036b722857a449a9
-job=tech date=2026-08-09 dow=7 schedule=weekdays | src/content/tech/2026-08-09.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=d2f84e94cd6e1ae70d8d7bb2f3e993b01160ba177f5faa44c818bc18dd41c505
+job=ai date=2026-08-03 dow=1 schedule=weekdays | src/content/ai/2026-08-03.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=d17d0e4f696fc55f27b088b1c98a2917a29153433014e0daee93c4842c4b0c1c
+job=ai date=2026-08-04 dow=2 schedule=weekdays | src/content/ai/2026-08-04.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=3b52cdc8d28433cdf545d4e394e0f58384f5fd0ff87ae187efb4628ae9e77fdd
+job=ai date=2026-08-05 dow=3 schedule=weekdays | src/content/ai/2026-08-05.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=4e53621d1a69e6e5c8dd90a5e5f00167e0f2021f7d5670baa3039e8ef36e6148
+job=ai date=2026-08-06 dow=4 schedule=weekdays | src/content/ai/2026-08-06.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=ce647815ddc6d3c9745ac1c9c9c4dfcc0b92bbc2ce5481d0133fbb589da4484d
+job=ai date=2026-08-07 dow=5 schedule=weekdays | src/content/ai/2026-08-07.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=8264034c30354f9ed517d396b240a934353c7460c12c54ea3a73d8b978c636db
+job=ai date=2026-08-08 dow=6 schedule=weekdays | src/content/ai/2026-08-08.md | producer=scripts/fetch_sources.py --topic ai --weekly | prompt_sha256=109f04a9617e4c9935f260b3ead4d516f10ad5f78fc6efa19ea9745e9a906821
+job=ai date=2026-08-09 dow=7 schedule=weekdays | src/content/ai/2026-08-09.md | producer=scripts/fetch_sources.py --topic ai | prompt_sha256=eb490ead77f738d65518f26c8be367badf2f5a7b9b4fad9bbf4811b88eb390e4
+job=leadership date=2026-08-03 dow=1 schedule=saturday | src/content/leadership/2026-08-03.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=ec507b445da7e43abe3f796cffa2f5faef9ba62b42f6d6cd2a3d0def9997bec2
+job=leadership date=2026-08-04 dow=2 schedule=saturday | src/content/leadership/2026-08-04.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=f167a9f632ed08b06aaa264636960ae326d9c782e4b18e5bebbde2eb77b690d6
+job=leadership date=2026-08-05 dow=3 schedule=saturday | src/content/leadership/2026-08-05.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=7d04521163928eb45ba5894b08a0cf431c1d9093733a2663697ccf20571d60b9
+job=leadership date=2026-08-06 dow=4 schedule=saturday | src/content/leadership/2026-08-06.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=c19200b99908b3e2a1c94ecc83bd45ba9a6b77f8fc04daf7c1cf461570b0152f
+job=leadership date=2026-08-07 dow=5 schedule=saturday | src/content/leadership/2026-08-07.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=1cb5146d0fb969623f4be3f454d2cd8ba5df911262d985a162de425f5c1145d9
+job=leadership date=2026-08-08 dow=6 schedule=saturday | src/content/leadership/2026-08-08.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=9d49b719622a896aabc5a8d134891c7830c8f50cd7edf64b398cddb111f7a8f0
+job=leadership date=2026-08-09 dow=7 schedule=saturday | src/content/leadership/2026-08-09.md | producer=scripts/fetch_sources.py --topic leadership --weekly | prompt_sha256=b690f89e21372aa25956553a74be9e3a0425d9c1b3bd7cec6cfd3c6f100d1e15
+job=richmond-events date=2026-08-03 dow=1 schedule=saturday | src/content/rva-events/2026-08-03.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=5846cc0926662c51a7f44444b6cfc427f79195c6545e5f91d51aed2183ffbcaa
+job=richmond-events date=2026-08-04 dow=2 schedule=saturday | src/content/rva-events/2026-08-04.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=0f647fab3e43583e8e32e1821102f05a785ad61ef727be124ec30d4982969507
+job=richmond-events date=2026-08-05 dow=3 schedule=saturday | src/content/rva-events/2026-08-05.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=fa4803aab330c03af248403c7c1ff422429fc9a06b76b178647304969d4f58ba
+job=richmond-events date=2026-08-06 dow=4 schedule=saturday | src/content/rva-events/2026-08-06.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=a0f89084503c438e1712e0a2ef91a243252ae28700fe2b147150f197a2b4ecd8
+job=richmond-events date=2026-08-07 dow=5 schedule=saturday | src/content/rva-events/2026-08-07.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=16539faed6b2d6bc44df838fa6bbc20c02800181b47b01c63586b8bf463e79ca
+job=richmond-events date=2026-08-08 dow=6 schedule=saturday | src/content/rva-events/2026-08-08.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=da1ff27aa2c19b8eb0dc91d1dac9beddfd0031ad396eceddd4bdbe1391e2057f
+job=richmond-events date=2026-08-09 dow=7 schedule=saturday | src/content/rva-events/2026-08-09.md | producer=scripts/fetch_sources.py --topic richmond-events --weekly | prompt_sha256=339501f051a79124927dea9375ea1f4af56a6f95b75bd02dd1c41e618fb71938
+job=tech date=2026-08-03 dow=1 schedule=weekdays | src/content/tech/2026-08-03.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=aa7315a53c7bd553fe125627b43975140e6c2a963f075118257965f3fd8a9ff0
+job=tech date=2026-08-04 dow=2 schedule=weekdays | src/content/tech/2026-08-04.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=23b2b5f8852039662662328d53aa9796ca565d08dcc1da2a8b13c884893358f5
+job=tech date=2026-08-05 dow=3 schedule=weekdays | src/content/tech/2026-08-05.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=63ca5b76de68fea5f44ffd0760c84209c9b80c9b96f17e78fc3c864a9bfbf94b
+job=tech date=2026-08-06 dow=4 schedule=weekdays | src/content/tech/2026-08-06.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=3ddd4c1323fc6b459d7ecb50fb222bd0cb7436c3ea70859326d5745c673363fa
+job=tech date=2026-08-07 dow=5 schedule=weekdays | src/content/tech/2026-08-07.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=43ffb3468d85127b71cf358df3bbfd0c88131f14024baa66791267faaae13ee6
+job=tech date=2026-08-08 dow=6 schedule=weekdays | src/content/tech/2026-08-08.md | producer=scripts/fetch_sources.py --topic tech --weekly | prompt_sha256=37842aaee3155694cfc87c50cd1578f3d84a9c331f6deffab29e59ce7a5f4300
+job=tech date=2026-08-09 dow=7 schedule=weekdays | src/content/tech/2026-08-09.md | producer=scripts/fetch_sources.py --topic tech | prompt_sha256=1e82e8f66efe775fdd75c5de023bd443eb62a9c1be9993a18b7405c4a00730ee
