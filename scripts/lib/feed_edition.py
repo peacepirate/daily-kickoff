@@ -138,6 +138,76 @@ def build_edition(rows: list[dict], today: Date,
 # built and read before E8 lands, and it prints that caveat rather than letting
 # a preview be mistaken for a judged edition.
 
+def _house_pass(rows: list[dict], model: str | None,
+                runner=None, fetcher=None) -> tuple[dict, dict, list[str]]:
+    """Fetch, generate, validate — E8's whole loop, wrapped so it cannot cost a night.
+
+    Returns (summaries by id, tags by id, lines to log). `runner` and `fetcher`
+    are injected by the test suite; nothing here touches the network when they
+    are supplied.
+
+    The entire body is inside one try. Every step of it is optional by design:
+    the edition this returns nothing for is the edition the feed published every
+    night before E8 existed, at the publisher's own words. An exception escaping
+    here would instead cost the whole run, which is a strictly worse trade than
+    the thing it is protecting.
+    """
+    try:
+        import article_fetch
+        import house_voice
+        import house_call
+
+        house_voice.assert_tag_vocabularies_agree()
+        fetch = fetcher or (lambda u: article_fetch.fetch_article(u))
+        fetched = {}
+        kinds: dict[str, int] = {}
+        for row in rows:
+            url = (row.get("url") or "").strip()
+            text, kind, reason = fetch(url)
+            fetched[url] = (text, kind, reason)
+            key = kind if reason == "ok" else reason
+            kinds[key] = kinds.get(key, 0) + 1
+
+        items = house_voice.build_input(rows, fetched)
+        lines = [f"house: fetched {len(rows)} url(s) — "
+                 f"{', '.join(f'{k}={v}' for k, v in sorted(kinds.items()))}"]
+        if not items:
+            lines.append("house: nothing fetched cleanly — every card falls to the "
+                         "publisher's own summary.")
+            return {}, {}, lines
+
+        prompt = house_voice.assemble_prompt(items)
+        call = runner or (lambda p: house_call.call_model(
+            p, model or house_call.DEFAULT_MODEL))
+        output, note = call(prompt)
+        if note != "ok":
+            lines.append(f"house: model call — {note}")
+
+        summaries, tags, counts, rejects = house_voice.house_summaries(items, output)
+        lines.append(f"house: {len(summaries)}/{len(items)} summary(ies) accepted"
+                     + (f" — rejected: {', '.join(f'{k}={v}' for k, v in sorted(counts.items()))}"
+                        if counts else ""))
+        # The text, not only the reason. A genuine lift and a rule that has begun
+        # over-firing produce the identical count line, and only one of them
+        # wants fixing — this is the difference between the two.
+        for reason, text in rejects:
+            lines.append(f"house: rejected ({reason}) {text[:160]!r}")
+        # Reported every run, not on request. The cheapest way to satisfy "no
+        # fact absent from the source" is to write no facts, and a card with no
+        # figures and no names passes every hard rule while being worth nothing.
+        # Nothing in the loop can catch that — the model is single-shot with no
+        # retry — so the number has to be in front of whoever next edits the
+        # prompt. See S8.8.
+        m = house_voice.metrics(summaries, items)
+        lines.append(f"house: specificity — numbers {m['number_rate']} "
+                     f"(of {m['number_eligible']}), names {m['name_rate']} "
+                     f"(of {m['name_eligible']}), mean {m['mean_length']} chars")
+        return summaries, tags, lines
+    except Exception as exc:                            # noqa: BLE001
+        return {}, {}, [f"house: skipped ({type(exc).__name__}: {exc}) — "
+                        "publishing at the publisher's own words."]
+
+
 def _main(argv=None):
     import argparse, json, sys
     from feed_pool import read_jsonl, ledger_ids
@@ -156,6 +226,11 @@ def _main(argv=None):
     # argument at the top of scripts/lib/link_check.py.
     ap.add_argument("--check-links", action="store_true",
                     help="HEAD the selected urls and drop only proven-dead ones (network)")
+    # Also off by default, and for a second reason on top of the network: this is
+    # the only flag in the pipeline that spends money. It has to be asked for.
+    ap.add_argument("--house", action="store_true",
+                    help="Fetch the chosen articles and write house summaries (network, model)")
+    ap.add_argument("--model", default=None, help="Model for --house")
     a = ap.parse_args(argv)
 
     state = Path(a.state)
@@ -187,7 +262,13 @@ def _main(argv=None):
             print(f"NOTE: link check skipped ({type(exc).__name__}: {exc}) — publishing anyway.",
                   file=sys.stderr)
 
-    edition = build_edition(chosen, today,
+    house, tags, notes = ({}, {}, [])
+    if a.house:
+        house, tags, notes = _house_pass(chosen, a.model)
+        for line in notes:
+            print(line, file=sys.stderr)
+
+    edition = build_edition(chosen, today, house=house, tags=tags,
                             reason=thin_reason(len(chosen), sel["stats"], cap=a.cap))
     edition["unjudged"] = True   # the site renders a banner off this
 
