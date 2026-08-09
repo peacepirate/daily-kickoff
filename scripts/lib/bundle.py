@@ -240,6 +240,52 @@ def sanitise_summary(summary: str) -> str:
     return s
 
 
+def display_url(url: str) -> str:
+    """The url a reader clicks and copies: tracking removed, nothing else touched.
+
+    **Deliberately NOT `normalize_url`, and this is the whole point of it
+    existing.** `normalize_url` builds a fingerprint — it also drops the
+    fragment, strips the trailing slash and lowercases the host. Those are right
+    for answering "have I seen this before?" and wrong for a link someone
+    clicks: dropping the fragment turns `…/updates/anthropic#2.1.219` into a
+    link to the wrong version. No card in the pool carries a fragment today, so
+    reusing the fingerprint function here would break links silently and only
+    later.
+
+    So this touches the query string and nothing else. Same `utm_` rule as
+    `normalize_url`, same reason it is only `utm_`: extend it when another
+    tracker is actually observed in the corpus, not before. Measured across the
+    live pool, the only query parameters present were four `utm_*` keys and a
+    single `source=`, which is left alone because it may be functional routing.
+
+    **Why strip at all**, given the tags belong to the publisher. Passing
+    `utm_source=infoq&utm_medium=feed` through does not credit the publisher —
+    it tells their analytics the reader came from *their own feed*, because
+    analytics trusts those tags over the referrer. The feed is therefore
+    invisible in the numbers of the one publisher most likely to notice it.
+    Removing them lets the ordinary referrer through instead. This is also why
+    outbound links carry `rel="noopener external"` and deliberately NOT
+    `noreferrer`, which would suppress that signal and undo the same thing.
+
+    Leaves the id untouched: `item_id` hashes `normalize_url`, which already
+    drops `utm_`, so cleaning here cannot re-key the pool or the ledger.
+    """
+    url = (url or "").strip()
+    if not url:
+        return ""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.query:
+        return url
+    query = "&".join(
+        p for p in parts.query.split("&")
+        if p and not p.split("=", 1)[0].lower().startswith(_TRACKING_PREFIX)
+    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
+
+
 def item_record(source: str, title: str, url: str, date: str, summary: str) -> dict:
     """The structured twin of `format_item`, from the same arguments.
 
@@ -255,10 +301,14 @@ def item_record(source: str, title: str, url: str, date: str, summary: str) -> d
     for no gain. This asymmetry is the same one `source` already established.
     """
     return {
+        # Hashed from the ORIGINAL url, not the cleaned one. They agree today
+        # because normalize_url drops `utm_` too — asserted in the tests — but
+        # deriving the id from a value another rule may later change is how a
+        # ledger silently re-keys and republishes everything.
         "id": item_id(url),
         "source": source,
         "title": title,
-        "url": url,
+        "url": display_url(url),
         "date": date,
         "summary": sanitise_summary(summary),
     }

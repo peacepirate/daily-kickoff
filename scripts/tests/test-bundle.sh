@@ -376,6 +376,55 @@ chk("id is usable as a url fragment with no escaping", item_id(A).isalnum())
 chk("urls differing only by fragment share an id (documented consequence)",
     item_id("https://r.io/u/a#1.2.3") == item_id("https://r.io/u/a#1.2.4"))
 
+# ── display_url — the link a reader clicks, vs the fingerprint ───────────────
+#
+# These are two jobs and two functions, and the failure mode is substituting one
+# for the other. normalize_url drops the fragment, which is correct for a
+# dedup key and breaks a link to an anchored section or a versioned release.
+from bundle import display_url
+
+chk("tracking parameters are removed",
+    display_url("https://x.com/a?utm_source=feed&utm_medium=rss") == "https://x.com/a")
+chk("a real query parameter is kept",
+    display_url("https://x.com/a?id=42&utm_source=feed") == "https://x.com/a?id=42")
+chk("parameter order is preserved",
+    display_url("https://x.com/a?b=2&utm_x=1&c=3") == "https://x.com/a?b=2&c=3")
+chk("a url with no query is returned untouched",
+    display_url("https://x.com/a") == "https://x.com/a")
+
+# The trap, asserted directly. If someone ever "simplifies" this to call
+# normalize_url, these three fail.
+chk("THE FRAGMENT SURVIVES — normalize_url would destroy it",
+    display_url("https://x.com/updates/anthropic#2.1.219")
+    == "https://x.com/updates/anthropic#2.1.219")
+chk("a fragment survives alongside tracking removal",
+    display_url("https://x.com/p/?utm_source=f&id=9#sec-3") == "https://x.com/p/?id=9#sec-3")
+chk("the trailing slash is kept — normalize_url strips it",
+    display_url("https://x.com/a/?utm_source=f") == "https://x.com/a/")
+chk("display_url and normalize_url genuinely differ",
+    display_url("https://x.com/a/#f") != normalize_url("https://x.com/a/#f"))
+
+chk("empty url yields empty", display_url("") == "")
+chk("None is tolerated", display_url(None) == "")
+
+# The property that makes this safe to apply to stored records: cleaning the
+# displayed url cannot move the id, because item_id hashes normalize_url, which
+# already drops utm_. If this ever fails, the whole pool and ledger re-key and
+# every published item republishes.
+# A fragment AND a trailing slash, deliberately. With a plain url both functions
+# return the same string, so swapping display_url for normalize_url inside
+# item_record passed unnoticed — the assertion has to be built from a url where
+# only the right function gives the right answer.
+DIRTY = "https://x.com/a/?utm_campaign=c&utm_source=s#sec-2"
+chk("cleaning the url does not change the item id",
+    item_id(DIRTY) == item_id(display_url(DIRTY)))
+chk("item_record stores the cleaned url, fragment and slash intact",
+    item_record("S", "T", DIRTY, "d", "s" * 200)["url"] == "https://x.com/a/#sec-2")
+chk("item_record did NOT store the fingerprint form",
+    item_record("S", "T", DIRTY, "d", "s" * 200)["url"] != normalize_url(DIRTY))
+chk("item_record's id still matches the ORIGINAL url",
+    item_record("S", "T", DIRTY, "d", "s" * 200)["id"] == item_id(DIRTY))
+
 r = item_record("Src", "Title", A, "2026-08-08", "Summary text")
 chk("record carries exactly the declared fields", tuple(r.keys()) == RECORD_FIELDS)
 chk("record id agrees with item_id", r["id"] == item_id(A))
@@ -384,7 +433,7 @@ chk("record carries source, which the bundle deliberately omits", r["source"] ==
 
 sys.exit(1 if fails else 0)
 PYEOF
-if [ "$?" = "0" ]; then COUNT=$((COUNT + 15)); else COUNT=$((COUNT + 15)); FAIL=1; fi
+if [ "$?" = "0" ]; then COUNT=$((COUNT + 29)); else COUNT=$((COUNT + 29)); FAIL=1; fi
 
 # ── S8.1 — the publisher summary as a card body ──────────────────────────────
 #
