@@ -135,6 +135,13 @@ chk("a forthcoming event is kept", "ev1" in ev_urls, True)
 chk("a past event is still dropped", "ev2" in ev_urls, False)
 
 print("── clean_text: decode entities, then strip what decoding produced ────────")
+# clean_text lives in scripts/lib/bundle.py so that item_record is safe when
+# called directly, not only through print_item. It is exercised here because
+# this is where the fetch path is under test; bundle.py's own suite covers the
+# sanitiser that sits on top of it.
+import importlib.util as _ilu
+_bspec = _ilu.spec_from_file_location("bundle_mod", f"{repo}/scripts/lib/bundle.py")
+_bundle = _ilu.module_from_spec(_bspec); _bspec.loader.exec_module(_bundle)
 # The order is the safety property. html.unescape is what CREATES markup, so
 # strip-then-decode would emit a live tag. Every case below fails on the
 # reversed order.
@@ -159,7 +166,7 @@ chk("None is tolerated", fs.clean_text(None), "")
 # The invariant that matters after this runs: no output may contain a tag.
 for probe in ("&lt;script&gt;x&lt;/script&gt;", "<script>x</script>",
               "&lt;iframe src=a&gt;", "plain text", "5 &lt; 7 &amp;&amp; 8 &gt; 6"):
-    if fs._TAG_RE.search(fs.clean_text(probe)):
+    if _bundle._TAG_RE.search(fs.clean_text(probe)):
         bad(f"a tag survived clean_text: {probe!r} -> {fs.clean_text(probe)!r}")
         break
 else:
@@ -180,9 +187,6 @@ chk("the sidecar title is cleaned too", fs.RECORDS[0]["title"], "Google Earth’
 chk("the sidecar summary is cleaned too", fs.RECORDS[0]["summary"], "A summary with AT&T in it")
 # item_id hashes the url, so cleaning the text must not move any existing id —
 # otherwise the whole pool and ledger would re-key and republish.
-import importlib.util as _ilu
-_bspec = _ilu.spec_from_file_location("bundle_mod", f"{repo}/scripts/lib/bundle.py")
-_bundle = _ilu.module_from_spec(_bspec); _bspec.loader.exec_module(_bundle)
 chk("the id is unchanged by cleaning",
     fs.RECORDS[0]["id"], _bundle.item_id("https://example.com/e"))
 fs.args.records = None

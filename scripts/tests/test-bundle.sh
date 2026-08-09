@@ -386,6 +386,154 @@ sys.exit(1 if fails else 0)
 PYEOF
 if [ "$?" = "0" ]; then COUNT=$((COUNT + 15)); else COUNT=$((COUNT + 15)); FAIL=1; fi
 
+# ── S8.1 — the publisher summary as a card body ──────────────────────────────
+#
+# Rung two of the fallback ladder. Two halves: the rules, asserted one at a
+# time, and then the whole stored corpus, asserted as invariants. The second
+# half is the one that found the Hacker News problem — no hand-written fixture
+# would have contained a "summary" that is two urls and a comment count.
+echo "sanitise_summary"
+"$PYBIN" - "$REPO_DIR" <<'PYEOF'
+import sys, glob, re
+sys.path.insert(0, sys.argv[1] + "/scripts/lib")
+from bundle import sanitise_summary, item_record
+
+fails = []
+def chk(label, cond):
+    print(("  ok    " if cond else "  FAIL  ") + label)
+    if not cond: fails.append(label)
+
+def eq(label, got, want):
+    chk(f"{label}" if got == want else f"{label} (got {got!r}, wanted {want!r})", got == want)
+
+# The aggregator case: the whole reason this rung needed a sanitiser at all.
+# These cleared the pool's 80-character bar on the length of two urls.
+HN = ("Article URL: https://example.com/a Comments URL: "
+      "https://news.ycombinator.com/item?id=1 Points: 244 # Comments: 230")
+chk("a Hacker News metadata block yields nothing usable", sanitise_summary(HN) == "")
+chk("it was long enough to clear the pool's bar before sanitising", len(HN) >= 80)
+eq("a Lobsters 'Comments' summary yields nothing", sanitise_summary("Comments"), "")
+
+# WordPress feed boilerplate. Must go BEFORE the sentence trim, or the trim
+# preserves it as the final sentence — which is the whole point of the ordering.
+eq("WordPress boilerplate is removed",
+   sanitise_summary("Engineers feel more alone. The post The 2026 paradox appeared first on LeadDev ."),
+   "Engineers feel more alone.")
+# These end in a full stop on purpose. Without it the sentence trim removes the
+# tail on its own and the assertion passes with the call-to-action rule deleted
+# — which it did, until a mutation caught it.
+eq("a read-more tail is removed even when it is a complete sentence",
+   sanitise_summary("A real sentence here. Read more at our site."),
+   "A real sentence here.")
+eq("a subscribe tail is removed even when it is a complete sentence",
+   sanitise_summary("A real sentence here. Sign up for our newsletter today."),
+   "A real sentence here.")
+
+# Order, asserted rather than described. The boilerplate here contains its own
+# full stop ("Sec."), so trimming first cuts *inside* it and leaves a fragment
+# that no longer matches the boilerplate rule: "Real sentence. The post Sec."
+# Both orders agree on simpler input, which is why the earlier fixture proved
+# nothing.
+eq("boilerplate is removed BEFORE the sentence trim, not after",
+   sanitise_summary("Real sentence. The post Sec. 5 rules appeared first on LeadDev but this was clipped mid"),
+   "Real sentence.")
+
+# The dominant defect: 21.8% of the corpus ends mid-word.
+eq("a mid-word truncation is trimmed back to the last sentence",
+   sanitise_summary("First sentence is complete. The second one was cut off in the mid"),
+   "First sentence is complete.")
+eq("a trailing ellipsis is removed",
+   sanitise_summary("A complete thought that trails away…"),
+   "A complete thought that trails away")
+eq("an elision marker is removed",
+   sanitise_summary("Attackers craft messages […] using open source intelligence."),
+   "Attackers craft messages using open source intelligence.")
+eq("a bare url is removed without welding words together",
+   sanitise_summary("See https://example.com/x for details."),
+   "See for details.")
+
+# A trim that would leave nothing must leave nothing, not a fragment. The ladder
+# falls to the title; a caller reading "" as an error has misread the rung.
+eq("no sentence boundary at all is kept rather than emptied",
+   sanitise_summary("one long clause with no terminal punctuation anywhere in it"),
+   "one long clause with no terminal punctuation anywhere in it")
+eq("empty in, empty out", sanitise_summary(""), "")
+eq("None is tolerated", sanitise_summary(None), "")
+
+# An abbreviation or version number is not a sentence end.
+chk("a mid-sentence period does not truncate at it",
+    sanitise_summary("Acme Inc. shipped v1.2.3 to production today.")
+    == "Acme Inc. shipped v1.2.3 to production today.")
+eq("a closing quote after the stop is kept",
+   sanitise_summary('He said "it works." Then he left in the mid'),
+   'He said "it works."')
+
+# Idempotent: the pool is migrated by re-running this over stored rows, and a
+# second pass must be a no-op or the migration is not repeatable.
+sample = "Engineers feel alone. The post X appeared first on LeadDev ."
+chk("sanitising twice is the same as sanitising once",
+    sanitise_summary(sanitise_summary(sample)) == sanitise_summary(sample))
+
+# The asymmetry with format_item, asserted rather than described.
+r = item_record("S", "T", "https://example.com/z", "2026-08-08",
+                "A complete sentence. Read more here")
+eq("item_record sanitises the summary", r["summary"], "A complete sentence.")
+
+# ── whole-corpus invariants ─────────────────────────────────────────────────
+files = sorted(glob.glob(sys.argv[1] + "/scripts/logs/fetched-*.txt"))
+if not files:
+    # Reported, never silently skipped: scripts/logs/ is gitignored and
+    # single-machine, so this half genuinely cannot run everywhere. A corpus
+    # assertion that quietly vanishes is a corpus assertion nobody notices is
+    # not running.
+    print("  skip  no stored bundles in scripts/logs/ — corpus invariants not run here")
+else:
+    items, cur = {}, {}
+    for f in files:
+        for line in open(f, errors="replace"):
+            line = line.rstrip("\n")
+            if line.startswith("URL: "):
+                cur["url"] = line[5:].strip()
+            elif line.startswith("Summary: "):
+                if cur.get("url"):
+                    items.setdefault(cur["url"], line[9:].strip())
+                cur = {}
+    raw = list(items.values())
+    out = [sanitise_summary(s) for s in raw]
+    n = len(raw)
+    chk(f"the stored corpus is large enough to assert over ({n} items)", n >= 500)
+
+    tag = re.compile(r"<[a-zA-Z/!][^>]*>")
+    chk("no output contains an HTML tag", not any(tag.search(s) for s in out))
+    chk("no output contains a bare url", not any("http://" in s or "https://" in s for s in out))
+    chk("no output contains an elision marker",
+        not any("[…]" in s or "[...]" in s for s in out))
+    chk("no output ends in an ellipsis",
+        not any(s.rstrip().endswith(("…", "...")) for s in out))
+    chk("no output retains WordPress boilerplate",
+        not any(re.search(r"appeared first on", s, re.I) for s in out))
+    chk("no output is only whitespace", not any(s and not s.strip() for s in out))
+    chk("sanitising never lengthens a summary",
+        all(len(a) <= len(b) for a, b in zip(out, raw)))
+    chk("sanitising is idempotent across the whole corpus",
+        all(sanitise_summary(s) == s for s in out))
+
+    mid = re.compile(r"[a-z,]$")
+    before = sum(1 for s in raw if mid.search(s))
+    after = sum(1 for s in out if mid.search(s))
+    print(f"        mid-word endings: {before} ({100*before/n:.1f}%) -> {after} ({100*after/n:.1f}%)")
+    chk("mid-word endings are cut by at least half", after * 2 <= before)
+
+    # The measured consequence, pinned. If a future rule change stops emptying
+    # the aggregator rows, they silently become cards again.
+    emptied = sum(1 for a, b in zip(raw, out) if len(a) >= 80 and len(b) < 80)
+    print(f"        {emptied} item(s) drop below the 80-char bar once measured honestly")
+    chk("the aggregator rows that only passed on url length are emptied", emptied >= 100)
+
+sys.exit(1 if fails else 0)
+PYEOF
+if [ "$?" = "0" ]; then COUNT=$((COUNT + 30)); else COUNT=$((COUNT + 30)); FAIL=1; fi
+
 echo
 if [ "$FAIL" = "0" ]; then
   echo "PASS ($COUNT) — bundle tests passed"

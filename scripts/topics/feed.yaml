@@ -182,8 +182,18 @@ sources:
       url: "https://www.thoughtworks.com/rss/insights.xml"
       max_items: 2
 
-    # Discovery. Both measured better-signal than hnrss.org/frontpage, which the
-    # ai topic uses, and unlike it both carry real summaries.
+    # Discovery. **The claim that used to sit here — "unlike hnrss.org/frontpage,
+    # both carry real summaries" — was wrong, and it was measured wrong.** Neither
+    # carries a summary at all. Hacker News fills the field with
+    # `Article URL: … Comments URL: … Points: N # Comments: M`, which cleared the
+    # pool's 80-character bar on the length of two urls alone; Lobsters uses the
+    # single word "Comments". Four HN items were sitting in the pool as
+    # publishable candidates before sanitise_summary exposed them.
+    #
+    # Kept, not removed, and the distinction matters: their *titles* are good
+    # discovery signal, and whether a title alone can carry a card is exactly
+    # what E8's fallback ladder decides. Until then these two contribute nothing
+    # and cost one fetch each. Drop them if E8 rules out title-only cards.
     - name: "Lobsters"
       kind: rss
       url: "https://lobste.rs/rss"
