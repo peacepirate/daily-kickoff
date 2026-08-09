@@ -120,8 +120,20 @@ run fails loudly and writes nothing either way. A gap is normal; a gap you could
 not.
 
 **`scripts/logs/` is gitignored and holds the only offline-backfill material.** Each
-`fetched-YYYY-MM-DD-<job>.txt` is exactly what the fetcher returned that night. These exist on one
+`fetched-YYYY-MM-DD-<job>.txt` is exactly what the fetcher returned that night, and each
+`records-YYYY-MM-DD-<job>.jsonl` is the structured twin of the same items. These exist on one
 machine only.
+
+**`scripts/feed-state/` is the opposite: committed, and durable on purpose.** `pool.jsonl` holds
+feed candidates seen but not yet published; `ledger.jsonl` is append-only and records every id ever
+published, expired or dropped over the cap. A ledger that does not survive a fresh clone is not a
+ledger — the feed would republish everything on the first machine that lost it. Written by the
+`feed` job's fetch step, committed by `run-jobs.sh` in its own path-scoped commit.
+
+**A stored-bundle replay does not feed the pool, by design.** A replay is dated by the run
+replaying it, while its record sidecar belongs to the night it was fetched. Ingesting under
+today's date would restart the 14-day staleness clock and let a three-week-old item publish as
+news. To ingest a sidecar by hand, name the date it was actually fetched on.
 
 ---
 

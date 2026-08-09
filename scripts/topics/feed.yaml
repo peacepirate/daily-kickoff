@@ -1,12 +1,19 @@
 name:     "Public Feed source pool"
 schedule: daily
-producer: fetch_sources.py --topic feed --records scripts/logs/records-{{DATE}}-feed.jsonl {{WEEKLY_FLAG}}
+producer: fetch_sources.py --topic feed --records {{RECORDS}} {{WEEKLY_FLAG}}
 step:     fetch
+ingest:   pool
 
 # step: fetch — this job produces a bundle and stops. No prompt, no model call,
 # no output file, nothing published. run-job.sh refuses a fetch config that
 # declares prompt: or output:, because declaring them implies a publish this
 # step will never perform.
+#
+# ingest: pool — the record sidecar is folded into scripts/feed-state/ and
+# committed. Still nothing published: the pool is a memory of what has been
+# seen, and it has to start accumulating before selection has anything real to
+# be tested against. {{RECORDS}} is defined by run-job.sh, not here, so the path
+# the producer writes and the path the ingest reads cannot drift apart.
 #
 # It exists to answer one question with measurement instead of opinion: can a
 # source pool sustain seven high-quality public items a day, seven days a week?

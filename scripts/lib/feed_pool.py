@@ -304,12 +304,16 @@ def rebuild_ledger(published_records: list[dict], fallback_date: str) -> list[di
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 #
-# Deliberately not wired into the nightly run yet. The feed publishes nothing
-# today, so there is no `mark_published` caller and a pool that only ever grows
-# would prove nothing. It runs on demand now, and over stored records — which
-# works precisely because ingest() takes `today` as an argument instead of
-# reading a clock, so a week of accumulated bundles can be replayed in order and
-# produce the same pool the nightly path would have.
+# Invoked nightly by the `feed` job's fetch step, via ingest_feed_records in
+# scripts/lib/job-config.sh, and by hand for replays.
+#
+# There is still no `mark_published` caller — selection is Epic 6 — so today the
+# pool only grows and retires. That is on purpose: the pool has to accumulate
+# real days before selection has anything honest to be tested against, and
+# fetch_sources.py anchors to now(), so a day not captured is a day lost.
+#
+# A replay produces exactly what the nightly path would have, because ingest()
+# takes `today` as an argument instead of reading a clock.
 
 def _blocklist_terms(path) -> list[str]:
     """Read the shared blocklist. Missing file raises — callers decide.

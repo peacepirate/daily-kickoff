@@ -56,6 +56,22 @@ if ! is_known_step "$STEP"; then
   exit 1
 fi
 
+# What a job does with its record sidecar once the bundle exists. A closed
+# vocabulary, refusing by default like every other one here: an unrecognised
+# word must not read as "no ingestion" and quietly stop filling the pool.
+#
+# `pool` is the only value, and it names no path — see FEED_STATE_REL.
+INGEST="$(cfg_get "$CONFIG_FILE" ingest)"
+case "$INGEST" in
+  ""|None) INGEST="" ;;
+  pool)    ;;
+  *) log "ERROR: [$JOB] unknown ingest '$INGEST' in $CONFIG_FILE (known: pool)"; exit 1 ;;
+esac
+if [ -n "$INGEST" ] && [ "$STEP" != "fetch" ]; then
+  log "ERROR: [$JOB] ingest: is only meaningful on step: fetch — $CONFIG_FILE is step: $STEP."
+  exit 1
+fi
+
 # A `fetch` job stops at the bundle, so it declares neither a prompt nor an
 # output: there is nothing to render and nothing to write. Requiring them anyway
 # was what made a fetch-only config inexpressible.
@@ -97,6 +113,16 @@ if [ "$NEEDS_STUDIO" = 1 ]; then
 fi
 
 set_tpl_vars "$DATE" "$SCHEDULE"
+
+# The record sidecar path, defined once and reached by the config as {{RECORDS}}.
+# The producer writes it and the ingest step reads it, so a path spelled out in
+# the producer line and derived again below would be two copies that must agree
+# — the drift class bundle.py exists to prevent, in a different place.
+#
+# Repo-relative because the producer runs with $REPO_DIR as its cwd. Under
+# scripts/logs/ because a sidecar is a run artifact: the pool is the durable
+# record, and re-ingesting a month of sidecars must not be mistaken for history.
+TPL_RECORDS="scripts/logs/records-$DATE-$JOB.jsonl"
 
 # The producer is a template like every other config string: `--weekly` belongs
 # to fetch_sources.py, and appending it to every producer handed select_corpus.py
@@ -165,6 +191,17 @@ log "[$JOB] Produced $(grep -c "^URL:" "$CONTENT_FILE") items."
 
 if [ "$STEP" = "fetch" ]; then
   log "[$JOB] step: fetch — bundle written to $CONTENT_FILE. Nothing published."
+  if [ -n "$INGEST" ]; then
+    if ingest_applies; then
+      ingest_feed_records "$DATE" "$REPO_DIR/$TPL_RECORDS" || exit 1
+    else
+      # Silence here would be its own trap: the operator needs to know the pool
+      # did not move, and how to move it by hand with the right date.
+      log "[$JOB] BUNDLE_FILE set — skipping ingest. See ingest_applies for why."
+      log "       To ingest that sidecar, name the date it was fetched on:"
+      log "       scripts/.venv/bin/python3 scripts/lib/feed_pool.py ingest --records … --state $(feed_state_dir) --date … --blocklist …"
+    fi
+  fi
 else
   run_llm_job "$PROMPT_FILE" "$CONTENT_FILE" "$OUTPUT_FILE" "$MODEL" "$SCHEMA"
 fi

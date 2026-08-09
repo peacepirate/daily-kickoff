@@ -709,6 +709,80 @@ doctor_last_run() {
   fi
 }
 
+# The feed pool has no reader yet — selection is Epic 6 — so nothing else would
+# notice it silently stopping. A pool that quietly stops filling looks identical
+# to a pool that is simply having quiet days, and by the time selection arrives
+# the gap is weeks old and unrecoverable: fetch_sources.py anchors to now() and
+# cannot backfill.
+#
+# Two days, because the feed job is `schedule: daily` and doctor may well run
+# before this morning's slot has fired.
+FEED_POOL_STALE_DAYS=2
+
+doctor_feed_pool() {
+  local state pool
+  state="$(feed_state_dir)"
+  pool="$state/pool.jsonl"
+  if [ ! -f "$pool" ]; then
+    echo "feed pool    absent — written by the 'feed' job on the fetch step, so this is"
+    echo "             expected until it has run once"
+    return
+  fi
+  ensure_venv
+  local report rc=0
+  report="$("$PYTHON_BIN" - "$state" "$FEED_POOL_STALE_DAYS" <<'PY'
+import json, sys
+from datetime import date
+from pathlib import Path
+
+state, stale_days = Path(sys.argv[1]), int(sys.argv[2])
+
+
+def rows(name):
+    out = []
+    p = state / name
+    if not p.exists():
+        return out
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+pool = rows("pool.jsonl")
+ledger = rows("ledger.jsonl")
+published = sum(1 for r in ledger if r.get("status", "published") == "published")
+retired = len(ledger) - published
+
+seen = sorted(r.get("first_seen", "") for r in pool if r.get("first_seen"))
+newest = seen[-1] if seen else ""
+print(f"feed pool    {len(pool)} candidate(s), ledger {published} published + {retired} retired")
+if not newest:
+    print("             no dated candidates — the pool has rows but no first_seen")
+    raise SystemExit(1)
+try:
+    age = (date.today() - date.fromisoformat(newest)).days
+except ValueError:
+    print(f"             newest first_seen is unparseable: {newest!r}")
+    raise SystemExit(1)
+if age > stale_days:
+    print(f"             newest candidate is {age} days old ({newest}) — the fetch has stopped")
+    print("             feeding it. Nothing backfills: fetch_sources.py anchors to now().")
+    raise SystemExit(1)
+print(f"             newest candidate first seen {newest}, oldest {seen[0]}")
+PY
+)" || rc=$?
+  printf '%s\n' "$report"
+  [ "$rc" = 0 ] || DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+}
+
 cmd_doctor() {
   # Dynamically scoped, so doctor_signals and doctor_dangling_links accumulate
   # into it and this function sees the result.
@@ -745,6 +819,7 @@ cmd_doctor() {
   echo "notes        $note_files file(s), $(count_note_entries) entr(ies)${newest:+, newest $newest}"
 
   doctor_last_run
+  doctor_feed_pool
   doctor_signals
   doctor_dangling_links
   doctor_verdicts

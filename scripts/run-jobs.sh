@@ -132,6 +132,35 @@ case "$CP_RC" in
   *) FAILED_JOBS="$FAILED_JOBS $COMMIT_PUSH_FAIL" ;;
 esac
 
+# The feed pool and ledger. A separate commit from the digests, deliberately:
+# the two have different subject matter, and a night where the digests are
+# quarantined must still be able to record what the fetch saw. Same repo, same
+# branch, so this is a second commit and a second push, not a second remote.
+#
+# Gated on its own blocklist scan even though ingest already filters on
+# admission. Two checks of one property is not redundancy here — admission is
+# the only one that can keep a term out cheaply, and this one is the only one
+# that sees the file as git will send it.
+#
+# If this ever fires it will fire every night until someone edits the file:
+# the offending row is already on disk and nothing removes it. That is the
+# intended shape. A gate that clears itself by dropping the thing it caught is
+# not a gate.
+if [ -d "$REPO_DIR/$FEED_STATE_REL" ]; then
+  if ! assert_no_blocked_tree "the feed pool" "$REPO_DIR/$FEED_STATE_REL"; then
+    log "ERROR: refusing to commit the feed pool. Edit $FEED_STATE_REL/pool.jsonl by hand;"
+    log "       nothing else will remove the row."
+    FAILED_JOBS="$FAILED_JOBS feed-blocklist"
+  else
+    commit_and_push "$REPO_DIR" "$FEED_STATE_REL/" "feed: pool $DATE [automated]" && FS_RC=0 || FS_RC=$?
+    case "$FS_RC" in
+      0) log "Committed the feed pool and ledger." ;;
+      2) ;;  # nothing to commit — commit_and_push already said so
+      *) FAILED_JOBS="$FAILED_JOBS feed-$COMMIT_PUSH_FAIL" ;;
+    esac
+  fi
+fi
+
 # The second commit: generated artifacts live in $STUDIO_DIR, not in this repo.
 # Two path-scoped commits, never crossed — this repo is public and the studio is
 # not, so the scoping is a confidentiality property, not tidiness.

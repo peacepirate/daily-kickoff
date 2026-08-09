@@ -329,6 +329,79 @@ assert_no_blocked() {  # LABEL FILE...
   return $rc
 }
 
+# ── The feed pool ────────────────────────────────────────────────────────────
+#
+# The candidate pool and the published ledger, written by the fetch step and
+# committed to this repo. The path is defined once, here: a config opts in with
+# `ingest: pool` and never names a directory of its own, so no config can aim a
+# nightly writer at some other part of a public repo, and run-jobs.sh commits
+# exactly the path run-job.sh wrote.
+#
+# Not under scripts/logs/, which is gitignored and single-machine. A ledger that
+# does not survive a fresh clone is not a ledger — the feed would republish
+# everything it has ever published on the first machine that lost it.
+
+FEED_STATE_REL="scripts/feed-state"
+
+# FEED_STATE_DIR overrides only for tests, the same way KICKOFF_BLOCKLIST does.
+# Nothing in the nightly path sets it.
+feed_state_dir() { echo "${FEED_STATE_DIR:-$KICKOFF_LIB_REPO_DIR/$FEED_STATE_REL}"; }
+
+# ingest_applies — 0 to ingest, 1 to skip.
+#
+# A separate function so the decision can be executed by a test. Asserting that
+# run-job.sh merely *contains* the skip is the vacuity this project has already
+# paid for: replacing the condition with `if false` leaves every log line in
+# place and the assertion still passes.
+#
+# A replay is dated by the run replaying it, while the sidecar it would ingest
+# was written on the night the bundle was fetched. Ingesting under today's date
+# would stamp `first_seen` wrong and restart the staleness clock — the same
+# resurrection the ledger tombstones exist to close, arriving through the front
+# door. Replays exist to test the digest; the pool is fed by the real fetch, or
+# by feed_pool.py invoked directly with the date the sidecar belongs to.
+ingest_applies() { [ -z "${BUNDLE_FILE:-}" ]; }
+
+# ingest_feed_records DATE RECORDS_FILE
+#
+# Fold one night's record sidecar into the pool, then prune it. Fails closed on
+# a missing sidecar and on an unreadable blocklist.
+#
+# The blocklist check here does NOT carry the safety property on its own —
+# feed_pool.py refuses an unreadable or empty list as well, and that is the
+# check that would still be there if this one were deleted. What this one adds
+# is a legible refusal instead of a Python traceback at 06:00, and a refusal
+# that happens before the state directory is created, so a machine with no
+# studio does not accumulate empty feed-state directories it will then try to
+# commit.
+#
+# Neither is redundant with the pre-commit tree scan in run-jobs.sh. Admission
+# is the cheap place to keep a term out; once it is in pool.jsonl the tree scan
+# refuses to commit the feed state *every* night until someone edits the file.
+ingest_feed_records() {  # DATE RECORDS_FILE
+  local date="$1" records="$2" state blocklist
+  state="$(feed_state_dir)"
+  blocklist="$(resolve_blocklist_file)"
+
+  if [ ! -f "$records" ]; then
+    log "ERROR: no record sidecar at $records — nothing to ingest."
+    log "       The producer writes it; a fetch that produced a bundle should have one."
+    return 1
+  fi
+  if ! blocklist_terms >/dev/null 2>&1; then
+    log "ERROR: blocklist is missing, unreadable or empty: $blocklist"
+    log "       Refusing to ingest — the pool is committed to a public repo."
+    return 1
+  fi
+
+  mkdir -p "$state"
+  local out rc=0
+  out="$("$PYTHON_BIN" "$KICKOFF_LIB_REPO_DIR/scripts/lib/feed_pool.py" ingest \
+         --records "$records" --state "$state" --date "$date" --blocklist "$blocklist" 2>&1)" || rc=$?
+  [ -n "$out" ] && log "$out"
+  return "$rc"
+}
+
 # ── Failure visibility ───────────────────────────────────────────────────────
 #
 # A failed nightly run is otherwise invisible. The dated log is gitignored and
