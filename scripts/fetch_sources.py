@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import html
 import json
 import os
 import re
@@ -78,7 +79,41 @@ def warn(msg: str) -> None:
 RECORDS: list[dict] = []
 
 
+# Tag-like runs only. A bare `<` in prose ("scale to < 5ms") is left alone: it
+# is not markup, and anything rendering this escapes it anyway.
+_TAG_RE = re.compile(r"<[a-zA-Z/!][^>]*>")
+
+
+def clean_text(s: str) -> str:
+    """Decode HTML entities, then strip any markup that decoding produced.
+
+    **The order is the safety property, not a style choice.** `html.unescape`
+    turns `&lt;script&gt;` into `<script>` — decoding is what *creates* markup —
+    so stripping first and decoding second would hand a live tag to whatever
+    renders this. Decode once, then strip.
+
+    Deliberately a single unescape pass rather than a loop to a fixed point.
+    Double-encoded input (`&amp;lt;script&amp;gt;`) decodes to the inert text
+    `&lt;script&gt;` and stops there; chasing it further would reconstruct the
+    exact tag this function exists to remove.
+
+    RSS summaries already arrive clean because they go through BeautifulSoup's
+    `get_text`, which unescapes as a side effect. Titles never did — that
+    asymmetry is the whole bug, and it reached both the digest bundles and the
+    feed records because they share this one call site.
+    """
+    if not s:
+        return ""
+    return re.sub(r"\s+", " ", _TAG_RE.sub(" ", html.unescape(s))).strip()
+
+
 def print_item(source: str, title: str, url: str, date: str, summary: str) -> None:
+    # Cleaned here rather than in bundle.py, which is the wire *format* and is
+    # shared with select_corpus.py — whose input is already-written markdown and
+    # needs no decoding. The producer that scraped the text is the one that owes
+    # it. `url` is untouched: item_id() hashes it, so normalising it here would
+    # change every id in the pool and the ledger.
+    title, summary = clean_text(title), clean_text(summary)
     print(format_item(source, title, url, date, summary), end="")
     if args.records:
         RECORDS.append(item_record(source, title, url, date, summary))

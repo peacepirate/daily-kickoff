@@ -134,6 +134,60 @@ ev_urls = [i["url"].rsplit("/", 1)[-1] for i in evs]
 chk("a forthcoming event is kept", "ev1" in ev_urls, True)
 chk("a past event is still dropped", "ev2" in ev_urls, False)
 
+print("── clean_text: decode entities, then strip what decoding produced ────────")
+# The order is the safety property. html.unescape is what CREATES markup, so
+# strip-then-decode would emit a live tag. Every case below fails on the
+# reversed order.
+chk("a numeric entity is decoded", fs.clean_text("it&#8217;s here"), "it’s here")
+chk("a named entity is decoded", fs.clean_text("AT&amp;T merger"), "AT&T merger")
+chk("a hex entity is decoded", fs.clean_text("caf&#xe9; talk"), "café talk")
+chk("an escaped script tag does NOT survive decoding",
+    fs.clean_text("&lt;script&gt;alert(1)&lt;/script&gt;"), "alert(1)")
+chk("a literal tag is stripped", fs.clean_text("a <b>bold</b> claim"), "a bold claim")
+chk("an img tag with attributes is stripped",
+    fs.clean_text('x <img src="a.png" onerror="alert(1)"> y'), "x y")
+# Single pass, not a loop to a fixed point: chasing double-encoded input would
+# reconstruct the tag this function exists to remove.
+chk("double-encoded markup decodes to inert text and stops",
+    fs.clean_text("&amp;lt;script&amp;gt;"), "&lt;script&gt;")
+# A bare `<` is prose, not markup, and must survive.
+chk("a bare less-than in prose survives", fs.clean_text("scale to < 5ms"), "scale to < 5ms")
+chk("whitespace is collapsed", fs.clean_text("a\n\n  b\tc"), "a b c")
+chk("empty input is empty, not None", fs.clean_text(""), "")
+chk("None is tolerated", fs.clean_text(None), "")
+
+# The invariant that matters after this runs: no output may contain a tag.
+for probe in ("&lt;script&gt;x&lt;/script&gt;", "<script>x</script>",
+              "&lt;iframe src=a&gt;", "plain text", "5 &lt; 7 &amp;&amp; 8 &gt; 6"):
+    if fs._TAG_RE.search(fs.clean_text(probe)):
+        bad(f"a tag survived clean_text: {probe!r} -> {fs.clean_text(probe)!r}")
+        break
+else:
+    ok("no probe leaves a tag in the output")
+
+print("── print_item cleans both the bundle and the sidecar ─────────────────────")
+import io as _io, contextlib as _cl
+fs.args.records = "unused"
+fs.RECORDS.clear()
+_buf = _io.StringIO()
+with _cl.redirect_stdout(_buf):
+    fs.print_item("Src", "Google Earth&#8217;s AI tool", "https://example.com/e",
+                  "2026-08-08", "A summary with AT&amp;T in it")
+_out = _buf.getvalue()
+chk("the digest bundle carries no entity", "&#8217;" in _out, False)
+chk("the digest bundle carries the decoded character", "Earth’s" in _out, True)
+chk("the sidecar title is cleaned too", fs.RECORDS[0]["title"], "Google Earth’s AI tool")
+chk("the sidecar summary is cleaned too", fs.RECORDS[0]["summary"], "A summary with AT&T in it")
+# item_id hashes the url, so cleaning the text must not move any existing id —
+# otherwise the whole pool and ledger would re-key and republish.
+import importlib.util as _ilu
+_bspec = _ilu.spec_from_file_location("bundle_mod", f"{repo}/scripts/lib/bundle.py")
+_bundle = _ilu.module_from_spec(_bspec); _bspec.loader.exec_module(_bundle)
+chk("the id is unchanged by cleaning",
+    fs.RECORDS[0]["id"], _bundle.item_id("https://example.com/e"))
+fs.args.records = None
+fs.RECORDS.clear()
+
 print("── the record sidecar cannot cost the digest anything ────────────────────")
 import io, json, os, tempfile, contextlib
 
