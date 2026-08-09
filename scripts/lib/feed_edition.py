@@ -23,6 +23,14 @@ Pure stdlib. No clock — `today` is passed in — and no I/O beyond the CLI.
 from __future__ import annotations
 
 from datetime import date as Date
+from pathlib import Path
+
+try:                                    # normal: scripts/lib is on the path
+    from bundle import is_safe_url
+except ImportError:                     # imported with only the repo root there
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from bundle import is_safe_url
 
 # The card body has to stand alone next to a headline. Below this a "summary"
 # is a fragment, and rung 3 is the more honest answer than a half sentence.
@@ -49,7 +57,15 @@ def card_rung(row: dict, house: str | None = None,
     Returns (rung, body). `body` is "" for the title and drop rungs — the
     headline is already on the card, so rung 3 adds no body rather than
     repeating itself.
+
+    A card IS a link, so an unusable url costs the card outright — before the
+    ladder, not at the bottom of it. Rung 1 with a `javascript:` href is not a
+    better outcome than rung 4; it is the worst outcome there is. This is the
+    last gate before the published shape, and it is checked here rather than
+    trusted from admission because a pool row can be edited by hand.
     """
+    if not is_safe_url(row.get("url")):
+        return "drop", ""
     if house and len(house.strip()) >= min_summary:
         return "house", house.strip()
     publisher = (row.get("summary") or "").strip()
@@ -123,8 +139,7 @@ def build_edition(rows: list[dict], today: Date,
 # a preview be mistaken for a judged edition.
 
 def _main(argv=None):
-    import argparse, json
-    from pathlib import Path
+    import argparse, json, sys
     from feed_pool import read_jsonl, ledger_ids
     from feed_select import shortlist, source_tiers, thin_reason, DAILY_CAP
 
@@ -134,6 +149,13 @@ def _main(argv=None):
     ap.add_argument("--date", required=True)
     ap.add_argument("--out", help="Write JSON here (default: stdout)")
     ap.add_argument("--cap", type=int, default=DAILY_CAP)
+    # Off by default, and network is the whole reason. Every other path in this
+    # module is offline and reproducible; turning that off silently would make a
+    # replay depend on what the internet was doing at the time. The nightly job
+    # passes it explicitly when E8 wires publication — see the fail-open
+    # argument at the top of scripts/lib/link_check.py.
+    ap.add_argument("--check-links", action="store_true",
+                    help="HEAD the selected urls and drop only proven-dead ones (network)")
     a = ap.parse_args(argv)
 
     state = Path(a.state)
@@ -144,6 +166,27 @@ def _main(argv=None):
 
     from feed_select import diversify, FINAL_PER_SOURCE, FINAL_PER_DOMAIN
     chosen, _ = diversify(sel["shortlist"], a.cap, FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+
+    if a.check_links:
+        # Wrapped whole. A link checker that can raise is a link checker that
+        # can cost a night's publish, which is a worse outcome than the dead
+        # link it exists to catch.
+        try:
+            import link_check
+            verdicts = link_check.check_urls([r.get("url", "") for r in chosen],
+                                             client=link_check.httpx_client())
+            for line in link_check.report_lines(verdicts):
+                print(line, file=sys.stderr)
+            chosen, dropped, note = link_check.filter_dead(chosen, verdicts)
+            if note == "inconclusive":
+                print("NOTE: every selected link looked dead — not believed, nothing dropped.",
+                      file=sys.stderr)
+            for row in dropped:
+                print(f"dropped (dead link): {row.get('url','')}", file=sys.stderr)
+        except Exception as exc:
+            print(f"NOTE: link check skipped ({type(exc).__name__}: {exc}) — publishing anyway.",
+                  file=sys.stderr)
+
     edition = build_edition(chosen, today,
                             reason=thin_reason(len(chosen), sel["stats"], cap=a.cap))
     edition["unjudged"] = True   # the site renders a banner off this

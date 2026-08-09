@@ -33,6 +33,13 @@ import os
 from datetime import date as Date, timedelta
 from pathlib import Path
 
+try:                                    # normal: scripts/lib is on the path
+    from bundle import is_safe_url
+except ImportError:                     # imported by a caller that put only the
+    import sys                          # repo root there. The url rules live in
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # exactly one file.
+    from bundle import is_safe_url
+
 # An item whose body is shorter than this cannot become a card: the public card
 # *is* the summary. 80 characters is the same threshold the ingestion
 # measurement used, so "qualifying pool" means one thing in both places.
@@ -138,8 +145,17 @@ def qualifies(record: dict) -> bool:
     Deliberately the same predicate the ingestion measurement uses. A launch
     gate whose threshold is measured by one rule and enforced by another is a
     gate that cannot be reasoned about.
+
+    The url safety rule is inside this predicate as well as counted separately
+    in `ingest`, deliberately. `ingest` checks first so the stats can say
+    `unsafe_url` rather than the useless `unqualified`; the copy here is what
+    protects every *other* caller — the ingestion measurement, a replay, a
+    future migration — because a guard that only runs on one of two call paths
+    is the guard that reports success because it never ran.
     """
     if not record.get("id"):
+        return False
+    if not is_safe_url(record.get("url")):
         return False
     title = (record.get("title") or "").strip()
     if not (MIN_TITLE <= len(title) <= MAX_TITLE):
@@ -168,7 +184,8 @@ def ingest(records: list[dict], pool: list[dict], ledger_ids: set,
     blocked_terms = blocked_terms or []
     by_id = {r["id"]: r for r in pool if r.get("id")}
     stats = {"seen": len(records), "added": 0, "dup_batch": 0,
-             "dup_pool": 0, "dup_ledger": 0, "unqualified": 0, "blocked": 0}
+             "dup_pool": 0, "dup_ledger": 0, "unqualified": 0, "blocked": 0,
+             "unsafe_url": 0}
     batch_seen: set = set()
 
     for rec in records:
@@ -188,6 +205,13 @@ def ingest(records: list[dict], pool: list[dict], ledger_ids: set,
             continue
         if contains_blocked(rec, blocked_terms):
             stats["blocked"] += 1
+            continue
+        # Counted apart from `unqualified`, which mixes a thin summary with a
+        # short title and would hide this entirely. A `javascript:` url arriving
+        # from a scraped href is a different event from a boring one, and the
+        # night it happens the stats have to say so.
+        if not is_safe_url(rec.get("url")):
+            stats["unsafe_url"] += 1
             continue
         if not qualifies(rec):
             stats["unqualified"] += 1
@@ -365,7 +389,8 @@ def _main(argv=None):
     append_jsonl(state / "ledger.jsonl", retired)
     print(f"ingest {a.date}: seen={st['seen']} added={st['added']} "
           f"dup_batch={st['dup_batch']} dup_pool={st['dup_pool']} dup_ledger={st['dup_ledger']} "
-          f"unqualified={st['unqualified']} blocked={st['blocked']}")
+          f"unqualified={st['unqualified']} blocked={st['blocked']} "
+          f"unsafe_url={st['unsafe_url']}")
     print(f"prune:  expired={pst['expired']} over_cap={pst['over_cap']} pool={pst['after']}")
     return 0
 

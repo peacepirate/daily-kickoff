@@ -35,6 +35,13 @@ from datetime import date as Date
 from pathlib import Path
 from urllib.parse import urlsplit
 
+try:                                    # normal: scripts/lib is on the path
+    from bundle import is_safe_url
+except ImportError:                     # imported with only the repo root there
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from bundle import is_safe_url
+
 # How many candidates the model is shown. Large enough that it is exercising
 # judgement rather than rubber-stamping a set code already chose; small enough
 # that code is genuinely narrowing. At 64 candidates a day this is roughly a
@@ -131,7 +138,8 @@ def domain_of(url: str) -> str:
 
 # Every reason a candidate can fail, as a closed vocabulary. Counting rejections
 # by reason is what makes a thin day explicable instead of merely thin.
-ELIGIBILITY_REASONS = ("published", "stale", "thin_summary", "no_url", "no_title")
+ELIGIBILITY_REASONS = ("published", "stale", "thin_summary", "no_url",
+                       "no_title", "unsafe_url")
 
 
 def ineligible_reason(row: dict, today: Date, ledger: set,
@@ -139,6 +147,13 @@ def ineligible_reason(row: dict, today: Date, ledger: set,
     """The first rule `row` breaks, or None. Order is diagnostic, not logical."""
     if not row.get("id") or not (row.get("url") or "").strip():
         return "no_url"
+    # Re-checked here even though admission refuses these, for the same reason
+    # the ledger is re-checked below: pool.jsonl is a committed file that gets
+    # hand-edited and migrated, and rows admitted before this rule existed have
+    # never been through it. Selection is the last place a url can be refused
+    # while it is still cheap.
+    if not is_safe_url(row.get("url")):
+        return "unsafe_url"
     if row["id"] in ledger:
         return "published"
     if not (row.get("title") or "").strip():

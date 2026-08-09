@@ -286,6 +286,169 @@ def display_url(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
+# ── the never-mangle property ────────────────────────────────────────────────
+#
+# `display_url` rewrites every outbound link on the public site. Fixture tests
+# prove it on the cases someone thought of; this proves it on cases nobody did.
+# The claim is differential and checkable against any input, real or synthetic:
+#
+#     display_url(u) may differ from u ONLY by removed utm_* query keys.
+#
+# Same scheme, same host (including case), same path (including trailing slash),
+# same fragment, same remaining query parameters in the same order. A broken
+# outbound link is the most publicly visible failure this pipeline has, and it
+# is worse than the tracking the strip exists to remove — so the strip has to be
+# provably minimal, not merely well tested.
+
+def _query_parts(query: str) -> list[str]:
+    """Query parameters as an ordered list, empty segments discarded.
+
+    `a=1&&b=2` and `a=1&b=2` are the same query. `display_url` drops the empty
+    segment as a side effect of its filter, and treating that as a mangling
+    would be a false alarm about a difference no reader or server can observe.
+    """
+    return [p for p in (query or "").split("&") if p]
+
+
+def _is_tracking(part: str) -> bool:
+    return part.split("=", 1)[0].lower().startswith(_TRACKING_PREFIX)
+
+
+def url_transform_is_minimal(original: str, transformed: str) -> tuple[bool, str]:
+    """(True, "") when `transformed` is `original` minus only its utm_* keys.
+
+    Returns (False, reason) otherwise, where `reason` names the component that
+    moved — this is asserted over live pool rows, so a failure has to say what
+    broke without anyone re-deriving it from two long urls.
+
+    **Compared per parsed component, not byte for byte,** and the three places
+    the raw text may still differ are each deliberate:
+
+      1. surrounding whitespace is trimmed;
+      2. the scheme's *case* is normalised by `urlsplit` on both sides, and
+         schemes are case-insensitive (RFC 3986 §3.1) so this changes nothing a
+         client can observe;
+      3. a `?` left with nothing after it is dropped.
+
+    Everything else is exact, including host case and the trailing slash —
+    precisely the two things `normalize_url` changes, so substituting the
+    fingerprint function for the display function fails this immediately.
+    """
+    original = (original or "").strip()
+    transformed = transformed if transformed is not None else ""
+
+    if not original:
+        return (transformed == "", "" if transformed == "" else
+                f"empty input produced {transformed!r}")
+
+    try:
+        a = urlsplit(original)
+    except ValueError:
+        # Not parseable, so there is nothing to remove and nothing may change.
+        return (transformed == original, "" if transformed == original else
+                "an unparseable url was rewritten rather than returned as-is")
+    try:
+        b = urlsplit(transformed)
+    except ValueError:
+        return False, "the transformed url is not parseable"
+
+    # The component checks run BEFORE the length backstop, deliberately. A
+    # length test is true but useless as a diagnosis: an added query parameter
+    # reported as "the url got longer" tells whoever is debugging nothing about
+    # which rule broke. Cheap to evaluate, so ordering costs nothing and the
+    # failure names the component.
+    if a.scheme != b.scheme:
+        return False, f"scheme changed: {a.scheme!r} -> {b.scheme!r}"
+    if a.netloc != b.netloc:
+        return False, f"host changed: {a.netloc!r} -> {b.netloc!r}"
+    if a.path != b.path:
+        return False, f"path changed: {a.path!r} -> {b.path!r}"
+    if a.fragment != b.fragment:
+        return False, f"fragment changed: {a.fragment!r} -> {b.fragment!r}"
+
+    want = [p for p in _query_parts(a.query) if not _is_tracking(p)]
+    got = _query_parts(b.query)
+    if got == want:
+        # The length backstop, last. Every component now matches and the query
+        # is a same-order subset, so the only way to be longer is a silent
+        # re-encode — which this catches and nothing above would.
+        if len(transformed) > len(original):
+            return False, "the transformed url is longer — this rule only removes"
+        return True, ""
+    # Counted, not set-differenced: `a=1&a=1` losing one copy is a real loss and
+    # a set comparison would call it identical.
+    remaining = list(got)
+    lost = []
+    for p in want:
+        if p in remaining:
+            remaining.remove(p)
+        else:
+            lost.append(p)
+    if lost:
+        return False, f"non-tracking query parameters were dropped: {lost}"
+    if remaining:
+        return False, f"query parameters appeared that were not in the input: {remaining}"
+    return False, f"query parameter order changed: {want} -> {got}"
+
+
+# ── the safety predicate ─────────────────────────────────────────────────────
+#
+# A url reaches the site as the `href` of a card, and an href is executed by the
+# browser, not merely displayed. `javascript:` and `data:` hrefs are script
+# execution; a url with no host, or a host with no dot, is a link that cannot
+# resolve for a reader and reads as a broken site.
+#
+# Deliberately three rules and no more. Every additional rule is a way to evict
+# a good url — the expensive mistake here, because `fetch_sources.py` anchors to
+# now() and a candidate refused at admission cannot be re-fetched later. These
+# three refuse things that are never publishable and nothing else.
+
+UNSAFE_URL_REASONS = ("empty", "unparseable", "scheme", "no_host", "no_dot")
+
+SAFE_SCHEMES = ("http", "https")
+
+
+def unsafe_url_reason(url: str) -> str | None:
+    """Why `url` must never become an href, or None when it may.
+
+    One of UNSAFE_URL_REASONS. A closed vocabulary so a refusal can be counted
+    and explained rather than merely happening.
+    """
+    url = (url or "").strip()
+    if not url:
+        return "empty"
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "unparseable"
+    if parts.scheme.lower() not in SAFE_SCHEMES:
+        # Covers javascript:, data:, vbscript:, file:, and protocol-relative
+        # `//host/path`, which has no scheme at all. urlsplit strips tab and
+        # newline first, so `java\nscript:` is caught here too rather than
+        # sneaking past a naive prefix test.
+        return "scheme"
+    try:
+        host = parts.hostname or ""
+    except ValueError:
+        # A malformed port or IPv6 literal raises on attribute access, not on
+        # the split. Reached only for input no browser would resolve either.
+        return "unparseable"
+    if not host:
+        return "no_host"
+    if "." not in host:
+        # `http://localhost/x`, `http://intranet/x`: resolvable on someone's
+        # machine, never on a reader's. IPv6 literals are excluded by the same
+        # rule and that is accepted — none has ever appeared in the corpus, and
+        # a card linking to a bare IP is not a card worth defending.
+        return "no_dot"
+    return None
+
+
+def is_safe_url(url: str) -> bool:
+    """True when `url` may become a clickable link on the public site."""
+    return unsafe_url_reason(url) is None
+
+
 def item_record(source: str, title: str, url: str, date: str, summary: str) -> dict:
     """The structured twin of `format_item`, from the same arguments.
 
