@@ -130,6 +130,15 @@ published, expired or dropped over the cap. A ledger that does not survive a fre
 ledger — the feed would republish everything on the first machine that lost it. Written by the
 `feed` job's fetch step, committed by `run-jobs.sh` in its own path-scoped commit.
 
+**To see what selection would offer today**, without a model and without publishing anything:
+
+```bash
+scripts/.venv/bin/python3 scripts/lib/feed_select.py explain \
+  --state scripts/feed-state --config scripts/topics/feed.yaml --date "$(date +%F)"
+```
+
+`shortlist` in place of `explain` prints the same result as JSON. Both are read-only.
+
 **A stored-bundle replay does not feed the pool, by design.** A replay is dated by the run
 replaying it, while its record sidecar belongs to the night it was fetched. Ingesting under
 today's date would restart the 14-day staleness clock and let a three-week-old item publish as
