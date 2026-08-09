@@ -80,6 +80,15 @@ quarantine_output() {
 # list at config load, so an unknown word costs nothing; validate_frontmatter
 # rejects it a second time because a shape with no validator must never pass
 # silently.
+# What a job *does*. `llm` is the original and only behaviour: produce a bundle,
+# render a prompt, invoke the model, verify the file it wrote. `fetch` stops
+# after the bundle — no prompt, no model, no output file — which is what a source
+# pool being measured before anything is published needs, and what the runner
+# previously had no way to express.
+JOB_STEPS="llm fetch"
+
+is_known_step() { case " $JOB_STEPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
 JOB_SCHEMAS="digest angles"
 
 is_known_schema() { case " $JOB_SCHEMAS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }

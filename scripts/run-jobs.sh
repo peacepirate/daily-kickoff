@@ -42,19 +42,26 @@ for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*
     || { log "ERROR: $JOB: unreadable config $config"; FAILED_JOBS="$FAILED_JOBS $JOB"; continue; }
   OUTPUT_TPL="$(cfg_get "$config" output)" \
     || { log "ERROR: $JOB: unreadable config $config"; FAILED_JOBS="$FAILED_JOBS $JOB"; continue; }
+  STEP="$(cfg_get "$config" step llm)" \
+    || { log "ERROR: $JOB: unreadable config $config"; FAILED_JOBS="$FAILED_JOBS $JOB"; continue; }
+  [ -n "$STEP" ] || STEP="llm"
 
-  if [ -z "$OUTPUT_TPL" ]; then
-    log "ERROR: $JOB: $config declares no output:"
-    FAILED_JOBS="$FAILED_JOBS $JOB"
-    continue
-  fi
+  # A fetch job declares no output, so these have nothing to check. Everything
+  # that follows — the schedule gate above all — still applies to it.
+  if [ "$STEP" != "fetch" ]; then
+    if [ -z "$OUTPUT_TPL" ]; then
+      log "ERROR: $JOB: $config declares no output:"
+      FAILED_JOBS="$FAILED_JOBS $JOB"
+      continue
+    fi
 
-  set_tpl_vars "$DATE" "$SCHEDULE"
-  OUTPUT_FILE="$(resolve_output "$OUTPUT_TPL")"
-  if ! assert_no_placeholders "$OUTPUT_FILE" "output: in $config" \
-    || ! assert_output_boundary "$JOB_KIND" "$OUTPUT_FILE"; then
-    FAILED_JOBS="$FAILED_JOBS $JOB"
-    continue
+    set_tpl_vars "$DATE" "$SCHEDULE"
+    OUTPUT_FILE="$(resolve_output "$OUTPUT_TPL")"
+    if ! assert_no_placeholders "$OUTPUT_FILE" "output: in $config" \
+      || ! assert_output_boundary "$JOB_KIND" "$OUTPUT_FILE"; then
+      FAILED_JOBS="$FAILED_JOBS $JOB"
+      continue
+    fi
   fi
 
   job_scheduled_today "$SCHEDULE" "$DAY_OF_WEEK" && SCHEDULED=0 || SCHEDULED=$?
@@ -65,6 +72,16 @@ for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*
   fi
   if [ "$SCHEDULED" != "0" ]; then
     log "$JOB: not scheduled today (schedule: $SCHEDULE)"
+    continue
+  fi
+
+  # A fetch job writes no output file, so there is nothing to skip on and no
+  # LLM call to make idempotent. Accumulating a bundle every scheduled day is
+  # the whole point of the step, so it runs unconditionally once scheduled.
+  if [ "$STEP" = "fetch" ]; then
+    log "--- Running job: $JOB (step: fetch) ---"
+    (DIGEST_DATE="$DATE" bash "$REPO_DIR/scripts/run-job.sh" "$JOB") \
+      || { log "WARN: $JOB failed"; FAILED_JOBS="$FAILED_JOBS $JOB"; }
     continue
   fi
 

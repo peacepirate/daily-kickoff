@@ -395,9 +395,22 @@ $(grep -rliF -- "$squashed" "$d" 2>/dev/null || true)"
   return $rc
 }
 
+# What a job of each kind is allowed to write.
+#
+# This used to read `[ "$1" = "generators" ] || return 0` — fail-OPEN for every
+# other kind, so a topic job was unconstrained and any future kind would inherit
+# no boundary at all while looking checked. A guard whose default is "allowed" is
+# the failure class this project keeps rediscovering, so the default here refuses.
 assert_output_boundary() {  # KIND OUTPUT_PATH
-  [ "$1" = "generators" ] || return 0
-  # A `..` segment defeats the prefix test below by pure string arithmetic:
+  case "$1" in
+    topics|generators) ;;
+    *)
+      log "ERROR: unknown job kind '$1' — refusing to guess where it may write."
+      log "       Add it to assert_output_boundary with its own boundary first."
+      return 1 ;;
+  esac
+
+  # A `..` segment defeats the prefix tests below by pure string arithmetic:
   # "$STUDIO_DIR/../daily-kickoff/site/src/content/ai/x.md" starts with
   # "$STUDIO_DIR/" and still lands in the public repo — the one place this
   # whole boundary exists to keep studio content out of. Refuse the segment
@@ -405,13 +418,26 @@ assert_output_boundary() {  # KIND OUTPUT_PATH
   # `readlink -f`.
   case "/$2/" in
     */../*)
-      log "ERROR: generator output must not contain a '..' segment: $2"
+      log "ERROR: $1 output must not contain a '..' segment: $2"
       return 1 ;;
   esac
-  local studio="${STUDIO_DIR:-$(resolve_studio_dir)}"
-  studio="${studio%/}/"
-  if [ "${2#$studio}" = "$2" ]; then
-    log "ERROR: generator output must resolve beneath \$STUDIO_DIR ($studio), got: $2"
-    return 1
-  fi
+
+  local root
+  case "$1" in
+    generators)
+      root="${STUDIO_DIR:-$(resolve_studio_dir)}"
+      root="${root%/}/"
+      if [ "${2#$root}" = "$2" ]; then
+        log "ERROR: generator output must resolve beneath \$STUDIO_DIR ($root), got: $2"
+        return 1
+      fi ;;
+    topics)
+      # Topic output is the published site. Previously unchecked; all four
+      # existing topics already satisfy it.
+      root="${KICKOFF_LIB_REPO_DIR%/}/src/content/"
+      if [ "${2#$root}" = "$2" ]; then
+        log "ERROR: topic output must resolve beneath src/content/ ($root), got: $2"
+        return 1
+      fi ;;
+  esac
 }

@@ -49,7 +49,27 @@ PROMPT_REL="$(cfg_get "$CONFIG_FILE" prompt)"
 OUTPUT_TPL="$(cfg_get "$CONFIG_FILE" output)"
 MODEL="$(cfg_get "$CONFIG_FILE" model claude-sonnet-5)"
 SCHEMA="$(cfg_get "$CONFIG_FILE" schema digest)"
-if [ -z "$PRODUCER_TPL" ] || [ -z "$PROMPT_REL" ] || [ -z "$OUTPUT_TPL" ]; then
+STEP="$(cfg_get "$CONFIG_FILE" step llm)"
+[ -n "$STEP" ] || STEP="llm"
+if ! is_known_step "$STEP"; then
+  log "ERROR: [$JOB] unknown step '$STEP' in $CONFIG_FILE (known: $JOB_STEPS)"
+  exit 1
+fi
+
+# A `fetch` job stops at the bundle, so it declares neither a prompt nor an
+# output: there is nothing to render and nothing to write. Requiring them anyway
+# was what made a fetch-only config inexpressible.
+if [ "$STEP" = "fetch" ]; then
+  if [ -z "$PRODUCER_TPL" ]; then
+    log "ERROR: [$JOB] $CONFIG_FILE is step: fetch and must declare producer:"
+    exit 1
+  fi
+  if [ -n "$PROMPT_REL" ] || [ -n "$OUTPUT_TPL" ]; then
+    log "ERROR: [$JOB] $CONFIG_FILE is step: fetch — it must declare neither prompt: nor output:."
+    log "       Declaring them implies a publish this step will never perform."
+    exit 1
+  fi
+elif [ -z "$PRODUCER_TPL" ] || [ -z "$PROMPT_REL" ] || [ -z "$OUTPUT_TPL" ]; then
   log "ERROR: [$JOB] $CONFIG_FILE must declare producer:, prompt: and output:"
   exit 1
 fi
@@ -84,6 +104,7 @@ set_tpl_vars "$DATE" "$SCHEDULE"
 PRODUCER="$(render_placeholders "$PRODUCER_TPL")"
 assert_no_placeholders "$PRODUCER" "producer: in $CONFIG_FILE" || exit 1
 
+if [ "$STEP" != "fetch" ]; then
 OUTPUT_FILE="$(resolve_output "$OUTPUT_TPL")"
 assert_no_placeholders "$OUTPUT_FILE" "output: in $CONFIG_FILE" || exit 1
 assert_output_boundary "$JOB_KIND" "$OUTPUT_FILE" || exit 1
@@ -112,6 +133,7 @@ if ! grep -qF "$OUTPUT_REL" <<<"$PROMPT_RENDERED" \
   log "ERROR: [$JOB] $PROMPT_REL names neither $OUTPUT_REL nor $OUTPUT_FILE (output: in $CONFIG_FILE)."
   exit 1
 fi
+fi  # STEP != fetch
 
 # ── Producer ──────────────────────────────────────────────────────────────────
 CONTENT_FILE="$LOG_DIR/fetched-$DATE-$JOB.txt"
@@ -141,6 +163,10 @@ if ! grep -q "^URL:" "$CONTENT_FILE"; then
 fi
 log "[$JOB] Produced $(grep -c "^URL:" "$CONTENT_FILE") items."
 
-run_llm_job "$PROMPT_FILE" "$CONTENT_FILE" "$OUTPUT_FILE" "$MODEL" "$SCHEMA"
+if [ "$STEP" = "fetch" ]; then
+  log "[$JOB] step: fetch — bundle written to $CONTENT_FILE. Nothing published."
+else
+  run_llm_job "$PROMPT_FILE" "$CONTENT_FILE" "$OUTPUT_FILE" "$MODEL" "$SCHEMA"
+fi
 
 log "=== run-job.sh [$JOB] finished $(date) ==="

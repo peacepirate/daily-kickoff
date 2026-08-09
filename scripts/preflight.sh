@@ -32,6 +32,14 @@ fi
 for cfg in scripts/topics/*.yaml; do
   [ -f "$cfg" ] || continue
   job="$(basename "$cfg" .yaml)"
+  # A fetch-step config has no prompt and no output, so there is no prompt-names-
+  # its-own-output pairing to check. Reported rather than silently skipped: a
+  # config that vanishes from a preflight list is a config nobody notices is
+  # unchecked.
+  if [ "$(grep -E '^step:' "$cfg" | head -1 | sed 's/^step: *//')" = "fetch" ]; then
+    ok "$job is step: fetch — no prompt or output to pair"
+    continue
+  fi
   out="$(grep -E '^output:' "$cfg" | head -1 | sed 's/^output: *//')"
   dir="$(dirname "$out")"
   p="$(grep -E '^prompt:' "$cfg" | head -1 | sed 's/^prompt: *//')"

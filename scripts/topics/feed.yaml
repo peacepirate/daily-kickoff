@@ -1,0 +1,187 @@
+name:     "Public Feed source pool"
+schedule: daily
+producer: fetch_sources.py --topic feed {{WEEKLY_FLAG}}
+step:     fetch
+
+# step: fetch — this job produces a bundle and stops. No prompt, no model call,
+# no output file, nothing published. run-job.sh refuses a fetch config that
+# declares prompt: or output:, because declaring them implies a publish this
+# step will never perform.
+#
+# It exists to answer one question with measurement instead of opinion: can a
+# source pool sustain seven high-quality public items a day, seven days a week?
+# Today's four topics cannot — the qualifying pool is roughly a 1.5:1 selection
+# ratio, which is publish-almost-everything. So the bundle accumulates in
+# scripts/logs/fetched-<date>-feed.txt for a week and then gets measured.
+#
+# Deliberately a separate config rather than widening ai.yaml and
+# leadership.yaml. The public feed and the private digest want different things
+# from the same fetch layer, and the moment the feed's needs start editing the
+# digest's sources, the digest starts paying for a product it is not part of.
+# The ~15 sources duplicated with ai.yaml are the price of that separation and
+# are cheaper than a shared-include mechanism.
+#
+# Every feed below was probed live on 2026-08-08 and returned parseable entries
+# with usable summaries. Feeds that answered 200 with zero-length summaries were
+# rejected rather than included hopefully — the public card *is* the summary, so
+# a source that never supplies one can never produce a card.
+#
+# max_items is a per-source cap, and the low numbers are deliberate: 54% of
+# everything this pipeline has ever published came from vendor-owned domains,
+# and an uncapped pool would reproduce that concentration at greater volume.
+
+sources:
+  tier1:
+    # Robotics and embodied AI — 1.1% of the existing corpus, effectively absent
+    - name: "IEEE Spectrum Robotics"
+      kind: rss
+      url: "https://spectrum.ieee.org/feeds/topic/robotics.rss"
+      max_items: 5
+    - name: "The Robot Report"
+      kind: rss
+      url: "https://www.therobotreport.com/feed/"
+      max_items: 4
+    - name: "TechCrunch Robotics"
+      kind: rss
+      url: "https://techcrunch.com/category/robotics/feed/"
+      max_items: 4
+
+    # Engineering org, developer experience, platform — each under 0.5% today
+    - name: "Engineering Enablement"
+      kind: rss
+      url: "https://newsletter.getdx.com/feed"
+      max_items: 4
+    - name: "Platform Engineering"
+      kind: rss
+      url: "https://platformengineering.org/blog/rss.xml"
+      max_items: 4
+    - name: "The New Stack"
+      kind: rss
+      url: "https://thenewstack.io/blog/feed/"
+      max_items: 5
+    - name: "InfoQ Culture & Methods"
+      kind: rss
+      url: "https://feed.infoq.com/culture-methods/"
+      max_items: 4
+    - name: "Dev Interrupted"
+      kind: rss
+      url: "https://devinterrupted.substack.com/feed"
+      max_items: 3
+    - name: "Stack Overflow Blog"
+      kind: rss
+      url: "https://stackoverflow.blog/feed/"
+      max_items: 4
+    - name: "Martin Fowler"
+      kind: rss
+      url: "https://martinfowler.com/feed.atom"
+      max_items: 3
+    - name: "Pragmatic Engineer Blog"
+      kind: rss
+      url: "https://blog.pragmaticengineer.com/rss/"
+      max_items: 3
+
+  tier2:
+    # AI readiness, adoption, talent — thin today and almost entirely vendor-sourced
+    - name: "MIT Sloan Management Review"
+      kind: rss
+      url: "https://sloanreview.mit.edu/feed/"
+      max_items: 4
+    - name: "CIO Dive"
+      kind: rss
+      url: "https://www.ciodive.com/feeds/news/"
+      max_items: 4
+    - name: "InfoQ AI/ML"
+      kind: rss
+      url: "https://feed.infoq.com/ai-ml-data-eng/"
+      max_items: 4
+    - name: "HR Dive"
+      kind: rss
+      url: "https://www.hrdive.com/feeds/news/"
+      max_items: 3
+    - name: "TechCrunch Layoffs"
+      kind: rss
+      url: "https://techcrunch.com/tag/layoffs/feed/"
+      max_items: 3
+    # Capped hard at 3: measured as marketing-heavy, and it publishes enough to
+    # dominate a day's pool on volume alone.
+    - name: "McKinsey Insights"
+      kind: rss
+      url: "https://www.mckinsey.com/insights/rss"
+      max_items: 3
+
+    # Non-vendor AI press — the direct counterweight to the 54% vendor share
+    - name: "The Register AI"
+      kind: rss
+      url: "https://www.theregister.com/software/ai_ml/headlines.atom"
+      max_items: 5
+    - name: "The Verge AI"
+      kind: rss
+      url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+      max_items: 4
+    # SemiAnalysis and The Gradient were probed, added, then removed the same
+    # day: both answer 200 with parseable entries, but their newest posts were
+    # 11 and 6 months old. A feed that parses is not a feed that publishes.
+    - name: "MIT Technology Review AI"
+      kind: rss
+      url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+      max_items: 4
+    - name: "Last Week in AI"
+      kind: rss
+      url: "https://lastweekin.ai/feed"
+      max_items: 3
+    - name: "Wired AI"
+      kind: rss
+      url: "https://www.wired.com/feed/tag/ai/latest/rss"
+      max_items: 3
+
+  tier3:
+    # Engineering blogs. Vendor-adjacent, so capped at 2 each: useful for
+    # depth, dangerous for concentration.
+    - name: "NVIDIA Blog"
+      kind: rss
+      url: "https://blogs.nvidia.com/feed/"
+      max_items: 2
+    - name: "Microsoft Research"
+      kind: rss
+      url: "https://www.microsoft.com/en-us/research/feed/"
+      max_items: 2
+    - name: "Meta Engineering"
+      kind: rss
+      url: "https://engineering.fb.com/feed/"
+      max_items: 2
+    - name: "GitHub Engineering"
+      kind: rss
+      url: "https://github.blog/engineering/feed/"
+      max_items: 2
+    - name: "Cloudflare Blog"
+      kind: rss
+      url: "https://blog.cloudflare.com/rss/"
+      max_items: 2
+    - name: "Netflix TechBlog"
+      kind: rss
+      url: "https://netflixtechblog.com/feed"
+      max_items: 2
+    - name: "Sourcegraph Blog"
+      kind: rss
+      url: "https://sourcegraph.com/blog/rss.xml"
+      max_items: 2
+    - name: "CNCF"
+      kind: rss
+      url: "https://www.cncf.io/feed/"
+      max_items: 2
+    # 2,714 entries in the feed. The cap is not a preference, it is a defence.
+    - name: "Thoughtworks Insights"
+      kind: rss
+      url: "https://www.thoughtworks.com/rss/insights.xml"
+      max_items: 2
+
+    # Discovery. Both measured better-signal than hnrss.org/frontpage, which the
+    # ai topic uses, and unlike it both carry real summaries.
+    - name: "Lobsters"
+      kind: rss
+      url: "https://lobste.rs/rss"
+      max_items: 5
+    - name: "Hacker News (100+ points)"
+      kind: rss
+      url: "https://hnrss.org/best?points=100"
+      max_items: 5

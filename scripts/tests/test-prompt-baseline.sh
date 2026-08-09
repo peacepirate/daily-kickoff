@@ -59,6 +59,11 @@ emit_rows() {
   local cfg JOB SCHEDULE PRODUCER_TPL PROMPT_REL OUTPUT_TPL offset DATE PRODUCER OUT_ABS OUT_REL SHA
   for cfg in "$REPO_DIR"/scripts/topics/*.yaml; do
     JOB="$(basename "$cfg" .yaml)"
+    # A fetch-step config has no prompt and no output, so it has no row to
+    # freeze. Skipped rather than counted, which keeps this baseline about the
+    # nightly *publish* path and keeps the 28-row assertion meaningful as
+    # fetch-only source pools are added beside it.
+    [ "$(cfg_get "$cfg" step llm)" = "fetch" ] && continue
     SCHEDULE="$(cfg_get "$cfg" schedule daily)"
     PRODUCER_TPL="$(cfg_get "$cfg" producer)"
     PROMPT_REL="$(cfg_get "$cfg" prompt)"
