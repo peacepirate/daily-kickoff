@@ -1,0 +1,370 @@
+"""The candidate pool and the published ledger for the public feed.
+
+The problem this exists for is measured, not hypothetical: **52% of urls arrive
+on more than one day, and the worst appeared on 32 of 34 days sampled.** News
+index pages re-emit their front page nightly. Without a memory that outlives the
+run, a feed built on these bundles republishes the same item every night, which
+is the most visible way a curation product can look broken.
+
+Two files, both JSONL, both committed:
+
+  pool.jsonl     candidates seen but not yet published
+  ledger.jsonl   append-only, every id ever published
+
+Committed rather than kept in scripts/logs/, which is gitignored and
+single-machine — a ledger that does not survive a fresh clone is not a ledger.
+Committed to the *engine* repo rather than the feed repo, because the pool
+records what was considered and rejected, and publishing rejection judgements
+about other people's writing is a different product than the one being built.
+
+The pool is a **staleness-bounded overflow, not a savings account.** Holding a
+fresh item back to pad a thin day later is precisely the dishonesty the product
+forbids; the pool exists so that a day which genuinely has nothing new can say
+so without the pipeline pretending otherwise.
+
+Pure stdlib. No network, no git, no clock of its own — `today` is always passed
+in, so a test can run any calendar it likes and a replay of a stored bundle
+reproduces exactly.
+"""
+from __future__ import annotations
+
+import json
+import os
+from datetime import date as Date, timedelta
+from pathlib import Path
+
+# An item whose body is shorter than this cannot become a card: the public card
+# *is* the summary. 80 characters is the same threshold the ingestion
+# measurement used, so "qualifying pool" means one thing in both places.
+MIN_SUMMARY = 80
+
+# Titles outside this range are navigation furniture or scraped page chrome, not
+# articles. Mirrors the bounds fetch_html already applies.
+MIN_TITLE, MAX_TITLE = 20, 250
+
+# How long a candidate stays eligible. Past this it is not news, and publishing
+# it would be the pool acting as a savings account.
+MAX_AGE_DAYS = 14
+
+# Hard ceiling, oldest dropped first. A pool that grows without bound is a
+# memory leak with a diff attached.
+POOL_CAP = 600
+
+
+# ── storage ──────────────────────────────────────────────────────────────────
+
+def read_jsonl(path) -> list[dict]:
+    """Every well-formed object in `path`. Missing file is empty, not an error.
+
+    A malformed line is skipped rather than fatal. These files are appended to
+    by a nightly job; one truncated write must not make the whole history
+    unreadable, because the failure mode of "unreadable ledger" is republishing
+    everything ever published.
+    """
+    p = Path(path)
+    if not p.exists():
+        return []
+    out = []
+    with open(p) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(obj, dict):
+                out.append(obj)
+    return out
+
+
+def write_jsonl(path, rows: list[dict]) -> None:
+    """Rewrite `path` atomically. Used for the pool, which is rewritten whole."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    with open(tmp, "w") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+    os.replace(tmp, p)
+
+
+def append_jsonl(path, rows: list[dict]) -> None:
+    """Append to `path`. Used for the ledger, which is never rewritten.
+
+    Append-only on purpose: a rewrite that goes wrong silently un-publishes
+    history, and the pool would then re-offer everything the rewrite dropped.
+    """
+    if not rows:
+        return
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "a") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+# ── admission ────────────────────────────────────────────────────────────────
+
+def contains_blocked(record: dict, terms: list[str]) -> bool:
+    """True when any blocked term appears in the record's text.
+
+    The pool is committed to a public repo, so a news story that merely mentions
+    a blocked name would put it back the day after it was removed. Filtering on
+    entry rather than scanning the file afterwards means such an item is never
+    written, never committed, and never becomes a card — which is what a neutral
+    brand wants regardless of the repo.
+
+    Spaces are stripped from both sides before comparison, the same rule the
+    shell checker uses, so "Example Corp" also catches "ExampleCorp".
+    """
+    if not terms:
+        return False
+    hay = " ".join(str(record.get(f, "")) for f in ("title", "summary", "url", "source")).lower()
+    squashed = hay.replace(" ", "")
+    for term in terms:
+        t = term.strip().lower()
+        if not t:
+            continue
+        if t in hay or t.replace(" ", "") in squashed:
+            return True
+    return False
+
+
+def qualifies(record: dict) -> bool:
+    """The quality bar, and the definition of a 'qualifying' item.
+
+    Deliberately the same predicate the ingestion measurement uses. A launch
+    gate whose threshold is measured by one rule and enforced by another is a
+    gate that cannot be reasoned about.
+    """
+    if not record.get("id"):
+        return False
+    title = (record.get("title") or "").strip()
+    if not (MIN_TITLE <= len(title) <= MAX_TITLE):
+        return False
+    return len((record.get("summary") or "").strip()) >= MIN_SUMMARY
+
+
+def ingest(records: list[dict], pool: list[dict], ledger_ids: set,
+           today: Date, blocked_terms: list[str] | None = None) -> tuple[list[dict], dict]:
+    """Fold today's records into the pool. Returns (new_pool, stats).
+
+    Deduplication runs over three horizons, and they are genuinely different
+    questions:
+
+      within the batch   the same story fetched from two sources this morning
+      against the pool   a candidate carried over from a previous day
+      against the ledger something already published, possibly weeks ago
+
+    Only the third needs to be permanent, which is why the ledger is append-only
+    and the pool is not.
+
+    `first_seen` is set once, on entry, and never refreshed. Refreshing it on
+    every re-arrival would make an item that appears daily immortal — exactly
+    the items that most need to age out.
+    """
+    blocked_terms = blocked_terms or []
+    by_id = {r["id"]: r for r in pool if r.get("id")}
+    stats = {"seen": len(records), "added": 0, "dup_batch": 0,
+             "dup_pool": 0, "dup_ledger": 0, "unqualified": 0, "blocked": 0}
+    batch_seen: set = set()
+
+    for rec in records:
+        rid = rec.get("id")
+        if not rid:
+            stats["unqualified"] += 1
+            continue
+        if rid in batch_seen:
+            stats["dup_batch"] += 1
+            continue
+        batch_seen.add(rid)
+        if rid in ledger_ids:
+            stats["dup_ledger"] += 1
+            continue
+        if rid in by_id:
+            stats["dup_pool"] += 1
+            continue
+        if contains_blocked(rec, blocked_terms):
+            stats["blocked"] += 1
+            continue
+        if not qualifies(rec):
+            stats["unqualified"] += 1
+            continue
+        entry = dict(rec)
+        entry["first_seen"] = today.isoformat()
+        by_id[rid] = entry
+        stats["added"] += 1
+
+    return list(by_id.values()), stats
+
+
+def prune(pool: list[dict], today: Date,
+          max_age_days: int = MAX_AGE_DAYS,
+          cap: int = POOL_CAP) -> tuple[list[dict], list[dict], dict]:
+    """Drop what is too old, then what does not fit.
+
+    Returns (pool, retired_rows, stats). The retired rows are ledger rows, and
+    writing them is not optional.
+
+    **Why retirement must be recorded.** Expiring an item only removes it from
+    the pool. The source that served it on day 1 is usually still serving it on
+    day 15, so without a tombstone the item walks straight back in with a fresh
+    `first_seen` and becomes publishable as news three weeks after it was news.
+    That is the same republishing failure this module exists to prevent, running
+    slower and therefore harder to notice. The 30-day replay test caught exactly
+    this and it is the reason retirement is a ledger event rather than a delete.
+
+    Age first, then cap: capping first would keep a stale item over a fresh one
+    purely because the stale one was already there.
+    """
+    cutoff = today - timedelta(days=max_age_days)
+    stats = {"before": len(pool), "expired": 0, "over_cap": 0}
+    kept, retired = [], []
+    for row in pool:
+        try:
+            seen = Date.fromisoformat(row.get("first_seen", ""))
+        except ValueError:
+            # No usable first_seen: treat as today rather than dropping it. A
+            # parse failure must not delete a candidate.
+            seen = today
+        if seen < cutoff:
+            stats["expired"] += 1
+            retired.append({"id": row.get("id", ""), "url": row.get("url", ""),
+                            "status": "expired", "date": today.isoformat()})
+            continue
+        kept.append(row)
+
+    kept.sort(key=lambda r: (r.get("first_seen", ""), r.get("id", "")), reverse=True)
+    if len(kept) > cap:
+        # Over-cap items are retired too. Dropping them silently would leave the
+        # same resurrection hole the age bound had.
+        for row in kept[cap:]:
+            retired.append({"id": row.get("id", ""), "url": row.get("url", ""),
+                            "status": "over_cap", "date": today.isoformat()})
+        stats["over_cap"] = len(kept) - cap
+        kept = kept[:cap]
+    stats["after"] = len(kept)
+    return kept, retired, stats
+
+
+# ── publishing ───────────────────────────────────────────────────────────────
+
+def ledger_ids(ledger: list[dict]) -> set:
+    """Every id the pool must never offer again — published AND retired.
+
+    One set, deliberately. The pool only ever asks "have I finished with this?",
+    and splitting the answer across two files invites a caller that checks one.
+    """
+    return {row["id"] for row in ledger if row.get("id")}
+
+
+def published_rows(ledger: list[dict]) -> list[dict]:
+    """Only the rows that were actually published, for permalinks and rebuilds."""
+    return [r for r in ledger if r.get("status", "published") == "published"]
+
+
+def mark_published(ids: list[str], pool: list[dict], today: Date) -> tuple[list[dict], list[dict]]:
+    """Move `ids` out of the pool and into ledger rows. Returns (pool, rows).
+
+    The url is carried into the ledger, not just the id. An id is a hash and
+    cannot be read; when something goes wrong at 06:00 the question is always
+    "which item was that", and a ledger that cannot answer it is a ledger nobody
+    trusts enough to act on.
+    """
+    wanted = set(ids)
+    rows, kept = [], []
+    for row in pool:
+        if row.get("id") in wanted:
+            rows.append({"id": row["id"], "url": row.get("url", ""),
+                         "status": "published", "published": today.isoformat()})
+        else:
+            kept.append(row)
+    return kept, rows
+
+
+def rebuild_ledger(published_records: list[dict], fallback_date: str) -> list[dict]:
+    """Reconstruct ledger rows from what was actually published.
+
+    The recovery path for a lost or corrupted ledger. Published output is the
+    authority — it is what readers saw — and the ledger is a cache of it. Losing
+    a cache should cost a rebuild, never a week of duplicate cards.
+    """
+    out, seen = [], set()
+    for rec in published_records:
+        rid = rec.get("id")
+        if not rid or rid in seen:
+            continue
+        seen.add(rid)
+        out.append({"id": rid, "url": rec.get("url", ""),
+                    "published": rec.get("published") or rec.get("date") or fallback_date})
+    return out
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────
+#
+# Deliberately not wired into the nightly run yet. The feed publishes nothing
+# today, so there is no `mark_published` caller and a pool that only ever grows
+# would prove nothing. It runs on demand now, and over stored records — which
+# works precisely because ingest() takes `today` as an argument instead of
+# reading a clock, so a week of accumulated bundles can be replayed in order and
+# produce the same pool the nightly path would have.
+
+def _blocklist_terms(path) -> list[str]:
+    """Read the shared blocklist. Missing file raises — callers decide.
+
+    Fails loudly rather than returning [] : an empty term list silently disables
+    the one admission rule whose failure is unrecoverable.
+    """
+    out = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                out.append(line)
+    if not out:
+        raise ValueError(f"blocklist has no terms: {path}")
+    return out
+
+
+def _main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description="Feed candidate pool and published ledger")
+    ap.add_argument("command", choices=["ingest", "stats"])
+    ap.add_argument("--records", help="JSONL record sidecar to ingest")
+    ap.add_argument("--state", required=True, help="Directory holding pool.jsonl and ledger.jsonl")
+    ap.add_argument("--date", required=True, help="Run date, YYYY-MM-DD")
+    ap.add_argument("--blocklist", help="Path to the blocklist (required for ingest)")
+    a = ap.parse_args(argv)
+
+    state = Path(a.state)
+    pool = read_jsonl(state / "pool.jsonl")
+    ledger = read_jsonl(state / "ledger.jsonl")
+    today = Date.fromisoformat(a.date)
+
+    if a.command == "stats":
+        print(f"pool   {len(pool)} candidate(s)")
+        print(f"ledger {len(ledger)} published")
+        if pool:
+            ages = sorted(r.get("first_seen", "") for r in pool)
+            print(f"oldest candidate first seen {ages[0]}, newest {ages[-1]}")
+        return 0
+
+    if not a.records or not a.blocklist:
+        ap.error("ingest needs --records and --blocklist")
+    terms = _blocklist_terms(a.blocklist)
+    records = read_jsonl(a.records)
+    pool, st = ingest(records, pool, ledger_ids(ledger), today, terms)
+    pool, retired, pst = prune(pool, today)
+    write_jsonl(state / "pool.jsonl", pool)
+    append_jsonl(state / "ledger.jsonl", retired)
+    print(f"ingest {a.date}: seen={st['seen']} added={st['added']} "
+          f"dup_batch={st['dup_batch']} dup_pool={st['dup_pool']} dup_ledger={st['dup_ledger']} "
+          f"unqualified={st['unqualified']} blocked={st['blocked']}")
+    print(f"prune:  expired={pst['expired']} over_cap={pst['over_cap']} pool={pst['after']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
