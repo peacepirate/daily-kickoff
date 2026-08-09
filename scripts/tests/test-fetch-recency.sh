@@ -134,6 +134,55 @@ ev_urls = [i["url"].rsplit("/", 1)[-1] for i in evs]
 chk("a forthcoming event is kept", "ev1" in ev_urls, True)
 chk("a past event is still dropped", "ev2" in ev_urls, False)
 
+print("── the record sidecar cannot cost the digest anything ────────────────────")
+import io, json, os, tempfile, contextlib
+
+# The bundle on stdout is the contract the nightly digest depends on. The
+# sidecar is an extra for a product that does not exist yet, so the only
+# acceptable failure mode is: feed loses its records, digest loses nothing.
+fs.args.records = None
+fs.RECORDS.clear()
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    fs.print_item("Src", "A title", "https://example.com/x", "2026-08-08", "A summary")
+without = buf.getvalue()
+
+tmpdir = tempfile.mkdtemp()
+fs.args.records = os.path.join(tmpdir, "sub", "rec.jsonl")
+fs.RECORDS.clear()
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    fs.print_item("Src", "A title", "https://example.com/x", "2026-08-08", "A summary")
+with_records = buf.getvalue()
+
+chk("the bundle is byte-identical with and without --records", with_records, without)
+chk("one record was captured", len(fs.RECORDS), 1)
+
+fs.write_records()
+chk("the sidecar is written, creating parent directories",
+    os.path.isfile(fs.args.records), True)
+with open(fs.args.records) as fh:
+    lines = [json.loads(l) for l in fh if l.strip()]
+chk("one json object per line", len(lines), 1)
+chk("the record carries the item id", lines[0]["id"], fs.item_record("S","T","https://example.com/x","d","s")["id"])
+
+# An unwritable path is the realistic failure: a full disk, a bad config, a
+# read-only volume. It must warn and return, never raise.
+fs.args.records = "/proc/definitely/not/writable/rec.jsonl"
+raised = False
+try:
+    fs.write_records()
+except Exception:
+    raised = True
+chk("an unwritable sidecar path warns instead of raising", raised, False)
+
+fs.args.records = None
+fs.RECORDS.clear()
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    fs.print_item("Src", "A title", "https://example.com/x", "2026-08-08", "A summary")
+chk("with --records off, nothing is accumulated", len(fs.RECORDS), 0)
+
 print()
 if FAIL == 0:
     print(f"\033[32mPASS\033[0m ({COUNT}) — fetch recency tests passed")

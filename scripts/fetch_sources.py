@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import json
 import os
 import re
 import sys
@@ -31,6 +32,8 @@ except ImportError:
 parser = argparse.ArgumentParser(description="Fetch topic sources")
 parser.add_argument("--topic", required=True, help="Topic name (must match scripts/topics/TOPIC.yaml)")
 parser.add_argument("--weekly", action="store_true", help="Use 7-day lookback window instead of 24h")
+parser.add_argument("--records", metavar="PATH",
+                    help="Also write a JSONL record per item to PATH (structured twin of the bundle)")
 args = parser.parse_args()
 
 IS_WEEKLY = args.weekly
@@ -45,7 +48,7 @@ SCRIPT_DIR = Path(__file__).parent
 # making scripts/ a package, so a producer at any depth (studio/) imports it
 # the same way and no invocation depends on the caller's cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from bundle import format_item  # noqa: E402  — needs the path line above
+from bundle import format_item, item_record  # noqa: E402  — needs the path line above
 
 CONFIG_PATH = SCRIPT_DIR / "topics" / f"{args.topic}.yaml"
 if not CONFIG_PATH.exists():
@@ -69,8 +72,36 @@ def client() -> httpx.Client:
 def warn(msg: str) -> None:
     print(f"  [WARN] {msg}", file=sys.stderr)
 
+# Accumulated in memory and written once at the end, not appended per item: a
+# run that dies halfway should leave no sidecar rather than a truncated one a
+# consumer would read as complete.
+RECORDS: list[dict] = []
+
+
 def print_item(source: str, title: str, url: str, date: str, summary: str) -> None:
     print(format_item(source, title, url, date, summary), end="")
+    if args.records:
+        RECORDS.append(item_record(source, title, url, date, summary))
+
+
+def write_records() -> None:
+    """Write the sidecar, or warn. Never raises.
+
+    The bundle is the contract the nightly digest depends on and it is already
+    on stdout by the time this runs. A sidecar is an extra for a product that
+    does not exist yet, so a full disk or a bad path must cost the feed its
+    records and cost the digest nothing.
+    """
+    if not args.records:
+        return
+    try:
+        path = Path(args.records)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as fh:
+            for rec in RECORDS:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception as ex:
+        warn(f"records sidecar not written to {args.records}: {ex}")
 
 
 # ── Event date extraction ─────────────────────────────────────────────────────
@@ -461,6 +492,7 @@ def main() -> None:
                 total += 1
 
     print(f"\n---\n*End of fetched content — {total} total items*")
+    write_records()
     print(f"Total fetched: {total} items", file=sys.stderr)
 
 

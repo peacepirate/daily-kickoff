@@ -335,6 +335,57 @@ probe "imports format_item when run as scripts/fetch_sources.py from the repo ro
 probe "imports format_item when run by absolute path from another cwd" \
       "$WORK" "$REPO_DIR/scripts/fetch_sources.py"
 
+# ── item_id / item_record — the sidecar's identity rules ─────────────────────
+#
+# item_id is both the deduplication key and the permalink anchor, deliberately:
+# two identifiers for one item eventually disagree, and the disagreement shows
+# up as a duplicate card or a dead link. So the properties below are not style
+# preferences — a break in any of them corrupts a ledger that is meant to
+# outlive the run that wrote it.
+echo "item_id"
+"$PYBIN" - "$REPO_DIR" <<'PYEOF'
+import sys
+sys.path.insert(0, sys.argv[1] + "/scripts/lib")
+from bundle import item_id, item_record, normalize_url, RECORD_FIELDS
+
+fails = []
+def chk(label, cond):
+    print(("  ok    " if cond else "  FAIL  ") + label)
+    if not cond: fails.append(label)
+
+A = "https://example.com/a"
+chk("same url gives the same id across calls", item_id(A) == item_id(A))
+chk("a trailing slash does not change identity", item_id(A) == item_id(A + "/"))
+chk("a utm_ parameter does not change identity",
+    item_id(A) == item_id(A + "?utm_source=newsletter"))
+chk("scheme and host case do not change identity",
+    item_id(A) == item_id("https://EXAMPLE.com/a"))
+chk("a different path is a different id", item_id(A) != item_id("https://example.com/b"))
+chk("path case IS significant — normalize_url leaves it alone",
+    item_id(A) != item_id("https://example.com/A"))
+chk("a real query is kept — HN item?id= is the whole identity",
+    item_id("https://news.ycombinator.com/item?id=1") !=
+    item_id("https://news.ycombinator.com/item?id=2"))
+chk("empty url yields empty id, not a hash of nothing", item_id("") == "")
+chk("id is 12 hex chars", len(item_id(A)) == 12 and all(c in "0123456789abcdef" for c in item_id(A)))
+chk("id is usable as a url fragment with no escaping", item_id(A).isalnum())
+
+# The documented consequence of dropping the fragment. Asserted so that changing
+# normalize_url's rule breaks a test that explains itself, rather than silently
+# splitting or merging every releasebot item in an existing ledger.
+chk("urls differing only by fragment share an id (documented consequence)",
+    item_id("https://r.io/u/a#1.2.3") == item_id("https://r.io/u/a#1.2.4"))
+
+r = item_record("Src", "Title", A, "2026-08-08", "Summary text")
+chk("record carries exactly the declared fields", tuple(r.keys()) == RECORD_FIELDS)
+chk("record id agrees with item_id", r["id"] == item_id(A))
+chk("record keeps the original url, not the normalized one", r["url"] == A)
+chk("record carries source, which the bundle deliberately omits", r["source"] == "Src")
+
+sys.exit(1 if fails else 0)
+PYEOF
+if [ "$?" = "0" ]; then COUNT=$((COUNT + 15)); else COUNT=$((COUNT + 15)); FAIL=1; fi
+
 echo
 if [ "$FAIL" = "0" ]; then
   echo "PASS ($COUNT) — bundle tests passed"

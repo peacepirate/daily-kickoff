@@ -10,6 +10,7 @@ Pure stdlib, no I/O, no argparse — importable from anywhere.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from urllib.parse import urlsplit, urlunsplit
 
@@ -80,3 +81,62 @@ def normalize_url(url: str) -> str:
     return urlunsplit(
         (parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), query, "")
     )
+
+
+# The record sidecar — structured identity for consumers that are not a prompt.
+#
+# The bundle above is written for a language model: labelled prose, lossy on
+# purpose. A feed needs the same items as data, with a key that survives
+# rebuilds and can be deduplicated against. Rather than parse the prose back —
+# two readers of one format is the drift this module exists to prevent — the
+# producer emits both from the same call site.
+
+RECORD_FIELDS = ("id", "source", "title", "url", "date", "summary")
+
+
+def item_id(url: str) -> str:
+    """A stable 12-hex-char identity for `url`, or "" when there is no url.
+
+    sha256 over `normalize_url`, truncated. Two properties matter and neither is
+    cryptographic:
+
+    1. **Stable across runs and machines.** It is a pure function of the
+       normalized url, so a rebuild produces the same key and a ledger written
+       last month still matches today's fetch.
+    2. **Usable as a permalink fragment.** Hex, fixed width, no escaping. The
+       deduplication key and the anchor are therefore the same string, which is
+       the point: two identifiers for one item eventually disagree, and the
+       disagreement surfaces as a duplicate card or a dead link.
+
+    48 bits. At corpus scale — tens of thousands of items — the birthday
+    probability of a collision is on the order of 1e-5, and the cost of one is a
+    single item silently treated as already-seen. Widen the slice before that
+    trade stops being acceptable; do not widen it after.
+
+    Inherits `normalize_url`'s fragment rule, so releasebot-style urls that
+    differ only by `#version` share one id. Those sources are excluded from the
+    feed for an unrelated reason (they carry no summary), but a future consumer
+    that wants per-version identity must carry the title too.
+    """
+    norm = normalize_url(url)
+    if not norm:
+        return ""
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:12]
+
+
+def item_record(source: str, title: str, url: str, date: str, summary: str) -> dict:
+    """The structured twin of `format_item`, from the same arguments.
+
+    `source` IS emitted here, unlike in the bundle, where printing it would
+    change the nightly wire format. A consumer needs to know which feed an item
+    came from — per-source caps and diversity limits are unenforceable without
+    it — and a sidecar has no prompt to disturb.
+    """
+    return {
+        "id": item_id(url),
+        "source": source,
+        "title": title,
+        "url": url,
+        "date": date,
+        "summary": summary,
+    }

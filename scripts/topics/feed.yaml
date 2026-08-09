@@ -1,6 +1,6 @@
 name:     "Public Feed source pool"
 schedule: daily
-producer: fetch_sources.py --topic feed {{WEEKLY_FLAG}}
+producer: fetch_sources.py --topic feed --records scripts/logs/records-{{DATE}}-feed.jsonl {{WEEKLY_FLAG}}
 step:     fetch
 
 # step: fetch — this job produces a bundle and stops. No prompt, no model call,
