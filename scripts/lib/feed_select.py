@@ -37,10 +37,12 @@ from urllib.parse import urlsplit
 
 try:                                    # normal: scripts/lib is on the path
     from bundle import is_safe_url
+    from feed_pool import summary_exempt
 except ImportError:                     # imported with only the repo root there
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from bundle import is_safe_url
+    from feed_pool import summary_exempt
 
 # How many candidates the model is shown. Large enough that it is exercising
 # judgement rather than rubber-stamping a set code already chose; small enough
@@ -65,6 +67,9 @@ FINAL_PER_SOURCE, FINAL_PER_DOMAIN = 1, 2
 # removes 8 of 64, because admission at 80 characters already did most of this
 # work. It is a real effect and a small one, and it is documented as small so
 # nobody later reads it as a strong control and stops looking for one.
+#
+# Waived for a row whose source declared `substance: title-only` — see
+# feed_pool.summary_exempt, which owns the rule both gates read.
 MIN_SUMMARY_SELECT = 120
 
 # Two write-ups of one announcement are not two items. Advisory only — the
@@ -87,7 +92,7 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 def source_tiers(config_path) -> dict[str, int]:
     """Map source name to tier number from a fetch config.
 
-    The tiers in `scripts/topics/feed.yaml` are the only place editorial
+    The tiers in the feed pool config are the only place editorial
     priority is written down, so ranking reads them rather than inventing a
     second opinion that would immediately disagree with the first.
 
@@ -164,7 +169,9 @@ def ineligible_reason(row: dict, today: Date, ledger: set,
         seen = today
     if (today - seen).days > max_age_days:
         return "stale"
-    if len((row.get("summary") or "").strip()) < min_summary:
+    # Checked last, and the exemption reaches only this rule. Everything above
+    # — url safety, the ledger, staleness — still refuses a titles-only row.
+    if not summary_exempt(row) and len((row.get("summary") or "").strip()) < min_summary:
         return "thin_summary"
     return None
 

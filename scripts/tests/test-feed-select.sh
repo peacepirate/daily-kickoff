@@ -241,11 +241,46 @@ chk("an empty pool does not crash the vocabulary",
     fs.thin_reason(0, fs.shortlist([], set(), TODAY, {})["stats"]), "pool_thin")
 
 print("── the real config parses ────────────────────────────────────────────────")
-tiers = fs.source_tiers(repo / "scripts" / "topics" / "feed.yaml")
+# The live pool config, found rather than spelled out: it has moved between
+# job kinds once already, and a hard-coded path turns that into a suite that
+# dies instead of one that follows.
+cfg = next(iter(sorted((repo / "scripts").glob("*/*feed.yaml"))), None)
+assert cfg is not None, "no feed pool config found under scripts/*/"
+tiers = fs.source_tiers(cfg)
 chk("every configured source has a tier", len(tiers) >= 30, True)
 chk("tiers are 1, 2 and 3", sorted(set(tiers.values())), [1, 2, 3])
 chk("an unconfigured source falls to the unknown tier",
     fs.tier_of({"source": "Nope"}, tiers), fs.UNKNOWN_TIER)
+
+print("── the titles-only exemption at selection ────────────────────────────────")
+
+from datetime import date as _D
+def srow(**kw):
+    r = {"id": "b" * 12, "title": "A headline of a perfectly ordinary length here",
+         "url": "https://example.com/y", "summary": "short", "source": "S",
+         "first_seen": "2026-08-10"}
+    r.update(kw); return r
+
+TODAY = _D(2026, 8, 10)
+chk("a thin summary is ineligible without the flag",
+    fs.ineligible_reason(srow(), TODAY, set(), 14, fs.MIN_SUMMARY_SELECT), "thin_summary")
+chk("...and eligible with it",
+    fs.ineligible_reason(srow(substance="title-only"), TODAY, set(), 14, fs.MIN_SUMMARY_SELECT), None)
+chk("a misspelled flag leaves the gate on",
+    fs.ineligible_reason(srow(substance="titles-only"), TODAY, set(), 14, fs.MIN_SUMMARY_SELECT),
+    "thin_summary")
+
+# Everything upstream of the summary rule still refuses an exempt row. If any of
+# these start returning None the exemption has grown past what it was granted.
+chk("an exempt row already published is still refused",
+    fs.ineligible_reason(srow(substance="title-only"), TODAY, {"b" * 12}, 14, fs.MIN_SUMMARY_SELECT),
+    "published")
+chk("an exempt row that has aged out is still refused",
+    fs.ineligible_reason(srow(substance="title-only", first_seen="2026-01-01"),
+                         TODAY, set(), 14, fs.MIN_SUMMARY_SELECT), "stale")
+chk("an exempt row with an unsafe url is still refused",
+    fs.ineligible_reason(srow(substance="title-only", url="javascript:alert(1)"),
+                         TODAY, set(), 14, fs.MIN_SUMMARY_SELECT), "unsafe_url")
 
 print()
 if FAIL == 0:

@@ -46,6 +46,11 @@ trap 'rm -rf "$WORK"' EXIT
 END=2026-08-02
 START=2026-07-20
 
+# The job kinds select_corpus.py must walk, as this suite's own copy of the
+# vocabulary. Asserted equal to JOB_KINDS below, then exercised one kind at a
+# time against real fixture directories.
+KINDS="topics generators feed"
+
 # ── Fixture builders ─────────────────────────────────────────────────────────
 
 new_repo() {  # NAME -> path
@@ -296,10 +301,13 @@ grep -q 'missing required frontmatter field(s): tldr' <<<"$ERR" \
 
 run_corpus "$MAIN" "$BARE" --job nosuchjob --date "$END"
 [ "$RC" != 0 ] && ok "an unknown job exits non-zero" || bad "unknown job: rc=$RC"
-grep -q 'scripts/topics/nosuchjob.yaml' <<<"$ERR" \
-  && grep -q 'scripts/generators/nosuchjob.yaml' <<<"$ERR" \
-  && ok "the error names both paths searched, topics/ then generators/" \
-  || bad "paths not named: $ERR"
+unnamed=""
+for kind in $KINDS; do
+  grep -q "scripts/$kind/nosuchjob.yaml" <<<"$ERR" || unnamed="$unnamed $kind"
+done
+[ -z "$unnamed" ] \
+  && ok "the error names every kind searched ($KINDS)" \
+  || bad "paths not named for:$unnamed — $ERR"
 
 # The same idiom as fetch_sources.py --topic ai: a job defined under topics/ is
 # found there. Red if resolution only ever looked in generators/.
@@ -314,6 +322,73 @@ rm -f "$MAIN/scripts/topics/topicjob.yaml"
 [ "$?" != 0 ] && grep -q 'resolve_studio_dir' "$WORK/err.txt" \
   && ok "an unset STUDIO_DIR is refused, pointing at resolve_studio_dir" \
   || bad "unset STUDIO_DIR: $(cat "$WORK/err.txt")"
+
+# ── S4.9 — every job kind is walked ──────────────────────────────────────────
+#
+# A config is scripts/<kind>/<job>.yaml, and two loops walk the kinds:
+# find_job_config() resolves the selecting job, and collection_schedules() builds
+# the collection→schedule map the coverage header is computed from. The second is
+# the dangerous one: a kind missing from it raises nothing, it just reports every
+# collection that kind produces as `N/? (no job writes src/content/…/)` — a line
+# that looks like a fact about the corpus rather than a hole in the tool.
+#
+# Each kind gets a fixture directory and a real run. Asserting the contents of
+# JOB_KINDS would pass with either loop deleted.
+
+py_kinds="$(sed -n 's/^JOB_KINDS = (\(.*\))$/\1/p' "$SELECT" | tr -d '",')"
+[ -n "$py_kinds" ] && [ "$py_kinds" = "$KINDS" ] \
+  && ok "JOB_KINDS matches the kinds exercised below ($KINDS)" \
+  || bad "JOB_KINDS is '$py_kinds', this suite exercises '$KINDS' — one of them is stale"
+
+for kind in $KINDS; do
+  KR="$(new_repo "kind-$kind")"
+  mkdir -p "$KR/scripts/$kind"
+
+  # Writes a collection, so it must reach the schedule map. saturday over the
+  # fixed window expects 2026-07-25 and 2026-08-01, and both digests exist.
+  cat > "$KR/scripts/$kind/kindprod.yaml" <<EOF
+name:     "kindprod"
+schedule: saturday
+producer: fetch_sources.py --topic kindprod
+prompt:   scripts/prompts/kindprod.md
+output:   src/content/kindcov/{{DATE}}.md
+EOF
+
+  # Two selecting jobs, identical but for where they live. The one under the
+  # kind under test proves find_job_config() reaches that directory; the one
+  # under generators/ stays resolvable when it does not, so the coverage
+  # assertion below still runs and isolates collection_schedules().
+  for picker in "$kind:kindpick" "generators:refpick"; do
+    cat > "$KR/scripts/${picker%%:*}/${picker##*:}.yaml" <<EOF
+name:     "${picker##*:}"
+schedule: never
+output:   \$STUDIO_DIR/angles/{{DATE}}.md
+
+selection:
+  lookback_days: 14
+  collections: [kindcov]
+  half_life_days: 7
+  weights:
+    theme:   { kindcov: 1.0 }
+    starred: 1.5
+    noted:   2.0
+    done:    0.3
+EOF
+  done
+
+  mkdigest "$KR" kindcov 2026-07-25
+  mkdigest "$KR" kindcov 2026-08-01
+
+  run_corpus "$KR" "$BARE" --job kindpick --date "$END"
+  [ "$RC" = 0 ] \
+    && ok "a selecting job under scripts/$kind/ resolves" \
+    || bad "scripts/$kind/kindpick.yaml did not resolve: rc=$RC err=$ERR"
+
+  run_corpus "$KR" "$BARE" --job refpick --date "$END"
+  grep -q 'kindcov 2/2' <<<"$OUT" \
+    && ok "a producer under scripts/$kind/ supplies its collection's schedule" \
+    || bad "scripts/$kind/ absent from the schedule map: $(grep '^# coverage' <<<"$OUT")"
+done
 
 # ── S3.5 — coverage ──────────────────────────────────────────────────────────
 

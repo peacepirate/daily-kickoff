@@ -32,9 +32,33 @@ STUDIO_DIR="$(resolve_studio_dir)"
 COMMITTED=0
 FAILED_JOBS=""
 
-for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*.yaml; do
+# Ordering is declared before anything runs, so a half-applied numeric prefix
+# is a refusal rather than a job silently executing in the wrong place.
+assert_job_order || { log "ERROR: refusing to run with ambiguous job order."; exit 1; }
+
+# TWO PHASES, and the split is the point (S10.4, S10.5).
+#
+# Phase 1 is the private digest and the studio generators. Phase 2 is the public
+# feed. The digest commit sits between them, so a feed job that fails — a model
+# refusal, a missing feed checkout, a site that will not build — cannot cost the
+# night its digests, because they are already committed by the time it runs. The
+# reverse holds too: phase 2 runs whether or not phase 1 succeeded.
+#
+# Before this, both lived in one loop and the ordering was whichever way the
+# directory globs happened to fall.
+PHASE_MAIN=(); PHASE_FEED=()
+while IFS= read -r config; do
+  case "$(basename "$(dirname "$config")")" in
+    feed) PHASE_FEED+=("$config") ;;
+    *)    PHASE_MAIN+=("$config") ;;
+  esac
+done < <(job_config_files)
+
+run_configs() {  # CONFIG... — updates COMMITTED and FAILED_JOBS in place
+  local config JOB JOB_KIND SCHEDULE OUTPUT_TPL STEP OUTPUT_FILE SCHEDULED
+  for config in "$@"; do
   [ -f "$config" ] || continue
-  JOB="$(basename "$config" .yaml)"
+  JOB="$(job_name_of "$config")"
   JOB_KIND="$(basename "$(dirname "$config")")"
   # A malformed config must fail its own job, not abort the whole run before
   # the commit and push gates. `||` suspends set -e for the assignment.
@@ -98,7 +122,14 @@ for config in "$REPO_DIR/scripts/topics"/*.yaml "$REPO_DIR/scripts/generators"/*
   (DIGEST_DATE="$DATE" bash "$REPO_DIR/scripts/run-job.sh" "$JOB") \
     && COMMITTED=$((COMMITTED + 1)) \
     || { log "WARN: $JOB failed"; FAILED_JOBS="$FAILED_JOBS $JOB"; }
-done
+  done
+}
+
+# Phase 1 — digests and generators. `set -u` makes an empty array an error in
+# the bash macOS ships, so both calls are guarded rather than splatted blind.
+# An `if`, not `&&`: a false test as a bare command list is a non-zero exit,
+# which under `set -e` would end the run on the day a phase happens to be empty.
+if [ ${#PHASE_MAIN[@]} -gt 0 ]; then run_configs "${PHASE_MAIN[@]}"; fi
 
 # Single commit for all successfully generated content. All the guards — branch,
 # porcelain-not-diff, push split from commit with retry — live in
@@ -146,6 +177,12 @@ esac
 # the offending row is already on disk and nothing removes it. That is the
 # intended shape. A gate that clears itself by dropping the thing it caught is
 # not a gate.
+# Phase 2 — the public feed, strictly after the digest commit (S10.5).
+#
+# Everything above this line is already committed and pushed, so nothing below
+# can cost the night its digests. That is the whole reason the loop was split.
+if [ ${#PHASE_FEED[@]} -gt 0 ]; then run_configs "${PHASE_FEED[@]}"; fi
+
 if [ -d "$REPO_DIR/$FEED_STATE_REL" ]; then
   if ! assert_no_blocked_tree "the feed pool" "$REPO_DIR/$FEED_STATE_REL"; then
     log "ERROR: refusing to commit the feed pool. Edit $FEED_STATE_REL/pool.jsonl by hand;"
@@ -159,6 +196,30 @@ if [ -d "$REPO_DIR/$FEED_STATE_REL" ]; then
       *) FAILED_JOBS="$FAILED_JOBS feed-$COMMIT_PUSH_FAIL" ;;
     esac
   fi
+fi
+
+# The feed site — a third repo, verified and pushed (E10).
+#
+# Runs only if tonight's edition actually exists. A feed job that failed leaves
+# no file, and there is nothing to publish; building and committing anyway
+# would re-push yesterday's edition under tonight's message.
+#
+# An absent or non-git feed checkout is a warning, never a run failure — same
+# asymmetry as the studio, and for the same reason: a machine without the clone
+# must still publish digests. Everything past that gate is a real failure.
+FEED_SITE_DIR="$(resolve_feed_site_dir)"
+FEED_EDITION="$FEED_SITE_DIR/src/content/editions/$DATE.json"
+if [ ! -d "$FEED_SITE_DIR" ]; then
+  log "No feed site at $FEED_SITE_DIR — skipping the feed publish. Digests are unaffected."
+elif [ ! -f "$FEED_EDITION" ]; then
+  log "No edition for $DATE at $FEED_EDITION — nothing to publish."
+else
+  publish_feed_site "$FEED_SITE_DIR" "$DATE" && PF_RC=0 || PF_RC=$?
+  case "$PF_RC" in
+    0) log "Published the feed edition for $DATE." ;;
+    2) ;;  # nothing to commit — commit_and_push already said so
+    *) FAILED_JOBS="$FAILED_JOBS feed-site${COMMIT_PUSH_FAIL:+-$COMMIT_PUSH_FAIL}" ;;
+  esac
 fi
 
 # The second commit: generated artifacts live in $STUDIO_DIR, not in this repo.

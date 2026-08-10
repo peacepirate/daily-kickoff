@@ -52,7 +52,7 @@ echo "── the sidecar path is defined once ───────────�
 # The producer must reach the path by placeholder. A hard-coded scripts/logs/...
 # in the config would be a second copy of a path the ingest step derives, and
 # the two agreeing today says nothing about tomorrow.
-FEED="$REPO_DIR/scripts/topics/feed.yaml"
+FEED="$(KICKOFF_LIB_REPO_DIR="$REPO_DIR"; . "$REPO_DIR/scripts/lib/job-config.sh" >/dev/null 2>&1; find_job_config feed)"
 if grep -qF -- '--records {{RECORDS}}' "$FEED"; then
   ok "feed.yaml reaches the sidecar as {{RECORDS}}"
 else

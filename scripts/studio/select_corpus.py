@@ -104,6 +104,20 @@ SCHEDULE_WEEKDAYS = {
 # coverage — so when it truncates it says so, in the header, with the count.
 MAX_NAMED_GAPS = 3
 
+# The job kinds, in resolution order: a config is `scripts/<kind>/<job>.yaml`.
+# Mirrors the `for dir in topics generators` loops in find_job_config() and
+# job_config_files() in scripts/lib/job-config.sh, and must be edited with them.
+#
+# A closed list rather than a glob of directories under scripts/ holding *.yaml.
+# Discovery reads as the safer option and is not: it would promote any directory
+# that happens to acquire a config — a scratch copy, a vendored tree — into a job
+# kind with no boundary declared for it, which is the failure class
+# assert_output_boundary() in job-config.sh exists to refuse. A named vocabulary
+# is also what makes the omission visible: a kind listed here whose directory
+# does not exist is inert, so listing one costs nothing, while omitting one costs
+# a collection its schedule.
+JOB_KINDS = ("topics", "generators", "feed")
+
 PROG = "select_corpus"
 
 
@@ -126,11 +140,11 @@ def digest_url(theme: str, slug: str) -> str:
 
 
 def find_job_config(repo: Path, job: str) -> Path:
-    """Mirrors find_job_config() in job-config.sh: topics/ first, generators/
-    second, one schema. Naming both paths on failure matters — the near miss is
-    a job defined in the other directory."""
+    """Mirrors find_job_config() in job-config.sh: JOB_KINDS order, one schema.
+    Naming every path searched on failure matters — the near miss is a job
+    defined under a different kind."""
     searched = []
-    for kind in ("topics", "generators"):
+    for kind in JOB_KINDS:
         path = repo / "scripts" / kind / ("%s.yaml" % job)
         searched.append(str(path))
         if path.is_file():
@@ -150,10 +164,14 @@ def collection_schedules(repo: Path) -> dict:
     config filename matches the directory it writes to. `richmond-events.yaml`
     writes `src/content/rva-events/`; three of the four topics do match, which is
     exactly what makes the assumption ship.
+
+    Every kind in JOB_KINDS is walked. A kind left out does not raise here — it
+    removes the collection from the map, and coverage_entry() then reports the
+    collection as `N/? (no job writes …)`, which is a plausible line to read.
     """
     out = {}
     content_re = re.compile(r"(?:^|/)src/content/([^/]+)/")
-    for kind in ("topics", "generators"):
+    for kind in JOB_KINDS:
         directory = repo / "scripts" / kind
         if not directory.is_dir():
             continue
@@ -680,7 +698,8 @@ def section(name: str, records: list) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a ranked corpus bundle")
     parser.add_argument("--job", required=True,
-                        help="Job name (must match scripts/{topics,generators}/JOB.yaml)")
+                        help="Job name (must match scripts/{%s}/JOB.yaml)"
+                             % ",".join(JOB_KINDS))
     parser.add_argument("--date", default=None,
                         help="Window end, YYYY-MM-DD (default: today)")
     parser.add_argument("--studio-dir", default=None,

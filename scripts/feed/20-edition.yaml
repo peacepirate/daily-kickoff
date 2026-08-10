@@ -1,0 +1,48 @@
+name:     "Public feed edition"
+schedule: daily
+step:     transform
+producer: >-
+  lib/feed_edition.py
+  --state {{FEED_STATE}}
+  --config scripts/feed/10-feed.yaml
+  --date {{DATE}}
+  --judge --house --check-links
+  --out {{OUTPUT}}
+output:   "{{FEED_SITE}}/src/content/editions/{{DATE}}.json"
+
+# The night's edition, written into the feed site's content directory.
+#
+# `20-` orders it after `10-feed.yaml`, and the ordering is the point: the pool
+# fetch has to admit tonight's arrivals before selection reads them. Left to the
+# alphabet, `edition` sorts before `feed` and the edition would be built from
+# yesterday's pool every night — correct-looking output, silently one day stale,
+# which is the failure shape this project keeps paying for. assert_job_order
+# refuses a directory that mixes prefixed and unprefixed configs, so the
+# ordering cannot be half-applied.
+#
+# step: transform — the runner renders no prompt and calls no model. The
+# producer does both jobs itself: --judge has a model choose which shortlisted
+# items run, --house has it write each card body. That is deliberate rather than
+# incidental. Those two calls have their own validators, their own fallbacks and
+# their own record of what was rejected, none of which the generic model path
+# knows anything about, and the artifact is JSON rather than the frontmatter
+# markdown run_llm_job verifies.
+#
+# Both model flags degrade rather than fail. A refusal or a timeout on --judge
+# leaves the edition marked unjudged, which shows a Preview banner and keeps the
+# day out of both feeds; the same on --house drops every card to the publisher's
+# own summary. Either way the night still publishes. Silence is the one failure
+# this product cannot recover from.
+#
+# --check-links HEADs the chosen urls and drops only proven-dead ones. It is
+# fail-open by construction: if every link looks dead the verdict is
+# disbelieved and nothing is dropped, because "the network is down" and "every
+# publisher deleted their article" produce the same evidence.
+#
+# --config names its sibling by hand. One string, one directory away, and it
+# fails loudly on a rename rather than quietly selecting from an empty tier map.
+#
+# The output path is bounded by assert_output_boundary to the feed site's
+# editions directory specifically — not to the repo. A feed job has no business
+# editing that site's pages, its checks or its config, and a template mistake is
+# the only realistic way it would try.

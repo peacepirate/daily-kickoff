@@ -79,7 +79,8 @@ def warn(msg: str) -> None:
 RECORDS: list[dict] = []
 
 
-def print_item(source: str, title: str, url: str, date: str, summary: str) -> None:
+def print_item(source: str, title: str, url: str, date: str, summary: str,
+               substance: str | None = None) -> None:
     # Entity decoding and tag stripping apply to both consumers. RSS summaries
     # already arrived clean — they pass through BeautifulSoup's `get_text`,
     # which unescapes as a side effect — but titles never did, and that
@@ -96,7 +97,15 @@ def print_item(source: str, title: str, url: str, date: str, summary: str) -> No
     title, summary = clean_text(title), clean_text(summary)
     print(format_item(source, title, url, date, summary), end="")
     if args.records:
-        RECORDS.append(item_record(source, title, url, date, summary))
+        record = item_record(source, title, url, date, summary)
+        # `substance` is a per-source declaration in the topic config, copied
+        # verbatim onto the record so the pool and selection both read one
+        # decision instead of each carrying its own list of source names. Set
+        # only when declared: the consumers compare it for exact equality, so an
+        # absent or misspelled value leaves their gates on.
+        if substance:
+            record["substance"] = substance
+        RECORDS.append(record)
 
 
 def write_records() -> None:
@@ -488,6 +497,7 @@ def main() -> None:
             filter_re  = src.get("filter_regex")
             filter_cap = src.get("filter_cap")
             event_mode = src.get("event_mode", False)
+            substance  = src.get("substance")
 
             items = fetch(name, kind, url, max_items, event_mode=event_mode)
 
@@ -503,7 +513,8 @@ def main() -> None:
 
             print(f"### {name} — {len(items)} items\n")
             for item in items:
-                print_item(name, item["title"], item["url"], item["date"], item["summary"])
+                print_item(name, item["title"], item["url"], item["date"], item["summary"],
+                           substance)
                 total += 1
 
     print(f"\n---\n*End of fetched content — {total} total items*")

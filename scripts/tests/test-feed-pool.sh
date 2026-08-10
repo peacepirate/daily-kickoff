@@ -149,6 +149,35 @@ else:
     print(f"         {len(real)} real records, {day1} admitted on day 1, "
           f"{len(pool)} left after 30 days of repeats")
 
+print("── the titles-only exemption (a per-source opt-out) ──────────────────────")
+
+# A source whose feed carries titles by design, not by accident. The exemption
+# waives the summary bar and NOTHING ELSE, and it has to be asked for.
+def rec(**kw):
+    r = {"id": "a" * 12, "title": "A headline of a perfectly ordinary length here",
+         "url": "https://example.com/x", "summary": "short", "source": "S",
+         "first_seen": "2026-08-10", "date": "2026-08-10"}
+    r.update(kw); return r
+
+chk("a thin summary is refused without the flag", fp.qualifies(rec()), False)
+chk("...and admitted with it", fp.qualifies(rec(substance="title-only")), True)
+
+# Fail closed. A flag that defaults open would hand the Hacker News failure —
+# "Article URL: Comments URL: Points: 3" clearing the bar on the length of two
+# urls — back to every source at once.
+for bad_flag in ("title only", "Title-Only", "titles-only", "true", "", "yes"):
+    chk(f"a misspelled flag ({bad_flag!r}) leaves the gate on",
+        fp.qualifies(rec(substance=bad_flag)), False)
+chk("a non-string flag leaves the gate on", fp.qualifies(rec(substance=True)), False)
+
+# The exemption reaches the summary rule only.
+chk("an exempt row with an unsafe url is still refused",
+    fp.qualifies(rec(substance="title-only", url="javascript:alert(1)")), False)
+chk("an exempt row with no title is still refused",
+    fp.qualifies(rec(substance="title-only", title="")), False)
+chk("an exempt row with a too-short title is still refused",
+    fp.qualifies(rec(substance="title-only", title="Tiny")), False)
+
 print()
 if FAIL == 0:
     print(f"\033[32mPASS\033[0m ({COUNT}) — feed pool tests passed")

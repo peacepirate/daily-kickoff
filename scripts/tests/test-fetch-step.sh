@@ -89,9 +89,11 @@ else
 fi
 
 echo "── feed.yaml is a valid fetch config ─────────────────────────────────────"
-FEED="$REPO_DIR/scripts/topics/feed.yaml"
+# Resolved through find_job_config rather than hard-coded, so moving the
+# config between job kinds cannot silently skip this whole section.
+FEED="$(KICKOFF_LIB_REPO_DIR="$REPO_DIR"; . "$REPO_DIR/scripts/lib/job-config.sh" >/dev/null 2>&1; find_job_config feed)"
 if [ ! -f "$FEED" ]; then
-  bad "scripts/topics/feed.yaml is missing"
+  bad "the feed pool config is missing (find_job_config feed found nothing)"
 else
   "$PYBIN" - "$FEED" <<'PY' && ok "feed.yaml: step fetch, no prompt, no output, sources present" \
                             || bad "feed.yaml failed its own contract — see above"

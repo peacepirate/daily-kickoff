@@ -85,13 +85,54 @@ quarantine_output() {
 # after the bundle — no prompt, no model, no output file — which is what a source
 # pool being measured before anything is published needs, and what the runner
 # previously had no way to express.
-JOB_STEPS="llm fetch"
+# `transform` runs a producer that writes its own output file and stops. No
+# prompt, no model call from the runner, no frontmatter — the producer decides
+# what a valid artifact is, because the feed edition is JSON and this file's
+# only notion of valid output is markdown opening with `---`.
+JOB_STEPS="llm fetch transform"
 
 is_known_step() { case " $JOB_STEPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+# S4.7 — the PATH widening, reachable by every step rather than only the one
+# that calls a model.
+#
+# launchd starts with a minimal PATH, so the usual install locations have to be
+# added or a 06:00 run cannot find node, npm, or claude. This used to live
+# inside run_llm_job, which meant a step that invokes no model — the one that
+# builds the feed site — inherited the bare environment and failed at 06:00
+# only, never when a human ran it from a terminal.
+#
+# Appended, never prepended. Prepending once shadowed a test's `claude` stub
+# with the real CLI, so every suite that believed it was hermetic was spending
+# real money. Idempotent, because it is now called from more than one place.
+ensure_tool_path() {
+  case ":$PATH:" in
+    *":/opt/homebrew/bin:"*) return 0 ;;
+  esac
+  export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.npm-global/bin:$HOME/.local/bin"
+}
 
 JOB_SCHEMAS="digest angles"
 
 is_known_schema() { case " $JOB_SCHEMAS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+# S10.8 — is this failure worth trying again?
+#
+# The classifier decides where money goes, so it is written to say no. A
+# transient fault has to LOOK transient in the CLI's own output; everything
+# else, including anything unrecognised, is treated as a decision and is not
+# retried. Getting this backwards turns a policy refusal into a retry loop.
+#
+# The patterns are the failures actually observed on this pipeline — an idle
+# timeout and two connection refusals — plus the standard socket errors that
+# produce the same shape. Deliberately narrow: a pattern that matches a refusal
+# is worse than a pattern that misses a timeout.
+KICKOFF_TRANSIENT_RE='idle timeout|Connection refused|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNRESET|socket hang up|network error|fetch failed|Service Unavailable|Gateway Time-?out|<h1>50[0-9]|Internal Server Error|rate limit|Overloaded|overloaded_error'
+
+is_transient_failure() {  # OUTPUT_FILE
+  [ -s "$1" ] || return 1      # no output at all is not evidence of a fault
+  grep -qiE "$KICKOFF_TRANSIENT_RE" "$1"
+}
 
 validate_frontmatter() {  # FILE [SCHEMA]
   case "${2:-digest}" in
@@ -205,12 +246,7 @@ run_llm_job() {
   [ -f "$prompt_file" ] || { log "ERROR: ${label}prompt file not found: $prompt_file"; return 1; }
   [ -f "$bundle_file" ] || { log "ERROR: ${label}bundle file not found: $bundle_file"; return 1; }
 
-  # Appended, never prepended. launchd runs with a minimal PATH, so the usual
-  # install locations have to be added — but prepending them silently shadowed
-  # anything the caller had already put on PATH, including a test's stub. Every
-  # suite that thought it was stubbing `claude` was calling the real CLI: real
-  # spend, real latency, and end-to-end tests that were never hermetic.
-  export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.npm-global/bin:$HOME/.local/bin"
+  ensure_tool_path
   local claude_bin="${KICKOFF_CLAUDE_BIN:-}"
   [ -n "$claude_bin" ] || claude_bin=$(command -v claude 2>/dev/null || true)
   if [ -z "$claude_bin" ]; then
@@ -241,15 +277,38 @@ $(cat "$bundle_file")"
   # Verification must run even when claude exits non-zero: a refusal or a
   # truncated stream can still leave a partial file behind, and an unverified
   # file gets committed and then blocks the job forever via the -s guard.
-  set +e
-  "$claude_bin" \
-    --dangerously-skip-permissions \
-    --print \
-    --model "$model" \
-    "$full_prompt" \
-    2>&1 | tee -a "$LOG_FILE"
-  local rc=${PIPESTATUS[0]}
-  set -e
+  local rc attempt=1 call_log
+  call_log="$(mktemp -t kickoff-call)"
+  while : ; do
+    set +e
+    "$claude_bin" \
+      --dangerously-skip-permissions \
+      --print \
+      --model "$model" \
+      "$full_prompt" \
+      2>&1 | tee -a "$LOG_FILE" | tee "$call_log" >/dev/null
+    rc=${PIPESTATUS[0]}
+    set -e
+    [ "$rc" -eq 0 ] && break
+    [ "$attempt" -ge 2 ] && break
+    if ! is_transient_failure "$call_log"; then break; fi
+    # S10.8 — one retry, transient failures only.
+    #
+    # Measured over 34 scheduled nights: 5 missed, and only 2 were policy
+    # refusals. The other three were an idle timeout and two connection
+    # refusals — recoverable, and nothing retried them. This is the cheapest
+    # availability improvement in the plan, and it was invisible for as long as
+    # the miss rate was attributed wholesale to refusals.
+    #
+    # ONE retry, and never for a refusal. A refusal is a decision, not a fault:
+    # retrying it burns money to receive the same answer, and a loop around it
+    # is how a nightly job turns a policy boundary into a bill. Anything the
+    # classifier is unsure about counts as a refusal.
+    log "${label}claude exited $rc on a transient failure — retrying once."
+    quarantine_output "$output_file"
+    attempt=$((attempt + 1))
+  done
+  rm -f "$call_log"
 
   if [ "$rc" -ne 0 ]; then
     log "${label}claude exited $rc"

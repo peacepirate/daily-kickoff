@@ -45,6 +45,18 @@ except ImportError:                     # imported by a caller that put only the
 # measurement used, so "qualifying pool" means one thing in both places.
 MIN_SUMMARY = 80
 
+# The one way out of MIN_SUMMARY, and it has to be asked for. A source declares
+# `substance: title-only` in the feed pool config; fetch_sources.py stamps
+# the declaration onto every record it writes for that source, so the decision
+# is made once, from config, and rides with the item rather than being
+# re-derived from a source-name list in each module that gates on it.
+#
+# Exact equality, and only when the key is present. An absent or misspelled
+# value means the gate applies — Hacker News cleared the 80-character bar on the
+# length of two urls, and a flag that defaults open would hand that failure back
+# to every source at once.
+SUBSTANCE_TITLE_ONLY = "title-only"
+
 # Titles outside this range are navigation furniture or scraped page chrome, not
 # articles. Mirrors the bounds fetch_html already applies.
 MIN_TITLE, MAX_TITLE = 20, 250
@@ -139,6 +151,15 @@ def contains_blocked(record: dict, terms: list[str]) -> bool:
     return False
 
 
+def summary_exempt(record: dict) -> bool:
+    """True when this record's source declared itself titles-only.
+
+    Lives here and is imported by `feed_select`, so admission and selection
+    cannot drift into two readings of one flag.
+    """
+    return record.get("substance") == SUBSTANCE_TITLE_ONLY
+
+
 def qualifies(record: dict) -> bool:
     """The quality bar, and the definition of a 'qualifying' item.
 
@@ -160,6 +181,10 @@ def qualifies(record: dict) -> bool:
     title = (record.get("title") or "").strip()
     if not (MIN_TITLE <= len(title) <= MAX_TITLE):
         return False
+    # Last, so the exemption can only ever waive the summary rule. Id, url
+    # safety and the title bounds are already spent above and are not waivable.
+    if summary_exempt(record):
+        return True
     return len((record.get("summary") or "").strip()) >= MIN_SUMMARY
 
 

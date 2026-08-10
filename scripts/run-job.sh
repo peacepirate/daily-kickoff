@@ -85,6 +85,21 @@ if [ "$STEP" = "fetch" ]; then
     log "       Declaring them implies a publish this step will never perform."
     exit 1
   fi
+elif [ "$STEP" = "transform" ]; then
+  # A transform declares what it runs and where the result lands, and nothing
+  # else. No prompt, because the runner invokes no model — the producer owns
+  # whatever it does internally, including calling one. Declaring a prompt would
+  # imply a render this step never performs, the same way a fetch declaring an
+  # output implies a publish.
+  if [ -z "$PRODUCER_TPL" ] || [ -z "$OUTPUT_TPL" ]; then
+    log "ERROR: [$JOB] $CONFIG_FILE is step: transform and must declare producer: and output:"
+    exit 1
+  fi
+  if [ -n "$PROMPT_REL" ]; then
+    log "ERROR: [$JOB] $CONFIG_FILE is step: transform — it must not declare prompt:."
+    log "       The runner renders no prompt and calls no model for this step."
+    exit 1
+  fi
 elif [ -z "$PRODUCER_TPL" ] || [ -z "$PROMPT_REL" ] || [ -z "$OUTPUT_TPL" ]; then
   log "ERROR: [$JOB] $CONFIG_FILE must declare producer:, prompt: and output:"
   exit 1
@@ -93,7 +108,11 @@ fi
 
 # At config load, not at verification time: a typo'd schema would otherwise cost
 # a full Claude call and then quarantine a file that was never going to pass.
-if ! is_known_schema "$SCHEMA"; then
+#
+# Only the model path has a schema. SCHEMA defaults to `digest`, so checking it
+# for a transform would enforce a frontmatter contract against a JSON artifact
+# that will never have one.
+if [ "$STEP" = "llm" ] && ! is_known_schema "$SCHEMA"; then
   log "ERROR: [$JOB] unknown schema '$SCHEMA' in $CONFIG_FILE (known: $JOB_SCHEMAS)"
   exit 1
 fi
@@ -112,6 +131,16 @@ if [ "$NEEDS_STUDIO" = 1 ]; then
   export STUDIO_DIR
 fi
 
+# The feed site, resolved and validated before anything is written — including
+# the refusal to resolve inside this repo. Scoped to feed jobs, so a topic
+# job's environment is unchanged, and exported because the producer is a Python
+# subprocess.
+if [ "$JOB_KIND" = "feed" ] && [ "$STEP" != "fetch" ]; then
+  FEED_SITE_DIR="$(resolve_feed_site_dir)"
+  require_feed_site_dir "$FEED_SITE_DIR" || exit 1
+  export FEED_SITE_DIR
+fi
+
 set_tpl_vars "$DATE" "$SCHEDULE"
 
 # The record sidecar path, defined once and reached by the config as {{RECORDS}}.
@@ -127,10 +156,21 @@ TPL_RECORDS="scripts/logs/records-$DATE-$JOB.jsonl"
 # The producer is a template like every other config string: `--weekly` belongs
 # to fetch_sources.py, and appending it to every producer handed select_corpus.py
 # a flag it cannot parse.
+# A transform's producer writes the output file itself rather than piping a
+# bundle to stdout, so it has to be able to name it — hence {{OUTPUT}}, and
+# hence resolving the path before the producer line is rendered. The boundary
+# is asserted here, before the producer is handed a path it could write to.
+if [ "$STEP" = "transform" ]; then
+  OUTPUT_FILE="$(resolve_output "$OUTPUT_TPL")"
+  assert_no_placeholders "$OUTPUT_FILE" "output: in $CONFIG_FILE" || exit 1
+  assert_output_boundary "$JOB_KIND" "$OUTPUT_FILE" || exit 1
+  TPL_OUTPUT="$OUTPUT_FILE"
+fi
+
 PRODUCER="$(render_placeholders "$PRODUCER_TPL")"
 assert_no_placeholders "$PRODUCER" "producer: in $CONFIG_FILE" || exit 1
 
-if [ "$STEP" != "fetch" ]; then
+if [ "$STEP" = "llm" ]; then
 OUTPUT_FILE="$(resolve_output "$OUTPUT_TPL")"
 assert_no_placeholders "$OUTPUT_FILE" "output: in $CONFIG_FILE" || exit 1
 assert_output_boundary "$JOB_KIND" "$OUTPUT_FILE" || exit 1
@@ -159,11 +199,39 @@ if ! grep -qF "$OUTPUT_REL" <<<"$PROMPT_RENDERED" \
   log "ERROR: [$JOB] $PROMPT_REL names neither $OUTPUT_REL nor $OUTPUT_FILE (output: in $CONFIG_FILE)."
   exit 1
 fi
-fi  # STEP != fetch
+fi  # STEP = llm
 
 # ── Producer ──────────────────────────────────────────────────────────────────
 CONTENT_FILE="$LOG_DIR/fetched-$DATE-$JOB.txt"
 cd "$REPO_DIR"
+
+# A transform has no bundle. Its producer reads durable state this repo already
+# holds — the pool, the ledger — and writes its artifact directly, so there is
+# nothing to capture on stdout and nothing for the `^URL:` assertion below to
+# find. It exits here rather than threading a third set of conditions through
+# the fetch/llm path.
+if [ "$STEP" = "transform" ]; then
+  ensure_tool_path
+  log "Running transform for $JOB: $PRODUCER ..."
+  set +e
+  "$PYTHON_BIN" scripts/$PRODUCER 2>&1 | tee -a "$LOG_FILE"
+  TRANSFORM_RC=${PIPESTATUS[0]}
+  set -e
+  if [ "$TRANSFORM_RC" -ne 0 ]; then
+    log "ERROR: [$JOB] transform exited $TRANSFORM_RC — nothing written."
+    exit 1
+  fi
+  # The producer exiting 0 is not evidence it wrote anything. That is the exact
+  # shape this project has already paid thirteen nights for, and the claude CLI
+  # does the same thing, which is why verify_output exists on the model path.
+  if [ ! -s "$OUTPUT_FILE" ]; then
+    log "ERROR: [$JOB] transform exited 0 but wrote no output: $OUTPUT_FILE"
+    exit 1
+  fi
+  log "[$JOB] step: transform — wrote $OUTPUT_FILE ($(wc -c < "$OUTPUT_FILE" | tr -d ' ') bytes)."
+  log "=== run-job.sh [$JOB] finished $(date) ==="
+  exit 0
+fi
 
 if [ -n "${BUNDLE_FILE:-}" ]; then
   [ -f "$BUNDLE_FILE" ] || { log "ERROR: BUNDLE_FILE not found: $BUNDLE_FILE"; exit 1; }

@@ -44,25 +44,155 @@ require_studio_dir() {
   fi
 }
 
-find_job_config() {  # JOB -> config path on stdout
-  local dir
-  for dir in topics generators; do
-    if [ -f "$KICKOFF_LIB_REPO_DIR/scripts/$dir/$1.yaml" ]; then
-      echo "$KICKOFF_LIB_REPO_DIR/scripts/$dir/$1.yaml"
-      return 0
-    fi
+# THE JOB KINDS, in the order they run. One definition; everything else derives.
+#
+# A kind is a directory under scripts/, and the order here is the order the
+# nightly executes. That order is load-bearing rather than alphabetical
+# coincidence: `feed` runs last because its edition is built from a pool the
+# fetch fills, and because the digest commit is deliberately in front of it, so
+# a feed failure cannot cost the night its digests (S10.4/S10.5).
+#
+# A closed list rather than "any directory holding yaml", matching how the tag
+# vocabulary and the step list are written. Discovery would silently enrol a
+# scratch directory somebody left behind, and assert_output_boundary would then
+# have no boundary to apply to it.
+JOB_KINDS="topics generators feed"
+
+# `20-edition.yaml` -> `edition`.
+#
+# The numeric prefix orders the file and is not part of the job's name, so
+# `run-job.sh edition` keeps working and — the reason this matters — the record
+# sidecars stay `records-<date>-feed.jsonl`. feed_gate.py globs for exactly that
+# name, so renaming the pool job would silently orphan the soak measurement
+# that is currently mid-flight.
+job_name_of() {  # CONFIG_PATH -> job name
+  local stem; stem="$(basename "$1" .yaml)"
+  printf '%s' "${stem#[0-9][0-9]-}"
+}
+
+# THE FEED SITE — a third repo, resolved the way the studio already is.
+#
+# Same three-step precedence as resolve_studio_dir, and the same division of
+# labour: this computes a string and never validates, so it cannot fail on a
+# machine that has no feed checkout. require_feed_site_dir is what refuses.
+resolve_feed_site_dir() {
+  if [ -n "${FEED_SITE_DIR:-}" ]; then
+    echo "$FEED_SITE_DIR"; return
+  fi
+  if [ -f "$KICKOFF_STUDIO_CONFIG" ]; then
+    local from_config
+    from_config=$(grep -E '^FEED_SITE_DIR=' "$KICKOFF_STUDIO_CONFIG" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'"'' || true)
+    if [ -n "$from_config" ]; then echo "${from_config/#\~/$HOME}"; return; fi
+  fi
+  echo "$(cd "$KICKOFF_LIB_REPO_DIR/../.." && pwd)/daily-kickoff-feed"
+}
+
+# Never auto-create, for the reason require_studio_dir gives: an empty checkout
+# looks healthy and silently produces nothing.
+#
+# The layout check is not decoration. A FEED_SITE_DIR pointed at the wrong
+# clone would have an edition written into it, committed, and pushed to
+# whatever remote that clone has — under an "[automated]" message.
+require_feed_site_dir() {
+  local dir="${1:-${FEED_SITE_DIR:-}}"
+  if [ ! -d "$dir" ]; then
+    note "ERROR: FEED_SITE_DIR does not exist: $dir"
+    note ""
+    note "Fix one of:"
+    note "  git clone git@github.com:peacepirate/daily-kickoff-feed.git \"$dir\""
+    note "  export FEED_SITE_DIR=/path/to/daily-kickoff-feed"
+    note "  echo 'FEED_SITE_DIR=/path/to/daily-kickoff-feed' >> $KICKOFF_STUDIO_CONFIG"
+    return 1
+  fi
+  local missing="" d
+  for d in src/content/editions scripts package.json; do
+    [ -e "$dir/$d" ] || missing="$missing $d"
   done
+  if [ -n "$missing" ]; then
+    note "ERROR: $dir is missing:$missing"
+    note "       Is this the right checkout? Expected the daily-kickoff-feed layout."
+    return 1
+  fi
+  assert_feed_site_outside_engine "$dir"
+}
+
+# S4.6 — the feed site must not resolve inside this repo.
+#
+# `git -C <subdir>` walks up to the nearest repository, so a FEED_SITE_DIR
+# misconfigured to somewhere inside this checkout would have the edition
+# committed to the PUBLIC engine repo under a "feed:" message, and pushed. The
+# studio has the same guard, but only at commit time; this one refuses at
+# resolution, before anything is written.
+#
+# Both sides go through git so both are normalised. $KICKOFF_LIB_REPO_DIR comes
+# from `pwd`, which on macOS keeps /var/..., while rev-parse resolves it to
+# /private/var/... — comparing the raw strings silently never matches, which is
+# the shape of a guard that reports success forever.
+assert_feed_site_outside_engine() {  # DIR
+  local theirs ours
+  git -C "$1" rev-parse --git-dir >/dev/null 2>&1 || {
+    note "WARN: $1 is not a git repository — an edition written there stays unversioned."
+    return 0
+  }
+  theirs="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo feed)"
+  ours="$(git -C "$KICKOFF_LIB_REPO_DIR" rev-parse --show-toplevel 2>/dev/null || echo engine)"
+  if [ "$theirs" = "$ours" ]; then
+    note "ERROR: FEED_SITE_DIR ($1) resolves inside the engine repo ($ours)."
+    note "       Refusing: an edition written there would be committed and pushed to a public repo."
+    return 1
+  fi
+}
+
+find_job_config() {  # JOB -> config path on stdout
+  local file
+  while IFS= read -r file; do
+    [ "$(job_name_of "$file")" = "$1" ] && { printf '%s\n' "$file"; return 0; }
+  done < <(job_config_files)
   return 1
 }
 
-job_config_files() {
+job_config_files() {  # every config, in run order
   local dir file
-  for dir in topics generators; do
+  for dir in $JOB_KINDS; do
     for file in "$KICKOFF_LIB_REPO_DIR/scripts/$dir"/*.yaml; do
       if [ -f "$file" ]; then echo "$file"; fi
     done
   done
   return 0
+}
+
+# S4.4 — ordering is declared, not inherited from the ambient locale.
+#
+# Within a kind the glob sorts lexicographically, which is fine for four
+# independent topics and wrong the moment two configs must run in sequence:
+# the pool fetch has to fill before the edition reads it, and `edition` sorts
+# before `pool`. A numeric prefix fixes that, but only if it is applied to
+# every file in the directory — one unprefixed config sorts by its bare name
+# and lands wherever the alphabet puts it, which is the incidental ordering
+# this exists to end.
+#
+# So the rule is all-or-nothing per directory, and it is checked rather than
+# documented.
+assert_job_order() {
+  local dir file stem prefixed=0 bare="" rc=0
+  for dir in $JOB_KINDS; do
+    prefixed=0; bare=""
+    for file in "$KICKOFF_LIB_REPO_DIR/scripts/$dir"/*.yaml; do
+      [ -f "$file" ] || continue
+      stem="$(basename "$file" .yaml)"
+      case "$stem" in
+        [0-9][0-9]-*) prefixed=$((prefixed + 1)) ;;
+        *) bare="$bare $stem" ;;
+      esac
+    done
+    if [ "$prefixed" -gt 0 ] && [ -n "$bare" ]; then
+      log "ERROR: scripts/$dir mixes ordered and unordered configs."
+      log "       Prefixed: $prefixed. Unprefixed:$bare"
+      log "       Give every config in an ordered directory an NN- prefix, or none of them."
+      rc=1
+    fi
+  done
+  return $rc
 }
 
 list_jobs() {
@@ -103,6 +233,10 @@ set_tpl_vars() {  # DATE SCHEDULE — the placeholder vocabulary
   # inert for topics: resolve_studio_dir only computes a string — existence is
   # require_studio_dir's job — so it cannot fail on a machine with no studio.
   TPL_STUDIO_DIR="${STUDIO_DIR:-$(resolve_studio_dir)}"
+  # Same reasoning as the studio: always set, one code path, and inert for the
+  # kinds that never mention it because resolving is only string arithmetic.
+  TPL_FEED_SITE="${FEED_SITE_DIR:-$(resolve_feed_site_dir)}"
+  TPL_FEED_STATE="$(feed_state_dir)"
   # `--weekly` is a fetch_sources.py flag, so the config that wants it asks for
   # it by name. The runner appending it to every producer handed select_corpus.py
   # an argument it cannot parse.
@@ -265,7 +399,29 @@ commit_and_push() {  # REPO_DIR PATHSPEC MESSAGE [EXPECTED_BRANCH]
     note "Pushing $unpushed unpushed commit(s) from $repo..."
     if push_out=$(git -C "$repo" push origin "HEAD:$expected" 2>&1); then
       [ -n "$push_out" ] && note "$push_out"
-      note "Push OK."
+      # S10.2 / invariant 3 — success is the remote ref moving.
+      #
+      # `git push` exiting 0 is the local client's opinion. This asks the remote
+      # what it now holds. The two disagree in exactly the cases that matter and
+      # are hardest to see: a push that resolved to a different branch, a
+      # server-side hook that accepted and discarded, a stale credential helper
+      # serving a cached success. Thirteen nights were lost to a local state
+      # that looked correct, so the check is the ref, not the exit code.
+      local remote_sha head_sha
+      remote_sha=$(git -C "$repo" ls-remote origin "refs/heads/$expected" 2>/dev/null | cut -f1)
+      head_sha=$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo "")
+      if [ -z "$remote_sha" ]; then
+        # Unreachable remote after a successful push is odd rather than fatal;
+        # the commit is safe locally and the next run retries the push.
+        note "WARN: pushed, but could not read origin/$expected back to confirm it moved."
+      elif [ "$remote_sha" != "$head_sha" ]; then
+        note "ERROR: push reported success but origin/$expected is $remote_sha, not $head_sha."
+        note "       Nothing published. Do not trust the exit code here."
+        COMMIT_PUSH_FAIL="push-not-at-remote"
+        return 1
+      else
+        note "Push OK — origin/$expected is at $head_sha."
+      fi
     else
       [ -n "$push_out" ] && note "$push_out"
       note "ERROR: push failed — $unpushed commit(s) remain local in $repo. Will retry next run."
@@ -468,6 +624,65 @@ $(grep -rliF -- "$squashed" "$d" 2>/dev/null || true)"
   return $rc
 }
 
+# S10.7 — the feed site's toolchain, checked before the build rather than
+# discovered by it.
+#
+# launchd starts with a minimal PATH. A missing node at 06:00 would fail the
+# highest-value gate in the pipeline every single night while every manual run
+# from a terminal succeeded, which is the hardest class of failure to see.
+# `npm ci` is deliberately not run here: an unattended job that installs
+# dependencies is an unattended job that can pull a new one.
+assert_feed_toolchain() {  # DIR
+  ensure_tool_path
+  local missing=""
+  command -v node >/dev/null 2>&1 || missing="$missing node"
+  command -v npm  >/dev/null 2>&1 || missing="$missing npm"
+  [ -d "$1/node_modules" ]        || missing="$missing node_modules"
+  if [ -n "$missing" ]; then
+    log "ERROR: the feed site cannot be built — missing:$missing"
+    log "       PATH=$PATH"
+    [ -d "$1/node_modules" ] || log "       Run: (cd $1 && npm ci)"
+    return 1
+  fi
+}
+
+# S10.1/S10.6 — verify, then scan what was built, then commit. In that order.
+#
+# `npm run verify` is the site's own chain minus the human review gate: config,
+# build, links, budget, feed/advertisement consistency. The review gate is
+# deliberately NOT run here. It answers "has a person read this", which is a
+# question about deploying, not about whether tonight's edition is structurally
+# sound — and during the gated month it would refuse every night, leaving the
+# edition uncommitted on one laptop. The gate still stands between the edition
+# and readers: `npm run build` runs it, and nothing deploys without it.
+#
+# The blocklist scan runs against dist/, not against source. The build is the
+# last place a name can still be caught, and it is the only place that sees the
+# house voice's prose rendered as a reader will receive it. Fails closed, and
+# before the commit: a quarantined edition is recoverable, a pushed one is not.
+publish_feed_site() {  # DIR DATE
+  local dir="$1" date="$2" rc
+  require_feed_site_dir "$dir" || return 1
+  assert_feed_toolchain "$dir" || return 1
+
+  log "Verifying the feed site build ..."
+  ( cd "$dir" && npm run verify ) >>"${LOG_FILE:-/dev/null}" 2>&1 && rc=0 || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    log "ERROR: the feed site failed to build (npm run verify exited $rc). Nothing committed."
+    log "       The edition is on disk at $dir/src/content/editions/$date.json and untouched."
+    return 1
+  fi
+
+  if ! assert_no_blocked_tree "the built feed site" "$dir/dist"; then
+    log "ERROR: refusing to commit the feed site. The build is on disk and untouched."
+    return 1
+  fi
+
+  commit_and_push "$dir" "src/content/editions/" "edition: $date [automated]" && return 0 || rc=$?
+  [ "$rc" = 2 ] && return 2
+  return 1
+}
+
 # What a job of each kind is allowed to write.
 #
 # This used to read `[ "$1" = "generators" ] || return 0` — fail-OPEN for every
@@ -476,7 +691,7 @@ $(grep -rliF -- "$squashed" "$d" 2>/dev/null || true)"
 # the failure class this project keeps rediscovering, so the default here refuses.
 assert_output_boundary() {  # KIND OUTPUT_PATH
   case "$1" in
-    topics|generators) ;;
+    topics|generators|feed) ;;
     *)
       log "ERROR: unknown job kind '$1' — refusing to guess where it may write."
       log "       Add it to assert_output_boundary with its own boundary first."
@@ -510,6 +725,19 @@ assert_output_boundary() {  # KIND OUTPUT_PATH
       root="${KICKOFF_LIB_REPO_DIR%/}/src/content/"
       if [ "${2#$root}" = "$2" ]; then
         log "ERROR: topic output must resolve beneath src/content/ ($root), got: $2"
+        return 1
+      fi ;;
+    feed)
+      # Narrower than the other two on purpose. The studio bound is a whole
+      # checkout and the topic bound is a whole content tree; a feed job writes
+      # one edition JSON and nothing else, so the boundary is the editions
+      # directory rather than the repo. A feed job has no business editing the
+      # site's pages, its checks, or its config — and this is the only thing
+      # standing between a template mistake and a nightly writer aimed at them.
+      root="${FEED_SITE_DIR:-$(resolve_feed_site_dir)}"
+      root="${root%/}/src/content/editions/"
+      if [ "${2#$root}" = "$2" ]; then
+        log "ERROR: feed output must resolve beneath the feed site's editions directory ($root), got: $2"
         return 1
       fi ;;
   esac
