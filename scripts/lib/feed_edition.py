@@ -230,7 +230,13 @@ def _main(argv=None):
     # the only flag in the pipeline that spends money. It has to be asked for.
     ap.add_argument("--house", action="store_true",
                     help="Fetch the chosen articles and write house summaries (network, model)")
-    ap.add_argument("--model", default=None, help="Model for --house")
+    # Off by default for the same two reasons as --house: network, and money.
+    # Unlike --house it also changes *which* items publish, so it is the one
+    # flag whose absence is visible to the reader — the page says Preview and
+    # the feeds carry nothing.
+    ap.add_argument("--judge", action="store_true",
+                    help="Have the model choose which shortlisted items run (network, model)")
+    ap.add_argument("--model", default=None, help="Model for --judge and --house")
     a = ap.parse_args(argv)
 
     state = Path(a.state)
@@ -239,8 +245,84 @@ def _main(argv=None):
                     ledger_ids(read_jsonl(state / "ledger.jsonl")),
                     today, source_tiers(a.config))
 
-    from feed_select import diversify, FINAL_PER_SOURCE, FINAL_PER_DOMAIN
-    chosen, _ = diversify(sel["shortlist"], a.cap, FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+    from feed_select import diversify, veto, FINAL_PER_SOURCE, FINAL_PER_DOMAIN
+
+    # THE RELEVANCE PASS — Reconciliation 6's middle third.
+    #
+    # Without it, `chosen` is the top of code's ranking, which knows about
+    # freshness, source tier and concentration and nothing whatever about
+    # whether a story matters. That is an honest shortlist and a poor edition,
+    # which is precisely what `unjudged: true` told the reader, and why both
+    # feeds filtered it out.
+    #
+    # Three outcomes, and the difference between the second and third is the
+    # whole reason `judge` returns a note rather than just a list:
+    #
+    #   ids returned   the model chose. veto() cuts anything ineligible, order
+    #                  preserved, and the edition is judged.
+    #   "empty"        the model read them and said none earned a slot. That is
+    #                  a real verdict and a real empty day — the product's whole
+    #                  claim is that the count follows what was published. It is
+    #                  JUDGED, and it publishes empty.
+    #   anything else  refusal, timeout, garbage, no CLI. Fall back to code's
+    #                  ranking and stay unjudged. The night still publishes; it
+    #                  publishes the pre-E8 product and says so on the page.
+    #
+    # That last branch is the refusal-degradation property the plan calls its
+    # most consequential structural choice. A model outage costs the day its
+    # curation and its place in the feed, never its publish.
+    judged, vetoed = False, None
+    if a.judge:
+        # Imports inside the guard, matching _house_pass. An ImportError or a
+        # syntax error in feed_judge must cost the day its curation, not the
+        # night its publish.
+        try:
+            import feed_judge
+            import house_call
+            feed_judge.assert_prompt_contract()
+            ids, judge_note = feed_judge.judge(
+                sel["shortlist"],
+                lambda p: house_call.call_model(p, a.model or house_call.DEFAULT_MODEL))
+        except Exception as exc:                            # noqa: BLE001
+            ids, judge_note = [], f"{type(exc).__name__}: {exc}"
+
+        kept, dropped = ([], None)
+        if ids:
+            kept, dropped = veto(ids, sel["shortlist"], a.cap,
+                                 FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+
+        if kept:
+            chosen, vetoed, judged = kept, dropped, True
+            lost = {k: len(v) for k, v in dropped.items() if v}
+            print(f"judge: {len(ids)} returned, {len(chosen)} kept"
+                  + (f" — vetoed: {', '.join(f'{k}={v}' for k, v in sorted(lost.items()))}"
+                     if lost else ""), file=sys.stderr)
+        elif ids:
+            # Every id the model returned was ineligible. Not a thin day — a
+            # verdict about items that are not on offer, which is what a
+            # hallucinated set looks like: `ID_RE` proves an id is well shaped
+            # and nothing more. Treated as no verdict rather than as an empty
+            # one, because "the model chose nothing" and "nothing the model
+            # chose exists" are different facts and only one of them should
+            # reach a subscriber marked judged.
+            chosen, _ = diversify(sel["shortlist"], a.cap,
+                                  FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+            print(f"judge: all {len(ids)} returned id(s) were vetoed — none was on "
+                  f"the shortlist or all breached the caps. Treating as no verdict "
+                  f"and publishing the top of the ranked shortlist, unjudged.",
+                  file=sys.stderr)
+        elif judge_note == "empty":
+            chosen, judged = [], True
+            print("judge: the model read the shortlist and chose nothing. "
+                  "Publishing an empty day.", file=sys.stderr)
+        else:
+            chosen, _ = diversify(sel["shortlist"], a.cap,
+                                  FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+            print(f"judge: skipped ({judge_note}) — publishing the top of the "
+                  f"ranked shortlist, unjudged.", file=sys.stderr)
+    else:
+        chosen, _ = diversify(sel["shortlist"], a.cap,
+                              FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
 
     if a.check_links:
         # Wrapped whole. A link checker that can raise is a link checker that
@@ -269,8 +351,20 @@ def _main(argv=None):
             print(line, file=sys.stderr)
 
     edition = build_edition(chosen, today, house=house, tags=tags,
-                            reason=thin_reason(len(chosen), sel["stats"], cap=a.cap))
-    edition["unjudged"] = True   # the site renders a banner off this
+                            reason=thin_reason(len(chosen), sel["stats"],
+                                               dropped=vetoed, cap=a.cap))
+
+    # The site renders the Preview banner off this and both feeds filter on it,
+    # so it is the one field here that decides what reaches a subscriber — and a
+    # feed item cannot be recalled. It answers exactly one question: did a model
+    # judge these.
+    #
+    # What is deliberately NOT allowed to clear it: --house succeeding. A model
+    # writing seven summaries has read seven articles and chosen nothing, and
+    # the banner's own words — "the top of a ranked shortlist, not a chosen
+    # seven" — would still be true. Conflating writing with judging is the cheap
+    # way to empty this flag of meaning.
+    edition["unjudged"] = not judged
 
     text = json.dumps(edition, ensure_ascii=False, indent=2, sort_keys=True)
     if a.out:
@@ -278,8 +372,16 @@ def _main(argv=None):
         Path(a.out).write_text(text + "\n")
         print(f"{a.date}: {edition['count']} card(s) "
               f"({', '.join(f'{k}={v}' for k, v in edition['rungs'].items() if v)}) -> {a.out}")
-        print("NOTE: no model has judged relevance — these are the top of the ranked "
-              "shortlist, not a curated seven.")
+        # The operator's copy of what the reader will be told, read off the same
+        # flag the page reads rather than off an assumption about which pass ran.
+        if edition["unjudged"]:
+            print("NOTE: no model has judged relevance — these are the top of the ranked "
+                  "shortlist, not a curated seven. The page shows a Preview banner and "
+                  "the feeds will not carry this edition.")
+        else:
+            print(f"judged: a model chose these {edition['count']} from "
+                  f"{len(sel['shortlist'])} shortlisted. No Preview banner; the feeds "
+                  f"will carry it once it is reviewed.")
     else:
         print(text)
     return 0
