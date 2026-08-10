@@ -451,6 +451,51 @@ chk("a failed house pass still yields a full edition at rung 2",
                      __import__("datetime").date(2026, 8, 9), house=h3)["rungs"],
     {"house": 0, "publisher": 1, "title": 1, "drop": 0})
 
+print("── the publisher-rung quote cap ──────────────────────────────────────────")
+
+# The legal exposure on rung 2 is quantity: it is a verbatim reproduction of
+# someone else's words, and every one of the US, UK and EU tests turns on how
+# much was taken. `src/content.config.ts` in the feed repo refuses an edition
+# carrying more than PUBLISHER_CHARS, which means the trim here is not a
+# nicety — without it a night of long publisher summaries FAILS THE BUILD and
+# publishes nothing. That is how this was found.
+CAP = fe.PUBLISHER_CHARS
+chk("a short summary is untouched",
+    fe.trim_quote("Short and already fine, comfortably past the sixty-character floor."),
+    "Short and already fine, comfortably past the sixty-character floor.")
+
+two = "A first sentence of perfectly ordinary length. " + ("padding word " * 30) + "end."
+chk("an over-long summary is cut to the cap", len(fe.trim_quote(two)) <= CAP, True)
+chk("...at a sentence boundary where there is one",
+    fe.trim_quote("A first sentence that is long enough to stand on its own as a card body. "
+                  + "x" * 400).endswith("card body."), True)
+
+# A single sentence longer than the whole cap. Trimming to "nothing" would
+# demote the card to the title rung, and that rung is capped at two an edition,
+# so a night of these would start dropping cards outright.
+huge = "One enormous sentence with no terminal punctuation that simply keeps going " * 6
+out = fe.trim_quote(huge)
+chk("one huge sentence is hard-cut rather than lost", len(out) <= CAP, True)
+chk("...and says it was cut", out.endswith("…"), True)
+chk("...and does not end mid-word", out[:-1].endswith(" ") or out[:-1].split()[-1] in huge, True)
+chk("...and is still long enough to be a card", len(out) >= fe.MIN_CARD_SUMMARY, True)
+
+# The join that matters: card_rung is where the cap has to bite, because that is
+# what build_edition writes into the published object.
+long_row = {"id": "c" * 12, "url": "https://ex.com/1", "title": "T", "source": "S",
+            "summary": "A publisher sentence that runs on and on without stopping " * 8}
+rung, body = fe.card_rung(long_row)
+chk("card_rung caps the publisher rung", (rung, len(body) <= CAP), ("publisher", True))
+chk("...and the edition it produces is within the cap",
+    all(len(i["summary"]) <= CAP for i in
+        fe.build_edition([long_row], __import__("datetime").date(2026, 8, 9))["items"]), True)
+
+# House prose is original and carries no quotation exposure, so it is exempt
+# rather than merely uncapped — some real house summaries already exceed 300.
+house_long = "H" * (CAP + 120)
+chk("the house rung is NOT capped",
+    len(fe.card_rung(long_row, house=house_long)[1]), CAP + 120)
+
 print()
 if FAIL == 0:
     print(f"\033[32mPASS\033[0m ({COUNT}) — house voice tests passed")

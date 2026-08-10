@@ -26,11 +26,11 @@ from datetime import date as Date
 from pathlib import Path
 
 try:                                    # normal: scripts/lib is on the path
-    from bundle import is_safe_url
+    from bundle import is_safe_url, _LAST_SENTENCE_RE
 except ImportError:                     # imported with only the repo root there
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from bundle import is_safe_url
+    from bundle import is_safe_url, _LAST_SENTENCE_RE
 
 # The card body has to stand alone next to a headline. Below this a "summary"
 # is a fragment, and rung 3 is the more honest answer than a half sentence.
@@ -48,6 +48,56 @@ TAGS = ("agentic coding", "engineering leadership", "enterprise & governance",
         "models & research", "developer experience", "robotics")
 
 RUNGS = ("house", "publisher", "title", "drop")
+
+
+# The publisher-rung quote cap, in characters.
+#
+# A publisher-rung body is a verbatim reproduction of someone else's words. The
+# US fair-use argument, the UK quotation exception and the EU press publishers'
+# right all turn on the same variable — how much was taken — and quantity is the
+# factor most within this product's control, so it is the one made structural.
+# House prose is original, has no quotation exposure, and is exempt.
+#
+# Measured when it was set: median publisher summary 249 characters against a
+# 600-character fetch cap, so 300 leaves the median case untouched and refuses
+# the tail.
+#
+# `src/content.config.ts` in the feed repo enforces the same number as a build
+# failure. That duplication is deliberate and is the same arrangement as TAGS
+# and MAX_TITLE_ONLY: Python decides what an edition is, and the schema refuses
+# anything that does not match. Change one and you must change the other — the
+# schema's message names this constant so the trail is short.
+PUBLISHER_CHARS = 300
+
+
+def trim_quote(summary: str, cap: int = PUBLISHER_CHARS) -> str:
+    """A publisher's summary cut down to the quote cap.
+
+    Sentence boundary first, hard cut second — the same order and the same
+    reasoning as bundle.sanitise_summary, whose regex this borrows rather than
+    restates. A quotation that stops mid-clause reads as broken; one that stops
+    at a full stop reads as an excerpt.
+
+    The hard cut is the fallback for a single sentence longer than the whole
+    cap, which does happen. Trimming to "nothing" there would silently demote a
+    good card to the title rung, and the title rung is capped at two an edition,
+    so a night of long summaries would start dropping cards outright. A visibly
+    truncated excerpt is the better failure.
+    """
+    text = (summary or "").strip()
+    if len(text) <= cap:
+        return text
+
+    head = text[:cap]
+    match = _LAST_SENTENCE_RE.match(head)
+    if match and len(match.group(0).strip()) >= MIN_CARD_SUMMARY:
+        return match.group(0).strip()
+
+    # One long sentence. Back off to a word boundary and say that it was cut;
+    # the ellipsis is honest rather than decorative, and it is the one place in
+    # this pipeline that deliberately reintroduces one.
+    cut = head[:cap - 1].rsplit(" ", 1)[0].rstrip(",;:—- ")
+    return (cut + "…") if cut else head[:cap - 1] + "…"
 
 
 def card_rung(row: dict, house: str | None = None,
@@ -68,7 +118,7 @@ def card_rung(row: dict, house: str | None = None,
         return "drop", ""
     if house and len(house.strip()) >= min_summary:
         return "house", house.strip()
-    publisher = (row.get("summary") or "").strip()
+    publisher = trim_quote((row.get("summary") or "").strip())
     if len(publisher) >= min_summary:
         return "publisher", publisher
     if (row.get("title") or "").strip() and (row.get("url") or "").strip():
