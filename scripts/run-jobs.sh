@@ -189,9 +189,13 @@ if [ -d "$REPO_DIR/$FEED_STATE_REL" ]; then
     log "       nothing else will remove the row."
     FAILED_JOBS="$FAILED_JOBS feed-blocklist"
   else
+    # The pool, and any rows retirement added to the ledger during ingest. The
+    # ledger's *published* rows are not written yet — they are written after the
+    # publish is confirmed, in a second commit further down, because until then
+    # there is nothing honest to record.
     commit_and_push "$REPO_DIR" "$FEED_STATE_REL/" "feed: pool $DATE [automated]" && FS_RC=0 || FS_RC=$?
     case "$FS_RC" in
-      0) log "Committed the feed pool and ledger." ;;
+      0) log "Committed the feed pool." ;;
       2) ;;  # nothing to commit — commit_and_push already said so
       *) FAILED_JOBS="$FAILED_JOBS feed-$COMMIT_PUSH_FAIL" ;;
     esac
@@ -216,7 +220,41 @@ elif [ ! -f "$FEED_EDITION" ]; then
 else
   publish_feed_site "$FEED_SITE_DIR" "$DATE" && PF_RC=0 || PF_RC=$?
   case "$PF_RC" in
-    0) log "Published the feed edition for $DATE." ;;
+    0)
+      log "Published the feed edition for $DATE."
+      # Close the loop: the items in this edition must never be offered again.
+      #
+      # HERE, and not earlier. The ledger records what readers received, so it
+      # is written only once the push is confirmed at the remote — which is a
+      # fact commit_and_push establishes with `ls-remote`, not an opinion the
+      # exit code offers. Marking before the publish would retire seven items on
+      # a night that then failed to verify or push, and nothing puts them back.
+      #
+      # Only on rc=0. rc=2 is "nothing to commit", which means an earlier run
+      # already published and already marked this edition.
+      if mark_feed_published "$DATE" "$FEED_EDITION"; then
+        # A second commit to feed-state/, rather than moving the pool commit
+        # down here. The nightly loop was split into two phases precisely so a
+        # feed failure cannot cost the digests, and moving the pool commit after
+        # the publish would make an uncommitted pool a new consequence of a
+        # failed publish. Noisier history, unchanged failure independence.
+        commit_and_push "$REPO_DIR" "$FEED_STATE_REL/" "feed: ledger $DATE [automated]" \
+          && LG_RC=0 || LG_RC=$?
+        case "$LG_RC" in
+          0|2) ;;  # committed, or nothing to commit — both fine
+          *) FAILED_JOBS="$FAILED_JOBS feed-ledger-$COMMIT_PUSH_FAIL" ;;
+        esac
+      else
+        # The edition is published and the ledger is not. Tomorrow would repeat
+        # tonight's items, so this is a real failure even though the readers'
+        # side succeeded. Recover by hand:
+        #   python3 scripts/lib/feed_pool.py publish \
+        #     --edition <edition.json> --state scripts/feed-state --date <date>
+        log "ERROR: the edition published but the ledger was not marked."
+        log "       Tomorrow will re-offer tonight's items until this is run by hand."
+        FAILED_JOBS="$FAILED_JOBS feed-ledger"
+      fi
+      ;;
     2) ;;  # nothing to commit — commit_and_push already said so
     *) FAILED_JOBS="$FAILED_JOBS feed-site${COMMIT_PUSH_FAIL:+-$COMMIT_PUSH_FAIL}" ;;
   esac

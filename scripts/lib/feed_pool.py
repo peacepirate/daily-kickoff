@@ -333,6 +333,59 @@ def mark_published(ids: list[str], pool: list[dict], today: Date) -> tuple[list[
     return kept, rows
 
 
+def publish_edition(items: list[dict], pool: list[dict], ledger: list[dict],
+                    today: Date) -> tuple[list[dict], list[dict], dict]:
+    """Ledger rows for everything an edition published, and a pool without them.
+
+    Returns (pool, rows, stats). This is the write side of the loop whose read
+    side has always existed: feed_edition.py excludes `ledger_ids()` from
+    selection, and until something wrote the ledger that exclusion set was
+    permanently empty. Two of the first three editions shared three items
+    because of it.
+
+    **Rows come from the edition, not from the pool.** `mark_published()` builds
+    them by matching ids back into the pool, which silently produces no row for
+    an item pruned between ingest and publish — and an item with no row is
+    eligible again tomorrow. The edition file is the authority on what was
+    published, which is the same argument `rebuild_ledger()` already makes: it
+    is what readers saw.
+
+    **Idempotent, which is a requirement rather than a nicety.** `append_jsonl`
+    never rewrites, so a second run for the same date would append a second set
+    of rows. A retried night, a hand re-run after a failed push, and the replay
+    path all reach this. An id already in the ledger produces no new row and is
+    counted as `already`.
+
+    Removal from the pool is keyed on every id the edition names, not only the
+    newly-marked ones. An id that is somehow in both the pool and the ledger is
+    a bug this should absorb rather than preserve.
+    """
+    known = ledger_ids(ledger)
+    rows, seen = [], set()
+    stats = {"marked": 0, "already": 0, "no_id": 0}
+
+    for item in items:
+        rid = item.get("id")
+        if not rid:
+            # Defensive: the CLI refuses an edition containing one of these
+            # before calling, because an item with no id cannot be excluded
+            # from tomorrow and would republish forever.
+            stats["no_id"] += 1
+            continue
+        if rid in seen or rid in known:
+            stats["already"] += 1
+            seen.add(rid)
+            continue
+        seen.add(rid)
+        rows.append({"id": rid, "url": item.get("url", ""),
+                     "status": "published", "published": today.isoformat()})
+        stats["marked"] += 1
+
+    kept = [row for row in pool if row.get("id") not in seen]
+    stats["pool"] = len(kept)
+    return kept, rows, stats
+
+
 def rebuild_ledger(published_records: list[dict], fallback_date: str) -> list[dict]:
     """Reconstruct ledger rows from what was actually published.
 
@@ -353,16 +406,23 @@ def rebuild_ledger(published_records: list[dict], fallback_date: str) -> list[di
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 #
-# Invoked nightly by the `feed` job's fetch step, via ingest_feed_records in
-# scripts/lib/job-config.sh, and by hand for replays.
+# `ingest` is invoked nightly by the `feed` job's fetch step, via
+# ingest_feed_records in scripts/lib/job-config.sh, and by hand for replays.
 #
-# There is still no `mark_published` caller — selection is Epic 6 — so today the
-# pool only grows and retires. That is on purpose: the pool has to accumulate
-# real days before selection has anything honest to be tested against, and
-# fetch_sources.py anchors to now(), so a day not captured is a day lost.
+# `publish` is invoked by run-jobs.sh AFTER publish_feed_site returns 0 — that
+# is, only once the edition is confirmed at the remote. Marking earlier would
+# retire seven items on a night whose verify or push then failed, and nothing
+# returns them to the pool. A quarantined edition is recoverable; a retired item
+# is not.
+#
+# It is a command rather than a call inside feed_edition.py for three reasons:
+# feed_edition.py runs before the publish and must not know about it; a command
+# can be re-run by hand after a recovered failure; and it is testable without a
+# network or a model.
 #
 # A replay produces exactly what the nightly path would have, because ingest()
-# takes `today` as an argument instead of reading a clock.
+# and publish_edition() both take `today` as an argument instead of reading a
+# clock.
 
 def _blocklist_terms(path) -> list[str]:
     """Read the shared blocklist. Missing file raises — callers decide.
@@ -384,8 +444,9 @@ def _blocklist_terms(path) -> list[str]:
 def _main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description="Feed candidate pool and published ledger")
-    ap.add_argument("command", choices=["ingest", "stats"])
+    ap.add_argument("command", choices=["ingest", "publish", "stats"])
     ap.add_argument("--records", help="JSONL record sidecar to ingest")
+    ap.add_argument("--edition", help="Edition JSON to mark published (required for publish)")
     ap.add_argument("--state", required=True, help="Directory holding pool.jsonl and ledger.jsonl")
     ap.add_argument("--date", required=True, help="Run date, YYYY-MM-DD")
     ap.add_argument("--blocklist", help="Path to the blocklist (required for ingest)")
@@ -402,6 +463,45 @@ def _main(argv=None):
         if pool:
             ages = sorted(r.get("first_seen", "") for r in pool)
             print(f"oldest candidate first seen {ages[0]}, newest {ages[-1]}")
+        return 0
+
+    if a.command == "publish":
+        import sys
+        if not a.edition:
+            ap.error("publish needs --edition")
+        edition = json.loads(Path(a.edition).read_text())
+
+        # The published date comes from the edition, and --date must agree with
+        # it. Passing the wrong date here is not a cosmetic slip: the ledger row
+        # is what tells a later run how old an item is, and backfilling under
+        # today's date would claim a week-old item published this morning. The
+        # same trap `feed_pool.py --date` already carries for replays.
+        ed_date = edition.get("date")
+        if ed_date and ed_date != a.date:
+            print(f"refusing: --date is {a.date} but {a.edition} is dated {ed_date}. "
+                  f"Pass the date the edition was published.", file=sys.stderr)
+            return 1
+
+        items = edition.get("items") or []
+        if not items:
+            print(f"refusing: {a.edition} has no items. Nothing was published, so "
+                  f"marking it would retire nothing and hide a broken edition.", file=sys.stderr)
+            return 1
+
+        # Fails closed and before any write. An item with no id cannot be put in
+        # the ledger, and an item not in the ledger is offered again tomorrow —
+        # so a partial mark is the one outcome worse than no mark at all.
+        missing = sum(1 for it in items if not it.get("id"))
+        if missing:
+            print(f"refusing: {missing} of {len(items)} item(s) in {a.edition} have no id. "
+                  f"They could not be excluded from a future edition.", file=sys.stderr)
+            return 1
+
+        pool, rows, st = publish_edition(items, pool, ledger, today)
+        write_jsonl(state / "pool.jsonl", pool)
+        append_jsonl(state / "ledger.jsonl", rows)
+        print(f"published {a.date}: marked={st['marked']} already={st['already']} "
+              f"pool={st['pool']}")
         return 0
 
     if not a.records or not a.blocklist:

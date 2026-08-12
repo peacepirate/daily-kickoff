@@ -107,6 +107,57 @@ chk("the ledger row carries the url, not just the hash", bool(rows[0]["url"]), T
 _, st4 = fp.ingest([rec(1)], p2, fp.ledger_ids(rows), D0 + timedelta(days=1), TERMS)
 chk("and it cannot re-enter the pool afterwards", st4["dup_ledger"], 1)
 
+print("── publish_edition: the write side that closes the loop ──────────────────")
+#
+# The read side (feed_edition.py excluding ledger_ids from selection) has always
+# existed. Nothing wrote the ledger, so the exclusion set was permanently empty
+# and two of the first three editions shared three items. These assertions are
+# the ones that would have failed on 2026-08-11.
+
+pool0, _ = fp.ingest([rec(1), rec(2), rec(3), rec(4)], [], set(), D0, TERMS)
+ed = [{"id": pool0[0]["id"], "url": pool0[0]["url"]},
+      {"id": pool0[1]["id"], "url": pool0[1]["url"]}]
+
+p3, rows3, st5 = fp.publish_edition(ed, pool0, [], D0)
+chk("one ledger row per edition item", len(rows3), 2)
+chk("...and they leave the pool", len(p3), 2)
+chk("...reported as marked", st5["marked"], 2)
+chk("the row carries the url, not just the hash", bool(rows3[0]["url"]), True)
+chk("the row is marked published", rows3[0]["status"], "published")
+chk("the row carries the edition's date", rows3[0]["published"], D0.isoformat())
+
+# Idempotency. append_jsonl never rewrites, so a second run for the same date
+# would otherwise append a second set of rows. A retried night, a hand re-run
+# after a failed push, and the replay path all reach this.
+p4, rows4, st6 = fp.publish_edition(ed, p3, rows3, D0)
+chk("publishing the same edition twice adds no rows", len(rows4), 0)
+chk("...and says so rather than staying silent", st6["already"], 2)
+chk("...and does not disturb the pool", len(p4), 2)
+
+# The failure mode mark_published() has: an item pruned between ingest and
+# publish produces no row when rows are built from the pool, and an item with no
+# row is eligible again tomorrow.
+_, rows5, _ = fp.publish_edition([{"id": "never-pooled", "url": "https://example.com/x"}],
+                                 [], [], D0)
+chk("an item absent from the pool still gets a ledger row", len(rows5), 1)
+
+# The end-to-end assertion: the loop is actually closed.
+_, st7 = fp.ingest([rec(1)], p3, fp.ledger_ids(rows3), D0 + timedelta(days=1), TERMS)
+chk("a published item cannot re-enter the pool", st7["dup_ledger"], 1)
+
+# An id repeated inside one edition must not produce two rows for one item.
+dupe = [{"id": "same", "url": "u"}, {"id": "same", "url": "u"}]
+_, rows6, st8 = fp.publish_edition(dupe, [], [], D0)
+chk("an id repeated within one edition yields one row", len(rows6), 1)
+chk("...counted, not dropped silently", st8["already"], 1)
+
+# Mutation test. An idempotency check that never fires is the shape of guard
+# this project keeps rediscovering, so prove it can fail: with the ledger hidden
+# from it, the same call must produce rows again.
+_, rows_mut, _ = fp.publish_edition(ed, p3, [], D0)
+chk("the idempotency guard is load-bearing (blind to the ledger, rows return)",
+    len(rows_mut), 2)
+
 print("── ledger rebuild from published output ──────────────────────────────────")
 rebuilt = fp.rebuild_ledger([{"id": "aaa", "url": "u1", "published": "2026-08-01"},
                              {"id": "aaa", "url": "u1", "published": "2026-08-01"},

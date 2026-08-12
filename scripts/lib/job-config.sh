@@ -558,6 +558,40 @@ ingest_feed_records() {  # DATE RECORDS_FILE
   return "$rc"
 }
 
+# The write side of the ledger — the other half of ingest_feed_records.
+#
+# Selection excludes everything the ledger names (feed_edition.py, via
+# ledger_ids). Nothing wrote the ledger until this existed, so that exclusion
+# set was permanently empty and the pool offered the same top-ranked items every
+# night: 2026-08-09 and 2026-08-11 shipped three of the same items.
+#
+# CALLED ONLY AFTER publish_feed_site RETURNS 0, which means the edition is
+# confirmed at the remote and not merely written. Marking any earlier retires
+# items on a night whose verify or push then failed, and nothing returns them to
+# the pool. `publish_feed_site` already fails closed before its commit for the
+# same reason: a quarantined edition is recoverable, a retired item is not.
+#
+# Return code 2 from publish_feed_site — nothing to commit — must NOT reach
+# here. It means an earlier run already committed this edition, and that run
+# already marked it. The command is idempotent regardless, but relying on that
+# would make the ordering rule invisible to whoever reads this next.
+mark_feed_published() {  # DATE EDITION_FILE
+  local date="$1" edition="$2" state
+  state="$(feed_state_dir)"
+
+  if [ ! -f "$edition" ]; then
+    log "ERROR: no edition at $edition — cannot mark it published."
+    return 1
+  fi
+
+  mkdir -p "$state"
+  local out rc=0
+  out="$("$PYTHON_BIN" "$KICKOFF_LIB_REPO_DIR/scripts/lib/feed_pool.py" publish \
+         --edition "$edition" --state "$state" --date "$date" 2>&1)" || rc=$?
+  [ -n "$out" ] && log "$out"
+  return "$rc"
+}
+
 # ── Failure visibility ───────────────────────────────────────────────────────
 #
 # A failed nightly run is otherwise invisible. The dated log is gitignored and
