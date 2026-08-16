@@ -221,7 +221,32 @@ chk("a set cut by the veto says so",
     fs.thin_reason(3, {"eligible": 40, "chosen": 20}, {"not_offered": ["x"]}), "vetoed_thin")
 chk("every reason has words", sorted(fs.THIN_REASONS), sorted({
     "full", "pool_thin", "substance_thin", "stale_thin", "diversity_bound",
-    "model_thin", "vetoed_thin"}))
+    "model_thin", "vetoed_thin", "final_diversity_bound"}))
+
+# D3 — the unjudged path's final cut.
+#
+# `stats["chosen"]` is the SHORTLIST diversify (limit 20, loose caps);
+# `final_stats["chosen"]` is the second pass at the strict caps. Before D3 the
+# second was discarded, so a day cut from 20 candidates down to 3 by the
+# one-per-source rule fell through every branch and reported `model_thin` —
+# "fewer items were judged worth running" — on a night when nothing was judged.
+chk("the final cut is named, not blamed on a model that never ran",
+    fs.thin_reason(3, {"eligible": 40, "chosen": 20}, final_stats={"chosen": 3}),
+    "final_diversity_bound")
+# The regression this replaces, stated as its own assertion so the fix cannot be
+# reverted quietly: identical input WITHOUT the final stats is the old answer.
+chk("...and that is exactly the case that used to say model_thin",
+    fs.thin_reason(3, {"eligible": 40, "chosen": 20}), "model_thin")
+# The judged path must be untouched: it has a veto report and no final stats.
+chk("a judged day cut by the veto still says vetoed_thin",
+    fs.thin_reason(3, {"eligible": 40, "chosen": 20},
+                   {"source_capped": ["x"]}, final_stats=None), "vetoed_thin")
+# A final pass that did not bind is still the model's call.
+chk("a full final cut leaves the verdict with the model",
+    fs.thin_reason(3, {"eligible": 40, "chosen": 20}, final_stats={"chosen": 7}),
+    "model_thin")
+chk("a thin pool still outranks the final cut",
+    fs.thin_reason(1, {"eligible": 1, "chosen": 1}, final_stats={"chosen": 1}), "pool_thin")
 # The first stage that lost the count is the one worth naming: fixing diversity
 # would not have helped a day that was already thin at the pool.
 chk("a day thin at the pool AND concentrated reports the pool",
@@ -281,6 +306,85 @@ chk("an exempt row that has aged out is still refused",
 chk("an exempt row with an unsafe url is still refused",
     fs.ineligible_reason(srow(substance="title-only", url="javascript:alert(1)"),
                          TODAY, set(), 14, fs.MIN_SUMMARY_SELECT), "unsafe_url")
+
+print("── the entity cooldown: a repository is a name, not an event ─────────────")
+#
+# `item_id` is a hash of the url, and "never publish this url twice" is exactly
+# right for an article — one url is one event. For a repository the url is a
+# permanent name, so the same rule means "published once, banned forever" in one
+# direction, while the same project arriving under a different path gets a
+# different id and republishes freely in the other.
+#
+# The ledger here is built end-to-end through publish_edition() and
+# ledger_ids(), not written by hand, so the ledger WRITE is load-bearing too:
+# drop `entity` from the row it produces and every assertion below goes with it.
+
+import feed_pool as fp
+
+REPO_URL    = "https://github.com/facebook/react"
+RELEASE_URL = "https://github.com/facebook/react/releases/tag/v20"
+ENT   = "github:facebook/react"
+REPO_ID = "r" * 12
+D     = _D(2026, 2, 1)
+W     = fp.ENTITY_COOLDOWN_DAYS
+day   = lambda n: D + timedelta(days=n)
+
+published = [{"id": REPO_ID, "url": REPO_URL, "entity": ENT, "source": "GitHub Trending",
+              "title": "facebook / react", "summary": "s" * 200, "substance": "repo",
+              "first_seen": D.isoformat(), "date": D.isoformat()}]
+_, led_rows, _ = fp.publish_edition([{"id": REPO_ID, "url": REPO_URL}], published, [], D)
+LED = fp.ledger_ids(led_rows)
+
+def arrival(n, url=RELEASE_URL, rid="s" * 12, **kw):
+    """The same repository arriving again on day D+n, by default via a new path."""
+    r = {"id": rid, "url": url, "entity": ENT, "source": "GitHub Trending",
+         "title": "facebook / react", "summary": "s" * 200, "substance": "repo",
+         "first_seen": day(n).isoformat()}
+    r.update(kw); return r
+
+def why(row, n, ledger=LED):
+    return fs.ineligible_reason(row, day(n), ledger, 14, fs.MIN_SUMMARY_SELECT)
+
+chk("the same owner/repo under a different URL path is refused within the window",
+    why(arrival(1), 1), "entity_cooldown")
+chk("...still refused one day short of the window", why(arrival(W - 1), W - 1), "entity_cooldown")
+chk("the same owner/repo is eligible again after N+1 days", why(arrival(W + 1), W + 1), None)
+chk("...and at exactly N days, which is the boundary the constant names",
+    why(arrival(W), W), None)
+
+# The same url, where the permanent id refusal would otherwise stand alone.
+same = lambda n: arrival(n, url=REPO_URL, rid=REPO_ID)
+chk("the same url is refused inside the window", why(same(1), 1), "entity_cooldown")
+chk("...and released past it — 'published once' is no longer 'banned forever'",
+    why(same(W + 1), W + 1), None)
+
+# Fails closed in every direction where the ledger cannot answer the question.
+chk("a row with no entity keeps the permanent id refusal",
+    why({**same(W + 1), "entity": ""}, W + 1), "published")
+chk("a plain set carries no index, so the id refusal stays permanent",
+    why(same(W + 1), W + 1, ledger={REPO_ID}), "published")
+chk("an entity the ledger has never named is not refused",
+    why(arrival(1, rid="t" * 12, entity="github:other/thing"), 1), None)
+chk("case cannot fork one repository into two cooldowns",
+    why(arrival(1, entity="GitHub:Facebook/React"), 1), "entity_cooldown")
+
+# The cooldown reaches the ledger rule and nothing else. If any of these start
+# returning None the guard has grown past what it was granted.
+chk("a released entity with an unsafe url is still refused",
+    why(arrival(W + 1, url="javascript:alert(1)"), W + 1), "unsafe_url")
+chk("a released entity that has aged out is still refused",
+    why({**arrival(W + 1), "first_seen": D.isoformat()}, W + 1), "stale")
+chk("a released entity with a thin summary is still refused",
+    why(arrival(W + 1, summary="short"), W + 1), "thin_summary")
+
+rows_c, st_c = fs.eligible([arrival(1)], day(1), LED)
+chk("the refusal is counted, not merely happening", st_c["entity_cooldown"], 1)
+chk("...and the row is not offered", rows_c, [])
+chk("the reason is in the closed vocabulary",
+    "entity_cooldown" in fs.ELIGIBILITY_REASONS, True)
+chk("a released repository reaches the shortlist",
+    [r["id"] for r in fs.shortlist([arrival(W + 1)], LED, day(W + 1), {})["shortlist"]],
+    ["s" * 12])
 
 print()
 if FAIL == 0:

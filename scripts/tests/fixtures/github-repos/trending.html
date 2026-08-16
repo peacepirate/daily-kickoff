@@ -1,0 +1,94 @@
+<!-- Synthetic. The shape of github.com/trending as the scraper reads it, not a
+     recording of the live page: <article> per repository, an <h2> carrying the
+     owner/repo link, and a <p> description the feed path deliberately ignores.
+
+     The descriptions here are WRONG ON PURPOSE — every one differs from the
+     API's, so any test that passes while reading the scraped description is
+     visibly reading the wrong source. -->
+<!doctype html>
+<html><body>
+<main>
+
+<article class="Box-row">
+  <h2><a href="/facebook/react">facebook / react</a></h2>
+  <p>SCRAPED-NOT-API: a JavaScript library for building user interfaces</p>
+  <a href="/facebook/react/stargazers">240,001</a>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/ChromeDevTools/chrome-devtools-mcp">ChromeDevTools / chrome-devtools-mcp</a></h2>
+  <p>SCRAPED-NOT-API: chrome devtools mcp server</p>
+  <a href="/ChromeDevTools/chrome-devtools-mcp/stargazers">45,130</a>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/edge/exactly-at-the-floors">edge / exactly-at-the-floors</a></h2>
+  <p>SCRAPED-NOT-API: sits on every boundary</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/edge/one-short-of-the-description-floor">edge / one-short-of-the-description-floor</a></h2>
+  <p>SCRAPED-NOT-API: seventy-nine characters</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/typosquat/two-days-old">typosquat / two-days-old</a></h2>
+  <p>SCRAPED-NOT-API: brand new and trending hard</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/someone/a-fork-of-something">someone / a-fork-of-something</a></h2>
+  <p>SCRAPED-NOT-API: a fork</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/oldco/archived-tool">oldco / archived-tool</a></h2>
+  <p>SCRAPED-NOT-API: archived</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/oldco/disabled-tool">oldco / disabled-tool</a></h2>
+  <p>SCRAPED-NOT-API: disabled</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/tiny/starveling">tiny / starveling</a></h2>
+  <p>SCRAPED-NOT-API: barely any stars</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/stale/abandoned-spike">stale / abandoned-spike</a></h2>
+  <p>SCRAPED-NOT-API: no push in over a year</p>
+</article>
+
+<article class="Box-row">
+  <h2><a href="/terse/no-description">terse / no-description</a></h2>
+  <p>SCRAPED-NOT-API: nothing useful to say</p>
+</article>
+
+<!-- The API refuses this one: 403, the rate-limit shape. It must be dropped,
+     never admitted from the perfectly good scraped record below. -->
+<article class="Box-row">
+  <h2><a href="/forbidden/rate-limited">forbidden / rate-limited</a></h2>
+  <p>SCRAPED-NOT-API: a long, plausible, entirely usable description that would sail through every pool bar if the enrichment step ever fell back to it.</p>
+</article>
+
+<!-- The API call raises before a response exists: a timeout. Same rule. -->
+<article class="Box-row">
+  <h2><a href="/timeout/never-answers">timeout / never-answers</a></h2>
+  <p>SCRAPED-NOT-API: another long and entirely plausible description that must never reach the pool, because the gate that would have screened it did not run.</p>
+</article>
+
+<!-- Page chrome the scraper must not mistake for a repository. -->
+<article class="Box-row">
+  <h2><a href="/topics/machine-learning">Trending topic: machine learning</a></h2>
+</article>
+<article class="Box-row">
+  <h2><a href="/facebook/react/stargazers">Stargazers</a></h2>
+</article>
+<article class="Box-row">
+  <p>An article with no heading at all.</p>
+</article>
+
+</main>
+</body></html>

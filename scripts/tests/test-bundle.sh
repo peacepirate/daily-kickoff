@@ -321,7 +321,11 @@ probe() {  # DESC  CWD  SCRIPT_PATH
   rc=$?
   if grep -q 'Missing deps' <<<"$out"; then
     skip "$desc — producer deps not installed in $PYBIN"
-  elif [ "$rc" = 1 ] && grep -q 'Topic config not found' <<<"$out"; then
+  # Matches on the stable half of the sentence. The full text moved from "Topic
+  # config not found" to "Fetch config not found" when --config was added, and a
+  # test that pins the whole string turns a wording change into a failure of the
+  # import wiring it is actually asserting.
+  elif [ "$rc" = 1 ] && grep -q 'config not found' <<<"$out"; then
     ok "$desc"
   else
     bad "$desc — rc=$rc out=$out"

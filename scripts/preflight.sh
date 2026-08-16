@@ -23,6 +23,65 @@ for t in scripts/tests/test-*.sh; do
   else bad "$(basename "$t")"; printf '%s\n' "$out" | sed 's/^/        /'; fi
 done
 
+echo "job configs"
+# The producer names the config it reads, and nothing ever checked that the name
+# resolved. scripts/topics/feed.yaml became scripts/feed/10-feed.yaml, the
+# producer line kept saying `--topic feed`, and the pool fetch failed the next
+# morning — while the edition job carried on publishing from a pool that had
+# silently stopped growing. Both halves of that are this project's recurring
+# shape: a rename with nothing holding the two ends together, and a failure that
+# still looks like output.
+#
+# Every job kind is walked, not just topics/. That is the other half of why the
+# rename went unnoticed — the loop below this one reads scripts/topics/*.yaml
+# alone, so the feed configs were on no preflight list at all.
+#
+# Parsed with yaml rather than grep because a producer may be a folded scalar
+# (20-edition.yaml is), and `grep '^producer:'` returns ">-" for those.
+PY_BIN="scripts/.venv/bin/python3"
+if [ ! -x "$PY_BIN" ]; then
+  bad "scripts/.venv missing — cannot check producer configs"
+else
+  while IFS= read -r line; do
+    case "$line" in
+      OK\ *)  ok   "${line#OK }"  ;;
+      BAD\ *) bad  "${line#BAD }" ;;
+    esac
+  done < <("$PY_BIN" - <<'PY'
+import glob, os, re, sys, yaml
+
+for cfg in sorted(glob.glob("scripts/topics/*.yaml")
+                  + glob.glob("scripts/feed/*.yaml")
+                  + glob.glob("scripts/generators/*.yaml")):
+    job = os.path.basename(cfg)[:-5]
+    try:
+        producer = (yaml.safe_load(open(cfg)) or {}).get("producer") or ""
+    except Exception as ex:
+        print(f"BAD {job} config does not parse: {ex}")
+        continue
+    if not producer:
+        print(f"BAD {job} declares no producer")
+        continue
+
+    m = re.search(r"--config[=\s]+(\S+)", producer)
+    if m:
+        target = m.group(1)
+        print((f"OK {job} producer reads {target}") if os.path.isfile(target)
+              else f"BAD {job} producer names a config that does not exist: {target}")
+        continue
+
+    m = re.search(r"--topic[=\s]+(\S+)", producer)
+    if m:
+        target = f"scripts/topics/{m.group(1)}.yaml"
+        print((f"OK {job} producer resolves --topic {m.group(1)}") if os.path.isfile(target)
+              else f"BAD {job} producer says --topic {m.group(1)} but {target} does not exist")
+        continue
+
+    print(f"OK {job} producer takes no config argument ({producer.split()[0]})")
+PY
+  )
+fi
+
 echo "prompts"
 if grep -rlE '(^|[^A-Za-z_])TODAY([^A-Za-z_]|$)' scripts/prompts/ >/dev/null 2>&1; then
   bad "bare TODAY token: $(grep -rlE '(^|[^A-Za-z_])TODAY([^A-Za-z_]|$)' scripts/prompts/ | tr '\n' ' ')"

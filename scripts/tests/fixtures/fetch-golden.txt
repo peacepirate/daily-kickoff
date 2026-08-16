@@ -1,0 +1,104 @@
+=== Fixture RSS [rss] — 4 item(s)
+--- record
+{"date": "2026-08-05", "id": "e631c62c946b", "source": "Fixture RSS", "summary": "The release doubles the window and adds a batch endpoint.", "title": "A model ships with a longer context window", "url": "https://fixture.example/posts/context-window"}
+--- bundle
+**A model ships with a longer context window**
+URL: https://fixture.example/posts/context-window
+DATE: 2026-08-05
+Summary: The release doubles the window and adds a batch endpoint.
+--- record
+{"date": "2026-08-04", "id": "e9fd69ec8efa", "source": "Fixture RSS", "summary": "Survey data from 200 teams, and the gap between what is tracked and what is decided.", "title": "Platform teams aren’t measuring what they think", "url": "https://fixture.example/posts/platform-metrics"}
+--- bundle
+**Platform teams aren’t measuring what they think**
+URL: https://fixture.example/posts/platform-metrics?utm_source=rss&utm_medium=feed
+DATE: 2026-08-04
+Summary: Survey data from 200 teams, and the gap between what is tracked and what is decided.
+--- record
+{"date": "recent", "id": "3c692d199b8a", "source": "Fixture RSS", "summary": "No date on this one, which is common enough to be worth freezing.", "title": "An undated note about incident review practice", "url": "https://fixture.example/posts/undated"}
+--- bundle
+**An undated note about incident review practice**
+URL: https://fixture.example/posts/undated
+Summary: No date on this one, which is common enough to be worth freezing.
+--- record
+{"date": "2026-08-03", "id": "adbda5737b74", "source": "Fixture RSS", "summary": "This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary.", "title": "A very long post that exceeds the summary cap", "url": "https://fixture.example/posts/long-rss"}
+--- bundle
+**A very long post that exceeds the summary cap**
+URL: https://fixture.example/posts/long-rss
+DATE: 2026-08-03
+Summary: This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sen
+
+=== GitHub Trending [github] — 4 item(s)
+--- record
+{"date": "recent", "id": "2a812b52ee07", "source": "GitHub Trending", "summary": "A router for model context, with a cache that survives restarts.", "title": "acme / context-router", "url": "https://github.com/acme/context-router"}
+--- bundle
+**acme / context-router**
+URL: https://github.com/acme/context-router
+Summary: A router for model context, with a cache that survives restarts. (7,965 stars)
+--- record
+{"date": "recent", "id": "c24f6b77055c", "source": "GitHub Trending", "summary": "Short description.", "title": "nomad / k-skill", "url": "https://github.com/nomad/k-skill"}
+--- bundle
+**nomad / k-skill**
+URL: https://github.com/nomad/k-skill
+Summary: Short description. (312 stars)
+--- record
+{"date": "recent", "id": "6d527c5221bc", "source": "GitHub Trending", "summary": "", "title": "solo / bare-repo", "url": "https://github.com/solo/bare-repo"}
+--- bundle
+**solo / bare-repo**
+URL: https://github.com/solo/bare-repo
+--- record
+{"date": "recent", "id": "282de21d44b4", "source": "GitHub Trending", "summary": "This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary.", "title": "verbose / long-description", "url": "https://github.com/verbose/long-description"}
+--- bundle
+**verbose / long-description**
+URL: https://github.com/verbose/long-description
+Summary: This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This (1,024 stars)
+
+=== Claude Code Releases [releasebot] — 4 item(s)
+--- record
+{"date": "recent", "id": "954f7ad052f2", "source": "Claude Code Releases", "summary": "Adds a --resume flag and fixes a hang on large repos.", "title": "Claude 2.1.228", "url": "https://fixture.example/updates#2.1.228"}
+--- bundle
+**Claude 2.1.228**
+URL: https://fixture.example/updates#2.1.228
+Summary: Adds a --resume flag and fixes a hang on large repos.
+--- record
+{"date": "recent", "id": "954f7ad052f2", "source": "Claude Code Releases", "summary": "Reverts the retry loop introduced in 2.1.226.", "title": "Claude 2.1.227", "url": "https://fixture.example/updates#2.1.227"}
+--- bundle
+**Claude 2.1.227**
+URL: https://fixture.example/updates#2.1.227
+Summary: Reverts the retry loop introduced in 2.1.226.
+--- record
+{"date": "recent", "id": "954f7ad052f2", "source": "Claude Code Releases", "summary": "", "title": "Claude Week 32", "url": "https://fixture.example/updates#Week-32"}
+--- bundle
+**Claude Week 32**
+URL: https://fixture.example/updates#Week-32
+--- record
+{"date": "recent", "id": "954f7ad052f2", "source": "Claude Code Releases", "summary": "This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary.", "title": "Claude 2.1.226", "url": "https://fixture.example/updates#2.1.226"}
+--- bundle
+**Claude 2.1.226**
+URL: https://fixture.example/updates#2.1.226
+Summary: This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a tru
+
+=== Fixture Blog [html] — 4 item(s)
+--- record
+{"date": "recent", "id": "8cb4be363475", "source": "Fixture Blog", "summary": "Three questions that separate a useful review from a status meeting.", "title": "What a platform review should actually cover", "url": "https://fixture.example/2026/08/platform-review"}
+--- bundle
+**What a platform review should actually cover**
+URL: https://fixture.example/2026/08/platform-review
+Summary: Three questions that separate a useful review from a status meeting.
+--- record
+{"date": "recent", "id": "98c8e916af52", "source": "Fixture Blog", "summary": "Relative and absolute hrefs resolve differently; both are frozen here.", "title": "An absolute link on another host", "url": "https://elsewhere.example/absolute-link"}
+--- bundle
+**An absolute link on another host**
+URL: https://elsewhere.example/absolute-link
+Summary: Relative and absolute hrefs resolve differently; both are frozen here.
+--- record
+{"date": "recent", "id": "b3af3afbdb14", "source": "Fixture Blog", "summary": "", "title": "A heading with no anchor", "url": "https://fixture.example/blog"}
+--- bundle
+**A heading with no anchor**
+URL: https://fixture.example/blog
+--- record
+{"date": "recent", "id": "ae52534c1b86", "source": "Fixture Blog", "summary": "This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary.", "title": "A post with a very long first paragraph", "url": "https://fixture.example/2026/08/verbose"}
+--- bundle
+**A post with a very long first paragraph**
+URL: https://fixture.example/2026/08/verbose
+Summary: This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to p
+

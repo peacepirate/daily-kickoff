@@ -43,6 +43,144 @@ sources:
       url: "https://www.deepseek.com/"
       max_items: 3
 
+    # ── The application layer ───────────────────────────────────────────────
+    # Everything above is a model lab. Three things on the prompt's KEEP list
+    # are announced by nobody above — MCP protocol changes, document-AI/OCR/RAG
+    # advances, and local-LLM improvements — so scripts/prompts/ai.md has been
+    # asking for content the fetch layer never delivered. A digest can only
+    # filter what it was handed. These sources are the layer that ships those.
+    #
+    # Tier 1 and not tier 2: these are first-party release and announcement
+    # feeds, which is what tier 1 means here. Tier 2 stays commentary, so its
+    # "Curators" label in the digest keeps describing what is actually in it.
+    #
+    # max_items is 1–3 throughout, against a default of 10. Twenty-one sources
+    # at the default would triple the bundle and bury the labs above — the
+    # point is coverage of a missing layer, not volume.
+    #
+    # Probed live 2026-08-10, and rejected on measurement rather than taste:
+    #   Ragas           newest release 209 days old
+    #   Letta           88 days, and no blog feed on any path tried
+    #   Guardrails AI   67 days
+    #   DeepEval        release notes, median length 11 characters
+    #   Haystack        releases median 11 chars; index.xml is 431 docs pages,
+    #                   not a news feed
+    #   Chroma          releases titled `Latest`, `1.5.9`, `cli-1.4.4`
+    #   LangGraph       releases titled `langgraph-checkpoint-postgres==3.1.2`
+    #   vLLM            half the entries are rc tags with one-line notes
+    #   Firecrawl       release notes, median 27 characters
+    #   Pinecone, Nomic, Mem0 blog, Helicone, Langfuse blog, Confident AI and
+    #   Moonshot/Kimi   404 on every RSS path tried. Where the GitHub release
+    #                   feed carried real notes it is used instead; where it did
+    #                   not, the company is absent rather than approximated.
+    #
+    # Kimi has no English feed at any path. Together AI covers its releases in
+    # practice, which is why that source is capped at 3 rather than lower.
+
+    # Inference and deployment
+    - name: "Together AI Blog"
+      kind: rss
+      url: "https://www.together.ai/blog/rss.xml"
+      max_items: 3
+    # Groq publishes no feed at any path. Scraped instead, and it is the one
+    # source here that contributes nothing today: newest post 2026-06-22, 49
+    # days old at the time of writing. Kept rather than dropped because its
+    # cards mark up real dates, so extract_article_date filters them correctly
+    # and a dormant blog costs one fetch and emits nothing — unlike Ragas
+    # above, where the staleness would have arrived as content.
+    - name: "Groq Blog"
+      kind: html
+      url: "https://groq.com/blog"
+      max_items: 2
+    - name: "Google Cloud AI Blog"
+      kind: rss
+      url: "https://cloudblog.withgoogle.com/products/ai-machine-learning/rss/"
+      max_items: 2
+
+    # Agent frameworks and the protocol layer
+    - name: "LangChain Blog"
+      kind: rss
+      url: "https://blog.langchain.com/rss.xml"
+      max_items: 3
+    - name: "LlamaIndex Releases"
+      kind: rss
+      url: "https://github.com/run-llama/llama_index/releases.atom"
+      max_items: 2
+    - name: "DSPy Releases"
+      kind: rss
+      url: "https://github.com/stanfordnlp/dspy/releases.atom"
+      max_items: 2
+    - name: "MCP Specification"
+      kind: rss
+      url: "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom"
+      max_items: 2
+
+    # Evaluation, observability and alignment
+    - name: "Arize Blog"
+      kind: rss
+      url: "https://arize.com/blog/feed/"
+      max_items: 2
+    - name: "Arize Phoenix Releases"
+      kind: rss
+      url: "https://github.com/Arize-ai/phoenix/releases.atom"
+      max_items: 1
+    - name: "Langfuse Releases"
+      kind: rss
+      url: "https://github.com/langfuse/langfuse/releases.atom"
+      max_items: 1
+
+    # Retrieval — vector stores and embeddings
+    - name: "Weaviate Blog"
+      kind: rss
+      url: "https://weaviate.io/blog/rss.xml"
+      max_items: 2
+    - name: "Milvus Releases"
+      kind: rss
+      url: "https://github.com/milvus-io/milvus/releases.atom"
+      max_items: 1
+    - name: "Voyage AI Blog"
+      kind: rss
+      url: "https://blog.voyageai.com/feed/"
+      max_items: 2
+
+    # Local inference — the KEEP list's "local LLM improvements"
+    - name: "Ollama Releases"
+      kind: rss
+      url: "https://github.com/ollama/ollama/releases.atom"
+      max_items: 2
+    - name: "llama.cpp Releases"
+      kind: rss
+      url: "https://github.com/ggml-org/llama.cpp/releases.atom"
+      max_items: 2
+
+    # Document extraction — the closest sources here to the day job
+    - name: "Docling Releases"
+      kind: rss
+      url: "https://github.com/docling-project/docling/releases.atom"
+      max_items: 2
+    - name: "Zyte Blog"
+      kind: rss
+      url: "https://www.zyte.com/blog/feed/"
+      max_items: 2
+    - name: "Scrapy Releases"
+      kind: rss
+      url: "https://github.com/scrapy/scrapy/releases.atom"
+      max_items: 1
+
+    # Agent memory
+    - name: "Zep Blog"
+      kind: rss
+      url: "https://blog.getzep.com/rss/"
+      max_items: 2
+    - name: "Mem0 Releases"
+      kind: rss
+      url: "https://github.com/mem0ai/mem0/releases.atom"
+      max_items: 1
+    - name: "Cognee Releases"
+      kind: rss
+      url: "https://github.com/topoteretes/cognee/releases.atom"
+      max_items: 1
+
   tier2:
     - name: "Ahead of AI"
       kind: rss
@@ -70,7 +208,10 @@ sources:
       kind: rss
       url: "https://hnrss.org/frontpage"
       max_items: 30
-      filter_regex: "\\b(AI|LLM|GPT|Claude|Gemini|Grok|agent|MCP|RAG|embedding|fine.?tun|Anthropic|OpenAI|DeepSeek|Mistral|llama|copilot|diffusion|transformer|Bedrock|model|inference|vector|multimodal)\\b"
+      # OCR and document extraction are on the prompt's KEEP list and were
+      # absent from this regex, so discovery could not surface the one category
+      # closest to the day job. The tool names are here for the same reason.
+      filter_regex: "\\b(AI|LLM|GPT|Claude|Gemini|Grok|agent|MCP|RAG|embedding|fine.?tun|Anthropic|OpenAI|DeepSeek|Mistral|llama|copilot|diffusion|transformer|Bedrock|model|inference|vector|multimodal|OCR|document.?AI|LangChain|LlamaIndex|Ollama|DSPy|vLLM)\\b"
       filter_cap: 3
     - name: "GitHub Trending"
       kind: github

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Fixture Feed</title>
+    <link>https://fixture.example/</link>
+    <description>Shapes taken from the real feeds this pipeline reads.</description>
+
+    <!-- Ordinary item: HTML in the description, which fetch_rss strips. -->
+    <item>
+      <title>A model ships with a longer context window</title>
+      <link>https://fixture.example/posts/context-window</link>
+      <pubDate>Wed, 05 Aug 2026 09:00:00 GMT</pubDate>
+      <description>&lt;p&gt;The release &lt;strong&gt;doubles&lt;/strong&gt; the window and adds a batch endpoint.&lt;/p&gt;</description>
+    </item>
+
+    <!-- Entity in the title, and a tracking query the id normaliser drops. -->
+    <item>
+      <title>Platform teams aren&#8217;t measuring what they think</title>
+      <link>https://fixture.example/posts/platform-metrics?utm_source=rss&amp;utm_medium=feed</link>
+      <pubDate>Tue, 04 Aug 2026 17:30:00 GMT</pubDate>
+      <description>Survey data from 200 teams, and the gap between what is tracked and what is decided.</description>
+    </item>
+
+    <!-- Older than the pinned SINCE: the recency filter must drop this one.
+         Without it, a deleted recency check would still produce the golden. -->
+    <item>
+      <title>An announcement from well before the lookback window</title>
+      <link>https://fixture.example/posts/ancient</link>
+      <pubDate>Mon, 06 Jul 2026 08:00:00 GMT</pubDate>
+      <description>Should never appear in the golden.</description>
+    </item>
+
+    <!-- No pubDate at all: kept, and dated "recent". -->
+    <item>
+      <title>An undated note about incident review practice</title>
+      <link>https://fixture.example/posts/undated</link>
+      <description>No date on this one, which is common enough to be worth freezing.</description>
+    </item>
+
+    <!-- Longer than the 600-character RSS cap, so the cut point is frozen and a
+         changed cap shows up as a diff rather than as nothing. -->
+    <item>
+      <title>A very long post that exceeds the summary cap</title>
+      <link>https://fixture.example/posts/long-rss</link>
+      <pubDate>Mon, 03 Aug 2026 12:00:00 GMT</pubDate>
+      <description>This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentenc</description>
+    </item>
+  </channel>
+</rss>

@@ -29,8 +29,8 @@ output:   "{{FEED_SITE}}/src/content/editions/{{DATE}}.json"
 # markdown run_llm_job verifies.
 #
 # Both model flags degrade rather than fail. A refusal or a timeout on --judge
-# leaves the edition marked unjudged, which shows a Preview banner and keeps the
-# day out of both feeds; the same on --house drops every card to the publisher's
+# leaves the edition marked unjudged, which keeps the day out of both feeds
+# while still letting it reach the page; the same on --house drops every card to the publisher's
 # own summary. Either way the night still publishes. Silence is the one failure
 # this product cannot recover from.
 #

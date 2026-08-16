@@ -108,10 +108,84 @@ n = sum(len(v) for v in d["sources"].values())
 assert n >= 20, f"only {n} sources — the pool exists to be large"
 urls = [s["url"] for v in d["sources"].values() for s in v]
 assert len(urls) == len(set(urls)), "a url is listed twice"
+subs = {s.get("substance") for v in d["sources"].values() for s in v} - {None}
+# `substance: repo` waives MIN_TITLE, excludes an item from the house voice and
+# refuses it the title rung. It is earned by passing the API screen, never
+# granted by a config line — but main() reads a source-level `substance:` and a
+# typo here would hand a plain RSS feed all three. The vocabulary a config may
+# declare is exactly one value.
+assert subs <= {"title-only"}, f"config-declared substance must be title-only; got {subs}"
 kinds = {s.get("kind") for v in d["sources"].values() for s in v}
-assert kinds == {"rss"}, f"non-rss kinds present: {kinds - {'rss'}} — the pool was measured on rss only"
+# `github_repos` is the second kind admitted to this pool, and it is a closed
+# list rather than an open door: the pool's supply was measured on rss, and a
+# kind added without its own measurement and its own floors would be volume,
+# not supply. `github` is deliberately NOT here — that kind shares its fetcher
+# with the private digest, and the feed uses its own.
+assert kinds <= {"rss", "github_repos"}, \
+    f"unmeasured kinds present: {kinds - {'rss', 'github_repos'}}"
 PY
 fi
+
+echo "── the producer names a config that exists ───────────────────────────────"
+# The regression this section exists for: scripts/topics/feed.yaml became
+# scripts/feed/10-feed.yaml, the producer line kept saying `--topic feed`, and
+# the pool fetch failed the next morning while the edition job went on
+# publishing from a pool that had stopped growing. find_job_config above still
+# resolved — job discovery was never the broken half. Nothing checked the path
+# the producer itself would read.
+#
+# No network anywhere below: every case either fails before the first fetch or
+# is handed a config with no sources in it.
+FS="$REPO_DIR/scripts/fetch_sources.py"
+
+producer_line="$("$PYBIN" -c 'import sys,yaml; print((yaml.safe_load(open(sys.argv[1])) or {}).get("producer",""))' "$FEED")"
+case "$producer_line" in
+  *--config*)
+    target="$(printf '%s\n' "$producer_line" | sed -E 's/.*--config[= ]+([^ ]+).*/\1/')"
+    [ -f "$REPO_DIR/$target" ] \
+      && ok "the feed producer names a config that exists ($target)" \
+      || bad "the feed producer names a config that does not exist: $target"
+    ;;
+  *--topic*)
+    t="$(printf '%s\n' "$producer_line" | sed -E 's/.*--topic[= ]+([^ ]+).*/\1/')"
+    [ -f "$REPO_DIR/scripts/topics/$t.yaml" ] \
+      && ok "the feed producer resolves --topic $t" \
+      || bad "the feed producer says --topic $t but scripts/topics/$t.yaml does not exist"
+    ;;
+  *) bad "the feed producer names no config at all: $producer_line" ;;
+esac
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+printf 'name: "empty"\nsources: {}\n' > "$TMP/empty.yaml"
+
+# An empty-sources config makes no HTTP calls, so this proves resolution alone.
+( cd "$REPO_DIR" && "$PYBIN" "$FS" --config "$TMP/empty.yaml" >/dev/null 2>&1 )
+chk "--config accepts an absolute path" $? 0
+
+# Asserted through the error text of a path that cannot exist, so the rule is
+# proven without fetching a single source. Running a real config here would put
+# the whole pool on the wire from a unit test.
+out="$( cd "$TMP" && "$PYBIN" "$FS" --config scripts/feed/__nope__.yaml 2>&1 )"
+if grep -q "$REPO_DIR/scripts/feed/__nope__.yaml" <<<"$out"; then
+  ok "a relative --config resolves against the repo, not the caller's cwd"
+else
+  bad "a relative --config resolved against cwd — a producer run from elsewhere would read the wrong file: $out"
+fi
+
+( cd "$REPO_DIR" && "$PYBIN" "$FS" --config "$TMP/nope.yaml" >/dev/null 2>&1 )
+chk "a --config path that does not exist is refused" $? 1
+
+( cd "$REPO_DIR" && "$PYBIN" "$FS" --topic __no_such_topic__ >/dev/null 2>&1 )
+chk "a --topic that does not resolve is refused" $? 1
+
+# Both, and neither, are ambiguous rather than defaulted. A default here would
+# pick one silently and reintroduce exactly the drift above.
+( cd "$REPO_DIR" && "$PYBIN" "$FS" --topic ai --config "$TMP/empty.yaml" >/dev/null 2>&1 )
+chk "passing both --topic and --config is refused" $? 1
+
+( cd "$REPO_DIR" && "$PYBIN" "$FS" >/dev/null 2>&1 )
+chk "passing neither --topic nor --config is refused" $? 1
 
 echo
 if [ "$FAIL" -eq 0 ]; then

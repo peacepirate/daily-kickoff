@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from datetime import date as Date
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:                                    # normal: scripts/lib is on the path
     from bundle import is_safe_url, _LAST_SENTENCE_RE
@@ -70,6 +71,67 @@ RUNGS = ("house", "publisher", "title", "drop")
 PUBLISHER_CHARS = 300
 
 
+# The `substance` value a repository listing carries. Every other substance flag
+# in this pipeline waives an *admission* rule; this one changes what may be DONE
+# to an item once it is in, and both uses below turn on it — a repository never
+# reaches the house voice, and it can never land on the title rung.
+SUBSTANCE_REPO = "repo"
+
+# Hosts whose pages render text written by the thing being described rather
+# than by an editor. Deliberately a tiny closed list and not a heuristic: it
+# is consulted only to REFUSE the house voice, so a false positive costs one
+# card its generated prose and a false negative costs the brand a card that
+# says whatever a stranger wrote.
+AUTHOR_CONTROLLED_HOSTS = frozenset({"github.com", "gitlab.com", "codeberg.org"})
+
+
+def is_repo(row: dict) -> bool:
+    """Whether this row names a repository rather than a published article."""
+    return row.get("substance") == SUBSTANCE_REPO
+
+
+def has_author_controlled_body(row: dict) -> bool:
+    """Whether fetching this row's url yields text its subject wrote.
+
+    The trust boundary the house voice depends on, stated as code. Every other
+    url in the pool comes from a hand-probed publisher feed, where the fetched
+    article was written by an editor. A code-hosting page renders a README,
+    which is written by whoever owns the repository — and trending is gameable.
+
+    **Keyed on the host, not on `substance: repo`.** The flag is stamped only by
+    the GitHub lane, and it is not the only way a github.com url reaches the
+    pool: `10-feed.yaml` carries Lobsters and Hacker News at tier 3, and their
+    `<link>` IS the submitted url. A row arriving that way has no flag, so a
+    flag-keyed check hands its README straight to the model while reporting the
+    surface as removed. Found by adversarial review after the flag-keyed version
+    had already passed its own tests.
+    """
+    if is_repo(row):
+        return True
+    host = urlparse((row.get("url") or "").strip()).netloc.lower()
+    host = host.split("@")[-1].split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    return host in AUTHOR_CONTROLLED_HOSTS
+
+
+def order_repos_last(rows: list[dict]) -> list[dict]:
+    """Repository items after everything else, relative order kept within each group.
+
+    News decays and a repository does not, so a reader who gets through only the
+    first three cards should get the three that are time-sensitive. It is also
+    the entire skimming benefit a visual sub-heading would have bought: a
+    heading that vanishes on a zero-repository day makes absence look like a
+    gap, and this costs no bytes on the page at all.
+
+    Stable, and that is what makes it safe on the judged path — within the
+    non-repository group the model's ranking survives untouched, and the item
+    count is identical either way, so nothing downstream of the count changes.
+    """
+    return ([r for r in rows if not is_repo(r)]
+            + [r for r in rows if is_repo(r)])
+
+
 def trim_quote(summary: str, cap: int = PUBLISHER_CHARS) -> str:
     """A publisher's summary cut down to the quote cap.
 
@@ -113,15 +175,27 @@ def card_rung(row: dict, house: str | None = None,
     better outcome than rung 4; it is the worst outcome there is. This is the
     last gate before the published shape, and it is checked here rather than
     trusted from admission because a pool row can be edited by hand.
+
+    A repository skips rungs 1 and 3 entirely, for two unrelated reasons, and
+    lands on rung 2 or on nothing.
     """
     if not is_safe_url(row.get("url")):
         return "drop", ""
-    if house and len(house.strip()) >= min_summary:
+    # `_house_pass` never asks the model about a repository, and this refuses a
+    # house body for one anyway — same reasoning as the url check above, which
+    # is here rather than trusted from admission because the row reaching this
+    # function can have been edited by hand.
+    if house and not is_repo(row) and len(house.strip()) >= min_summary:
         return "house", house.strip()
     publisher = trim_quote((row.get("summary") or "").strip())
     if len(publisher) >= min_summary:
         return "publisher", publisher
-    if (row.get("title") or "").strip() and (row.get("url") or "").strip():
+    # Rung 3 is a bare headline, which is honest for an article and useless for
+    # a repository: `facebook / react` with nothing under it is the link list
+    # this product exists not to be. A repository with no usable description is
+    # dropped rather than shown naked.
+    if (not is_repo(row) and (row.get("title") or "").strip()
+            and (row.get("url") or "").strip()):
         return "title", ""
     return "drop", ""
 
@@ -140,9 +214,13 @@ def build_edition(rows: list[dict], today: Date,
     signal that the house voice has quietly stopped working: a run of editions
     at rung 2 looks perfectly fine on the page and means the generation failed
     every time.
+
+    Order is decided here rather than by the caller because this is the function
+    that writes the sequence the page renders — see order_repos_last.
     """
     house = house or {}
     tags = tags or {}
+    rows = order_repos_last(rows)
     items: list[dict] = []
     counts = {r: 0 for r in RUNGS}
     title_only = 0
@@ -208,6 +286,32 @@ def _house_pass(rows: list[dict], model: str | None,
         import house_call
 
         house_voice.assert_tag_vocabularies_agree()
+
+        # THE TRUST BOUNDARY, WRITTEN DOWN. Every other url in the pool comes
+        # from a hand-probed publisher feed. A repository's page is its README —
+        # arbitrary text written by anyone who can get a repository to trend, and
+        # trending is gameable — and house_voice.render_items pastes fetched text
+        # into the prompt verbatim, undelimited and unescaped.
+        #
+        # validate_card is no defence: its rules are hallucination controls that
+        # check the summary against `source_text`, which is built from the item's
+        # own fetched text. A fact planted in a README therefore validates as
+        # sourced, and the output is a clean, in-voice, fully-validated card
+        # saying whatever the repository author wrote.
+        #
+        # So a repository is not sent, not fetched, and not offered to the model
+        # at all. That removes the surface rather than narrowing it, and it is
+        # cheaper than any amount of prompt hardening. The card is the
+        # maintainer's own description, which is GitHub-hosted metadata rather
+        # than README prose and is the honest thing to publish.
+        held = [r for r in rows if has_author_controlled_body(r)]
+        rows = [r for r in rows if not has_author_controlled_body(r)]
+        held_note = ([f"house: {len(held)} item(s) held back — the page is "
+                      f"author-controlled text, so the card stays the "
+                      f"publisher's own words."] if held else [])
+        if not rows:
+            return {}, {}, held_note + ["house: nothing left to write about."]
+
         fetch = fetcher or (lambda u: article_fetch.fetch_article(u))
         fetched = {}
         kinds: dict[str, int] = {}
@@ -219,8 +323,8 @@ def _house_pass(rows: list[dict], model: str | None,
             kinds[key] = kinds.get(key, 0) + 1
 
         items = house_voice.build_input(rows, fetched)
-        lines = [f"house: fetched {len(rows)} url(s) — "
-                 f"{', '.join(f'{k}={v}' for k, v in sorted(kinds.items()))}"]
+        lines = held_note + [f"house: fetched {len(rows)} url(s) — "
+                             f"{', '.join(f'{k}={v}' for k, v in sorted(kinds.items()))}"]
         if not items:
             lines.append("house: nothing fetched cleanly — every card falls to the "
                          "publisher's own summary.")
@@ -321,7 +425,11 @@ def _main(argv=None):
     # That last branch is the refusal-degradation property the plan calls its
     # most consequential structural choice. A model outage costs the day its
     # curation and its place in the feed, never its publish.
-    judged, vetoed = False, None
+    # `final_stats` is the unjudged path's counterpart to `vetoed`: the stats of
+    # the SECOND diversify, at the strict caps. Both were discarded before D3,
+    # which left thin_reason reading only the shortlist-stage numbers and
+    # reporting `model_thin` on nights when no model verdict existed.
+    judged, vetoed, final_stats = False, None, None
     if a.judge:
         # Imports inside the guard, matching _house_pass. An ImportError or a
         # syntax error in feed_judge must cost the day its curation, not the
@@ -355,8 +463,8 @@ def _main(argv=None):
             # one, because "the model chose nothing" and "nothing the model
             # chose exists" are different facts and only one of them should
             # reach a subscriber marked judged.
-            chosen, _ = diversify(sel["shortlist"], a.cap,
-                                  FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+            chosen, final_stats = diversify(sel["shortlist"], a.cap,
+                                            FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
             print(f"judge: all {len(ids)} returned id(s) were vetoed — none was on "
                   f"the shortlist or all breached the caps. Treating as no verdict "
                   f"and publishing the top of the ranked shortlist, unjudged.",
@@ -366,13 +474,13 @@ def _main(argv=None):
             print("judge: the model read the shortlist and chose nothing. "
                   "Publishing an empty day.", file=sys.stderr)
         else:
-            chosen, _ = diversify(sel["shortlist"], a.cap,
-                                  FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+            chosen, final_stats = diversify(sel["shortlist"], a.cap,
+                                            FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
             print(f"judge: skipped ({judge_note}) — publishing the top of the "
                   f"ranked shortlist, unjudged.", file=sys.stderr)
     else:
-        chosen, _ = diversify(sel["shortlist"], a.cap,
-                              FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
+        chosen, final_stats = diversify(sel["shortlist"], a.cap,
+                                        FINAL_PER_SOURCE, FINAL_PER_DOMAIN)
 
     if a.check_links:
         # Wrapped whole. A link checker that can raise is a link checker that
@@ -402,18 +510,19 @@ def _main(argv=None):
 
     edition = build_edition(chosen, today, house=house, tags=tags,
                             reason=thin_reason(len(chosen), sel["stats"],
-                                               dropped=vetoed, cap=a.cap))
+                                               dropped=vetoed, cap=a.cap,
+                                               final_stats=final_stats))
 
-    # The site renders the Preview banner off this and both feeds filter on it,
-    # so it is the one field here that decides what reaches a subscriber — and a
-    # feed item cannot be recalled. It answers exactly one question: did a model
-    # judge these.
+    # Both feeds filter on this, so it is the one field here that decides what
+    # reaches a subscriber — and a feed item cannot be recalled. It answers
+    # exactly one question: did a model judge these. The site no longer shows
+    # anything for it; the flag is now purely a syndication gate.
     #
     # What is deliberately NOT allowed to clear it: --house succeeding. A model
-    # writing seven summaries has read seven articles and chosen nothing, and
-    # the banner's own words — "the top of a ranked shortlist, not a chosen
-    # seven" — would still be true. Conflating writing with judging is the cheap
-    # way to empty this flag of meaning.
+    # writing seven summaries has read seven articles and chosen nothing, so the
+    # set is still the top of a ranked shortlist rather than a chosen seven.
+    # Conflating writing with judging is the cheap way to empty this flag of
+    # meaning.
     edition["unjudged"] = not judged
 
     text = json.dumps(edition, ensure_ascii=False, indent=2, sort_keys=True)
@@ -422,16 +531,18 @@ def _main(argv=None):
         Path(a.out).write_text(text + "\n")
         print(f"{a.date}: {edition['count']} card(s) "
               f"({', '.join(f'{k}={v}' for k, v in edition['rungs'].items() if v)}) -> {a.out}")
-        # The operator's copy of what the reader will be told, read off the same
-        # flag the page reads rather than off an assumption about which pass ran.
+        # The operator's copy, read off the same flag the feeds read rather than
+        # off an assumption about which pass ran. The page says nothing about
+        # this either way, so this line and `npm run review` are the only places
+        # the distinction is stated at all.
         if edition["unjudged"]:
             print("NOTE: no model has judged relevance — these are the top of the ranked "
-                  "shortlist, not a curated seven. The page shows a Preview banner and "
-                  "the feeds will not carry this edition.")
+                  "shortlist, not a curated seven. This reaches the page only; the feeds "
+                  "will not carry this edition.")
         else:
             print(f"judged: a model chose these {edition['count']} from "
-                  f"{len(sel['shortlist'])} shortlisted. No Preview banner; the feeds "
-                  f"will carry it once it is reviewed.")
+                  f"{len(sel['shortlist'])} shortlisted. The feeds will carry it once it "
+                  f"is reviewed.")
     else:
         print(text)
     return 0

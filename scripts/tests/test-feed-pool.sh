@@ -229,6 +229,255 @@ chk("an exempt row with no title is still refused",
 chk("an exempt row with a too-short title is still refused",
     fp.qualifies(rec(substance="title-only", title="Tiny")), False)
 
+print("── the repository exemption (MIN_TITLE, and only MIN_TITLE) ──────────────")
+
+# `owner / repo` is a name, not a headline. 38% of 226 measured repositories are
+# under the 20-character minimum. The rule exists to reject navigation furniture
+# and scraped page chrome; a repository name is neither.
+def rrec(**kw):
+    r = {"id": "c" * 12, "title": "facebook / react", "summary": "s" * 120,
+         "url": "https://github.com/facebook/react", "source": "GitHub Trending",
+         "first_seen": "2026-08-10", "date": "2026-08-10"}
+    r.update(kw); return r
+
+chk("`facebook / react` (16 chars) is refused without the flag", fp.qualifies(rrec()), False)
+chk("...and ADMITTED with substance: repo", fp.qualifies(rrec(substance="repo")), True)
+chk("`microsoft / vscode` (18) is admitted",
+    fp.qualifies(rrec(substance="repo", title="microsoft / vscode")), True)
+chk("this project's own frozen fixture `NomaDamas / k-skill` (19) is admitted",
+    fp.qualifies(rrec(substance="repo", title="NomaDamas / k-skill")), True)
+
+# Fail closed, mirroring the titles-only flag above and for the same reason: a
+# flag that defaults open waives the rule for every source at once.
+for bad_flag in ("Repo", "repos", "repository", "repo-listing", "", "true"):
+    chk(f"a misspelled flag ({bad_flag!r}) leaves the gate on",
+        fp.qualifies(rrec(substance=bad_flag)), False)
+chk("a non-string flag leaves the gate on", fp.qualifies(rrec(substance=True)), False)
+
+# The exemption reaches the title MINIMUM only. Everything else is spent
+# elsewhere in qualifies() and none of it is waivable from here.
+chk("the maximum still applies to a repo record",
+    fp.qualifies(rrec(substance="repo", title="t" * (fp.MAX_TITLE + 1))), False)
+chk("an empty title is still refused — a card with no title is not a card",
+    fp.qualifies(rrec(substance="repo", title="")), False)
+chk("a whitespace-only title is still refused",
+    fp.qualifies(rrec(substance="repo", title="   ")), False)
+chk("a repo record gets NO summary waiver — that is why it is not title-only",
+    fp.qualifies(rrec(substance="repo", summary="short")), False)
+chk("a repo record with an unsafe url is still refused",
+    fp.qualifies(rrec(substance="repo", url="javascript:alert(1)")), False)
+chk("a repo record with no id is still refused",
+    fp.qualifies(rrec(substance="repo", id="")), False)
+# ...and the two exemptions do not leak into each other.
+chk("title-only still does not waive the title minimum",
+    fp.qualifies(rrec(substance="title-only")), False)
+
+print("── entity: a second identity, never a replacement for the id ─────────────")
+
+from bundle import item_record, RECORD_FIELDS, RECORD_OPTIONAL_FIELDS
+
+RU  = "https://github.com/facebook/react"
+ENT = "github:facebook/react"
+plain  = item_record("GitHub Trending", "facebook / react", RU, "2026-08-10", "s" * 120)
+tagged = item_record("GitHub Trending", "facebook / react", RU, "2026-08-10", "s" * 120,
+                     entity=ENT)
+
+chk("entity is declared optional, not appended to RECORD_FIELDS",
+    RECORD_OPTIONAL_FIELDS, ("entity",))
+# The frozen fetch golden and every committed pool row depend on this: a record
+# built without an entity has to be byte-identical to one built before entities
+# existed.
+chk("a record with no entity carries no entity key at all", tuple(plain.keys()), RECORD_FIELDS)
+chk("a record with one carries it", tagged.get("entity"), ENT)
+chk("...normalised, so case cannot fork one repository into two names",
+    item_record("S", "T", RU, "d", "s", entity=" GitHub:Facebook/React ")["entity"], ENT)
+# Re-keying item_id would re-hash the whole pool and ledger and republish
+# everything ever published. The entity is a SECOND key.
+chk("the entity does not move the id", tagged["id"], plain["id"])
+
+repo_rec = {**tagged, "substance": "repo"}
+pool_e, st_e = fp.ingest([repo_rec], [], fp.ledger_ids([]), D0, TERMS)
+chk("a repo record is admitted", st_e["added"], 1)
+chk("...and the POOL ROW carries the entity", pool_e[0].get("entity"), ENT)
+
+_, marked = fp.mark_published([repo_rec["id"]], pool_e, D0)
+chk("a published ledger row carries the entity", marked[0].get("entity"), ENT)
+
+# Edition items carry only the fields the published schema declares, and entity
+# is deliberately not one of them — so publish_edition reads it back out of the
+# pool while the row itself still comes from the edition.
+_, rows_pub, _ = fp.publish_edition([{"id": repo_rec["id"], "url": RU}], pool_e, [], D0)
+chk("publish_edition recovers the entity the edition does not carry",
+    rows_pub[0].get("entity"), ENT)
+
+_, retired_e, _ = fp.prune(pool_e, D0 + timedelta(days=fp.MAX_AGE_DAYS + 1))
+chk("an expiry tombstone carries it too, or the cooldown has nothing to expire",
+    retired_e[0].get("entity"), ENT)
+
+idx = fp.ledger_ids(rows_pub)
+chk("ledger_ids indexes entity -> date", idx.entities.get(ENT), D0.isoformat())
+chk("...and is still the set of ids every caller already asks", repo_rec["id"] in idx, True)
+chk("a ledger of articles carries an empty index",
+    fp.ledger_ids([{"id": "x", "url": "u", "published": "2026-08-01"}]).entities, {})
+chk("the MOST RECENT date wins when one entity appears twice",
+    fp.ledger_ids([{"id": "a", "entity": ENT, "status": "expired", "date": "2026-01-01"},
+                   {"id": "b", "entity": ENT, "published": "2026-06-01"}]).entities[ENT],
+    "2026-06-01")
+
+print("── the cooldown bounds the ledger's refusal, for an entity only ──────────")
+
+LED_E = fp.ledger_ids(rows_pub)
+W = fp.ENTITY_COOLDOWN_DAYS
+_, st_in = fp.ingest([repo_rec], [], LED_E, D0 + timedelta(days=W - 1), TERMS)
+chk("inside the window the same repository cannot re-enter the pool", st_in["dup_ledger"], 1)
+_, st_out = fp.ingest([repo_rec], [], LED_E, D0 + timedelta(days=W), TERMS)
+chk("past it, it is a candidate again — 'published once' is not 'banned forever'",
+    st_out["added"], 1)
+
+# Fails closed in all three directions.
+art = {"id": "d" * 12, "url": "https://example.com/a1", "source": "S",
+       "title": "A headline of a perfectly ordinary length here", "summary": "s" * 120}
+led_art = fp.ledger_ids([{"id": "d" * 12, "url": art["url"],
+                          "status": "published", "published": D0.isoformat()}])
+_, st_art = fp.ingest([art], [], led_art, D0 + timedelta(days=W + 99), TERMS)
+chk("an article carries no entity, so its refusal stays permanent", st_art["dup_ledger"], 1)
+
+led_old = fp.ledger_ids([{"id": repo_rec["id"], "url": RU,
+                          "status": "published", "published": D0.isoformat()}])
+_, st_old = fp.ingest([repo_rec], [], led_old, D0 + timedelta(days=W + 99), TERMS)
+chk("a ledger row written before entities existed keeps its permanent refusal",
+    st_old["dup_ledger"], 1)
+_, st_set = fp.ingest([repo_rec], [], {repo_rec["id"]}, D0 + timedelta(days=W + 99), TERMS)
+chk("a plain set disables the cooldown, it does not open the gate",
+    st_set["dup_ledger"], 1)
+
+print("── batch dedup keeps the better record, not the first ────────────────────")
+
+# A Show HN of a repository links to the repository, so it produces the SAME
+# item_id as the trending record — and HN's summary sanitises to nothing.
+# First-wins meant the outcome depended on the order of two YAML blocks, with no
+# assertion anywhere.
+HN_SUMMARY = ("Article URL: https://github.com/facebook/react "
+              "Comments URL: https://news.ycombinator.com/item?id=1 Points: 42 # Comments: 7")
+TREND_SUMMARY = ("The library for web and native user interfaces, maintained by Meta "
+                 "and a community of individual developers.")
+
+def hn():
+    return {**item_record("Hacker News", "facebook / react", RU, "2026-08-10",
+                          HN_SUMMARY, entity=ENT), "substance": "repo"}
+def trend():
+    return {**item_record("GitHub Trending", "facebook / react", RU, "2026-08-10",
+                          TREND_SUMMARY, entity=ENT), "substance": "repo"}
+
+GOOD = trend()["summary"]
+chk("HN's summary sanitises to nothing", hn()["summary"], "")
+chk("...and the trending description survives", len(GOOD) >= fp.MIN_SUMMARY, True)
+chk("the two records share one id", hn()["id"] == trend()["id"], True)
+
+p_hn, st_hn = fp.ingest([hn(), trend()], [], fp.ledger_ids([]), D0, TERMS)
+chk("HN first, trending second: one row is added", st_hn["added"], 1)
+chk("...counted as a batch duplicate", st_hn["dup_batch"], 1)
+# Compared as a list, not by indexing row 0. Under first-wins the pool is EMPTY
+# — HN's blank summary loses the item at the 80-character bar — and an
+# IndexError would end the run before the rest of these assertions ever ran.
+chk("THE POOL ROW CARRIES THE TRENDING DESCRIPTION",
+    [r["summary"] for r in p_hn], [GOOD])
+p_tr, _ = fp.ingest([trend(), hn()], [], fp.ledger_ids([]), D0, TERMS)
+chk("...and the reverse order gives the same row — tier order no longer decides",
+    [r["summary"] for r in p_tr], [GOOD])
+
+# Strictly greater, so an exact tie still keeps the first arrival and tier order
+# breaks ties the way it always did.
+p_tie, _ = fp.ingest([{**trend(), "source": "First"}, {**trend(), "source": "Second"}],
+                     [], fp.ledger_ids([]), D0, TERMS)
+chk("an exact tie keeps the first arrival", p_tie[0]["source"], "First")
+
+# A record with no id is a different event from a duplicate and stays countable.
+_, st_noid = fp.ingest([{"title": "x" * 40, "summary": "s" * 120},
+                        {"title": "y" * 40, "summary": "s" * 120}],
+                       [], fp.ledger_ids([]), D0, TERMS)
+chk("records with no id are counted unqualified, not collapsed together",
+    st_noid["unqualified"], 2)
+
+print("── the cooldown must not become a nightly republish ──────────────────────")
+# Found by adversarial review, reproduced by execution: publish_edition refused a
+# second row for an id already in the ledger, so the entity's date stayed frozen
+# at the FIRST publish. Once that date was 180 days old the release was
+# permanent and the card came back every single night — the duplicate-publish
+# defect that cost three shared items, on a delayed fuse.
+REPO_ROW = {"id": "f" * 12, "title": "acme / thing", "url": "https://github.com/acme/thing",
+            "date": "recent", "first_seen": D0.isoformat(), "source": "GitHub Trending",
+            "substance": fp.SUBSTANCE_REPO, "entity": "github:acme/thing",
+            "summary": "d" * 200}
+led_rows = []
+pool_r, _ = fp.ingest([REPO_ROW], [], fp.ledger_ids(led_rows), D0, TERMS)
+pool_r, rows_r, _ = fp.publish_edition(pool_r, pool_r, led_rows, D0)
+led_rows += rows_r
+_, _, st_same = fp.publish_edition([REPO_ROW], [REPO_ROW], led_rows, D0)
+chk("a re-run on the same night still writes no second row", st_same["marked"], 0)
+
+published_on = []
+for offset in (179, 180, 181, 400):
+    day = D0 + timedelta(days=offset)
+    led = fp.ledger_ids(led_rows)
+    p, _ = fp.ingest([REPO_ROW], [], led, day, TERMS)
+    if p:
+        _, r2, _ = fp.publish_edition(p, p, led_rows, day)
+        led_rows += r2
+        published_on.append(offset)
+chk("a repository republishes ONCE at the window, not every night after it",
+    published_on, [180, 400])
+chk("...and each republish advances the ledger", len(led_rows), 3)
+
+print("── a forged entity cannot release an article's permanent refusal ─────────")
+# entity_cooldown_days releases a refusal, so it re-checks that the row really is
+# a repository rather than merely carrying a string in a field. Unreachable
+# through the automated path today; every other guard in this file re-checks
+# what it was told for the same stated reason — a pool row can be edited by hand.
+forged = {"id": "b" * 12, "title": "An ordinary article headline, long enough",
+          "url": "https://example.com/a", "summary": "s" * 200,
+          "first_seen": D0.isoformat(), "date": D0.isoformat(),
+          "entity": "github:foo/bar"}
+old_led = fp.Ledger({"b" * 12}, {"github:foo/bar": "2020-01-01"})
+chk("an article carrying an entity but no substance is NOT released",
+    fp.entity_released(forged, old_led, D0), False)
+chk("...and the same row WITH substance is",
+    fp.entity_released({**forged, "substance": fp.SUBSTANCE_REPO}, old_led, D0), True)
+
+print("── collapsing a batch merges, it does not replace ────────────────────────")
+# `source` is the tier key, the diversity key and the string on the card, and
+# substance/entity carry the MIN_TITLE exemption, the cooldown identity and the
+# house-voice exclusion. Replacing the record wholesale handed all of them to
+# whichever duplicate happened to have three more characters of summary.
+def _dup(src, summary, **kw):
+    d = {"id": "a" * 12, "source": src, "title": "A headline long enough to pass",
+         "url": "https://github.com/acme/thing", "date": D0.isoformat(),
+         "summary": summary}
+    d.update(kw)
+    return d
+
+trend = _dup("GitHub Trending", "A canonical repository description long enough to be a card body.",
+             substance=fp.SUBSTANCE_REPO, entity="github:acme/thing")
+longer = _dup("Lobsters", "A much longer community write-up about the very same repository here.")
+merged, n_col = fp._collapse_batch([trend, longer])
+chk("the duplicate is collapsed", n_col, 1)
+chk("the incumbent keeps its source, so tier order still decides placement",
+    merged[0]["source"], "GitHub Trending")
+chk("...and keeps substance", merged[0].get("substance"), fp.SUBSTANCE_REPO)
+chk("...and keeps entity", merged[0].get("entity"), "github:acme/thing")
+chk("...while taking the fuller body", merged[0]["summary"].startswith("A much longer"), True)
+
+before = dict(trend)
+fp._collapse_batch([trend, longer])
+chk("the caller's own records are never mutated", trend, before)
+
+empty_first, _ = fp._collapse_batch([_dup("Hacker News", ""), trend])
+chk("an empty incumbent still recovers the real body",
+    empty_first[0]["summary"].startswith("A canonical"), True)
+chk("...and inherits the identity fields it lacked",
+    (empty_first[0].get("substance"), bool(empty_first[0].get("entity"))),
+    (fp.SUBSTANCE_REPO, True))
+
 print()
 if FAIL == 0:
     print(f"\033[32mPASS\033[0m ({COUNT}) — feed pool tests passed")

@@ -1,6 +1,6 @@
 name:     "Public Feed source pool"
 schedule: daily
-producer: fetch_sources.py --topic feed --records {{RECORDS}} {{WEEKLY_FLAG}}
+producer: fetch_sources.py --config scripts/feed/10-feed.yaml --records {{RECORDS}} {{WEEKLY_FLAG}}
 step:     fetch
 ingest:   pool
 
@@ -8,6 +8,13 @@ ingest:   pool
 # no output file, nothing published. run-job.sh refuses a fetch config that
 # declares prompt: or output:, because declaring them implies a publish this
 # step will never perform.
+#
+# `--config` and not `--topic`, and this file names itself. `--topic feed`
+# resolved to scripts/topics/feed.yaml, which is where this config used to live;
+# moving it here left that producer line pointing at nothing and the nightly
+# pool fetch failed the next morning. A config outside scripts/topics/ has to
+# name its own path, exactly as 20-edition.yaml names this one, so that moving
+# the file breaks the string instead of silently emptying the tier map.
 #
 # ingest: pool — the record sidecar is folded into scripts/feed-state/ and
 # committed. Still nothing published: the pool is a memory of what has been
@@ -156,6 +163,49 @@ sources:
       url: "https://www.wired.com/feed/tag/ai/latest/rss"
       max_items: 3
 
+    # The AI engineering stack — the layer between a model and a product.
+    # Absent from this pool entirely: it carries model news and it carries
+    # engineering-org writing, and nothing about how the two get connected.
+    #
+    # Every one of these is a vendor writing about its own product, which is
+    # the concentration this file exists to resist, so admission was narrow on
+    # purpose. Only sources that write engineering essays rather than release
+    # notes are here — the release feeds that fill the same gap in
+    # scripts/topics/ai.yaml are deliberately NOT here, because their notes run
+    # under the 120-character selection floor and would sit in the pool as
+    # candidates that can never be chosen.
+    #
+    # Median summary length, probed live 2026-08-10: Arize 277, Zep 212,
+    # Together 165, Zyte 163, Weaviate 147. All clear MIN_SUMMARY_SELECT with
+    # room, which is the measurement that mattered — a source that cannot clear
+    # it is a fetch that buys nothing.
+    #
+    # Capped at 2 each, and the final veto does the rest: FINAL_PER_SOURCE is 1
+    # and FINAL_PER_DOMAIN is 2, so these five can contribute at most five of
+    # any day's seven, and in practice far fewer. The cap is what makes adding
+    # vendor sources to a vendor-wary pool a bounded decision rather than a
+    # reversal of one.
+    - name: "Arize Blog"
+      kind: rss
+      url: "https://arize.com/blog/feed/"
+      max_items: 2
+    - name: "Zep Blog"
+      kind: rss
+      url: "https://blog.getzep.com/rss/"
+      max_items: 2
+    - name: "Together AI Blog"
+      kind: rss
+      url: "https://www.together.ai/blog/rss.xml"
+      max_items: 2
+    - name: "Zyte Blog"
+      kind: rss
+      url: "https://www.zyte.com/blog/feed/"
+      max_items: 2
+    - name: "Weaviate Blog"
+      kind: rss
+      url: "https://weaviate.io/blog/rss.xml"
+      max_items: 2
+
     # Titles-only by design: probed 2026-08-09, 100 entries, median summary 19
     # characters, roughly 9.5 posts a month. Tier 2 and not tier 3 because tier 3
     # provably never reaches the shortlist — on the live 61-item pool, tier 1 and
@@ -166,6 +216,37 @@ sources:
       url: "https://research.google/blog/rss/"
       max_items: 3
       substance: title-only
+
+    # The pool's only primary artifact, and its only content class with no
+    # press-quotation exposure — a maintainer's repository description is not
+    # press output, so admitting these lowers the corpus's verbatim-press share
+    # rather than raising it. Novelty 46%, third-highest of any measured source.
+    #
+    # `kind: github_repos`, deliberately NOT `kind: github`. `github` is the
+    # private digest's kind and shares its fetcher with scripts/topics/ai.yaml;
+    # this one has its own, so feed work cannot alter what the digest reads.
+    # It also screens every candidate against the GitHub REST API — age, forks,
+    # archived, stars, last push, a real description — because the reviewer
+    # approves a title and a description without opening the repository, which
+    # makes the automated gate load-bearing rather than supplementary.
+    #
+    # Tier 2 and not tier 3, for the reason stated above for Google Research:
+    # on the live 61-item pool, tiers 1 and 2 filled all 20 shortlist slots and
+    # tier 3 contributed none, so a source added at tier 3 publishes nothing.
+    #
+    # max_items caps the *candidate* list, before enrichment — 15 candidates is
+    # 15 unauthenticated API calls against a 60/hour budget. Measured supply is
+    # ~1.17 repositories a night after the floors, and FINAL_PER_SOURCE = 1 caps
+    # the edition at one regardless, so a larger number buys quota use and
+    # nothing else.
+    #
+    # No `substance:` line here on purpose. The fetcher stamps `substance: repo`
+    # onto each record from the API response it verified, so the title-length
+    # exemption is earned by screening rather than granted by config.
+    - name: "GitHub Trending"
+      kind: github_repos
+      url: "https://github.com/trending"
+      max_items: 15
 
   tier3:
     # Engineering blogs. Vendor-adjacent, so capped at 2 each: useful for

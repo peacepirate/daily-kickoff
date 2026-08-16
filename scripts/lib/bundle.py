@@ -120,6 +120,21 @@ def normalize_url(url: str) -> str:
 
 RECORD_FIELDS = ("id", "source", "title", "url", "date", "summary")
 
+# A SECOND identity, carried only when a producer supplies one.
+#
+# `id` is a hash of the url and stays that way: re-keying it would re-hash the
+# whole pool and the whole ledger and republish everything ever published.
+# `entity` names what the url points *at* — `github:owner/repo` — for the one
+# content class where a url is a permanent name rather than an event. Two
+# identities, two questions: "have I seen this url?" and "have I dealt with this
+# thing recently?"
+#
+# Deliberately NOT appended to RECORD_FIELDS. A record built without an entity
+# has to stay byte-identical to one built before entities existed, or every
+# frozen bundle golden and every committed pool row re-serialises for a field
+# that is empty on all of them.
+RECORD_OPTIONAL_FIELDS = ("entity",)
+
 
 def item_id(url: str) -> str:
     """A stable 12-hex-char identity for `url`, or "" when there is no url.
@@ -449,7 +464,8 @@ def is_safe_url(url: str) -> bool:
     return unsafe_url_reason(url) is None
 
 
-def item_record(source: str, title: str, url: str, date: str, summary: str) -> dict:
+def item_record(source: str, title: str, url: str, date: str, summary: str,
+                entity: str = "") -> dict:
     """The structured twin of `format_item`, from the same arguments.
 
     `source` IS emitted here, unlike in the bundle, where printing it would
@@ -462,8 +478,13 @@ def item_record(source: str, title: str, url: str, date: str, summary: str) -> d
     bundle is read by a model that copes with a truncated sentence perfectly
     well, and trimming it there would discard content the synthesis might use
     for no gain. This asymmetry is the same one `source` already established.
+
+    `entity` is optional and absent from the record unless a producer passes
+    one — see RECORD_OPTIONAL_FIELDS. It is normalised here, at the single
+    write point, so `github:Owner/Repo` and `github:owner/repo` can never
+    become two names for one repository.
     """
-    return {
+    record = {
         # Hashed from the ORIGINAL url, not the cleaned one. They agree today
         # because normalize_url drops `utm_` too — asserted in the tests — but
         # deriving the id from a value another rule may later change is how a
@@ -475,3 +496,8 @@ def item_record(source: str, title: str, url: str, date: str, summary: str) -> d
         "date": date,
         "summary": sanitise_summary(summary),
     }
+    # Added last and only when present, so `id` is already spent and cannot be
+    # derived from it. The entity is a second key, never a replacement.
+    if entity and entity.strip():
+        record["entity"] = entity.strip().lower()
+    return record

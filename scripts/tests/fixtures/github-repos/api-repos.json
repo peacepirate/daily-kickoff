@@ -1,0 +1,175 @@
+{
+  "_readme": [
+    "Synthetic GET /repos/{owner}/{repo} responses, one per candidate in",
+    "trending.html. Fields are the subset the admission floors read, in the shape",
+    "verified live against actions/checkout on 2026-08-12.",
+    "",
+    "Timestamps are absolute and the test pins fetch_sources.NOW to",
+    "2026-08-12T06:00:00Z, so every age below is exact and stays exact. A fixture",
+    "using relative dates would drift into a test that passes for a different",
+    "reason than it was written for.",
+    "",
+    "Three keys are not repositories: _403, _404 and _raise name failures the",
+    "stub client performs instead of answering.",
+    "",
+    "topics/machine-learning is here because it is shaped exactly like an",
+    "owner/repo pair and no regex can tell them apart. It is caught by the API",
+    "answering 404, which is the fail-closed rule doing the work a maintained",
+    "denylist of reserved GitHub paths would otherwise have to do badly."
+  ],
+  "facebook/react": {
+    "full_name": "facebook/react",
+    "description": "The library for web and native user interfaces, built around components and a declarative rendering model. The maintainers publish releases on a regular cadence.",
+    "created_at": "2013-05-24T16:15:54Z",
+    "pushed_at": "2026-08-11T09:12:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 240001,
+    "language": "JavaScript",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "ChromeDevTools/chrome-devtools-mcp": {
+    "full_name": "ChromeDevTools/chrome-devtools-mcp",
+    "description": "A Model Context Protocol server that lets a coding agent drive and inspect a real Chrome browser. The maintainers publish releases on a regular cadence.",
+    "created_at": "2025-11-02T11:00:00Z",
+    "pushed_at": "2026-08-09T22:41:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 45130,
+    "language": "TypeScript",
+    "license": {
+      "spdx_id": "NOASSERTION"
+    }
+  },
+  "edge/exactly-at-the-floors": {
+    "full_name": "edge/exactly-at-the-floors",
+    "description": "A toolkit sitting exactly on every admission floor this fetcher enforces reproducible reproducible reproducible reprodu.",
+    "created_at": "2026-05-14T06:00:00Z",
+    "pushed_at": "2026-02-13T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 500,
+    "language": "Go",
+    "license": null
+  },
+  "edge/one-short-of-the-description-floor": {
+    "full_name": "edge/one-short-of-the-description-floor",
+    "description": "A toolkit one character short of the description floor and dropped for it reproducible reproducible reproducible repro.",
+    "created_at": "2020-01-05T06:00:00Z",
+    "pushed_at": "2026-08-01T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 9000,
+    "language": "Go",
+    "license": {
+      "spdx_id": "Apache-2.0"
+    }
+  },
+  "typosquat/two-days-old": {
+    "full_name": "typosquat/two-days-old",
+    "description": "A drop-in replacement for a package you already trust, with extra conveniences bundled in. The maintainers publish releases on a regular cadence.",
+    "created_at": "2026-08-10T06:00:00Z",
+    "pushed_at": "2026-08-12T05:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 31000,
+    "language": "Python",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "someone/a-fork-of-something": {
+    "full_name": "someone/a-fork-of-something",
+    "description": "A long-lived fork with an entirely respectable description and a great many stars behind it. The maintainers publish releases on a regular cadence.",
+    "created_at": "2016-03-01T06:00:00Z",
+    "pushed_at": "2026-08-01T06:00:00Z",
+    "fork": true,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 88000,
+    "language": "C",
+    "license": {
+      "spdx_id": "GPL-3.0"
+    }
+  },
+  "oldco/archived-tool": {
+    "full_name": "oldco/archived-tool",
+    "description": "A well-regarded build tool the maintainers have archived and no longer accept changes to. The maintainers publish releases on a regular cadence.",
+    "created_at": "2014-06-01T06:00:00Z",
+    "pushed_at": "2026-07-20T06:00:00Z",
+    "fork": false,
+    "archived": true,
+    "disabled": false,
+    "stargazers_count": 64000,
+    "language": "Ruby",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "oldco/disabled-tool": {
+    "full_name": "oldco/disabled-tool",
+    "description": "A repository GitHub has disabled, whose description is nevertheless a perfectly ordinary one. The maintainers publish releases on a regular cadence.",
+    "created_at": "2014-06-01T06:00:00Z",
+    "pushed_at": "2026-07-20T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": true,
+    "stargazers_count": 64000,
+    "language": "Ruby",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "tiny/starveling": {
+    "full_name": "tiny/starveling",
+    "description": "A promising utility that has not yet attracted the stars this fetcher requires of a candidate. The maintainers publish releases on a regular cadence.",
+    "created_at": "2018-02-11T06:00:00Z",
+    "pushed_at": "2026-08-05T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 42,
+    "language": "Rust",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "stale/abandoned-spike": {
+    "full_name": "stale/abandoned-spike",
+    "description": "A capable tool whose last commit is long past, trending only because somebody linked it. The maintainers publish releases on a regular cadence.",
+    "created_at": "2017-09-14T06:00:00Z",
+    "pushed_at": "2025-07-08T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 15000,
+    "language": "Java",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "terse/no-description": {
+    "full_name": "terse/no-description",
+    "description": "Node Version Manager",
+    "created_at": "2010-01-01T06:00:00Z",
+    "pushed_at": "2026-08-11T06:00:00Z",
+    "fork": false,
+    "archived": false,
+    "disabled": false,
+    "stargazers_count": 82000,
+    "language": "Shell",
+    "license": {
+      "spdx_id": "MIT"
+    }
+  },
+  "forbidden/rate-limited": "_403",
+  "timeout/never-answers": "_raise",
+  "topics/machine-learning": "_404"
+}

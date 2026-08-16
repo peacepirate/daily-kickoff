@@ -37,12 +37,12 @@ from urllib.parse import urlsplit
 
 try:                                    # normal: scripts/lib is on the path
     from bundle import is_safe_url
-    from feed_pool import summary_exempt
+    from feed_pool import summary_exempt, entity_cooldown_days, ENTITY_COOLDOWN_DAYS
 except ImportError:                     # imported with only the repo root there
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from bundle import is_safe_url
-    from feed_pool import summary_exempt
+    from feed_pool import summary_exempt, entity_cooldown_days, ENTITY_COOLDOWN_DAYS
 
 # How many candidates the model is shown. Large enough that it is exercising
 # judgement rather than rubber-stamping a set code already chose; small enough
@@ -144,7 +144,7 @@ def domain_of(url: str) -> str:
 # Every reason a candidate can fail, as a closed vocabulary. Counting rejections
 # by reason is what makes a thin day explicable instead of merely thin.
 ELIGIBILITY_REASONS = ("published", "stale", "thin_summary", "no_url",
-                       "no_title", "unsafe_url")
+                       "no_title", "unsafe_url", "entity_cooldown")
 
 
 def ineligible_reason(row: dict, today: Date, ledger: set,
@@ -159,7 +159,23 @@ def ineligible_reason(row: dict, today: Date, ledger: set,
     # while it is still cheap.
     if not is_safe_url(row.get("url")):
         return "unsafe_url"
-    if row["id"] in ledger:
+    # The entity cooldown REPLACES the id refusal for a row that carries an
+    # entity, and replacing it is the point rather than a side effect. `id` is a
+    # hash of the url, and refusing a url forever is right for an article — one
+    # url is one event — but for a repository the url is a permanent name, so
+    # "published once" would mean "banned forever". The same index closes the
+    # opposite hole: the same project arriving under a different path gets a
+    # different id and would otherwise republish freely.
+    #
+    # Fails closed. `entity_cooldown_days` answers None unless the ledger
+    # actually names this entity, so a row with no entity — every article — and
+    # a ledger row written before entities existed both keep the permanent id
+    # refusal they have always had.
+    since = entity_cooldown_days(row, ledger, today)
+    if since is not None:
+        if since < ENTITY_COOLDOWN_DAYS:
+            return "entity_cooldown"
+    elif row["id"] in ledger:
         return "published"
     if not (row.get("title") or "").strip():
         return "no_title"
@@ -398,17 +414,31 @@ THIN_REASONS = {
     "diversity_bound": "Enough candidates, but they concentrated into too few sources.",
     "model_thin":      "Code offered a full shortlist; fewer items were judged worth running.",
     "vetoed_thin":     "The returned set broke eligibility rules and was cut back.",
+    "final_diversity_bound":
+                       "A full shortlist; the strict one-per-source cut bound the day. No model judged it.",
 }
 
 
 def thin_reason(final_count: int, stats: dict, dropped: dict | None = None,
-                cap: int = DAILY_CAP) -> str:
+                cap: int = DAILY_CAP, final_stats: dict | None = None) -> str:
     """Which stage bound the day. A key of THIN_REASONS.
 
     Checked in the order the pipeline runs, so the reason names the *first*
     place the count was lost rather than the last. A day that was thin at the
     pool and also concentrated is a thin pool — fixing diversity would not have
     helped it.
+
+    `stats` comes from `shortlist()`, so its `chosen` is the SHORTLIST diversify
+    count — limit 20, loose caps. `final_stats` is the optional second pass at
+    limit 7 with the strict caps. They are different numbers and conflating them
+    is the bug this parameter exists to fix: with a shortlist of 20 the
+    shortlist-stage test can never fire below the cap, so a day cut short by the
+    final one-per-source rule used to fall all the way through to `model_thin`
+    — telling a reader a model had been picky on a night when no model ran.
+
+    `dropped` and `final_stats` are mutually exclusive by construction: the
+    judged path produces a veto report, the unjudged path produces final
+    diversify stats. Neither path produces both.
     """
     if final_count >= cap:
         return "full"
@@ -424,6 +454,11 @@ def thin_reason(final_count: int, stats: dict, dropped: dict | None = None,
     if dropped and any(dropped.get(k) for k in
                        ("not_offered", "duplicate", "source_capped", "domain_capped")):
         return "vetoed_thin"
+    # The unjudged path's final stage, and the last chance to name it. Below
+    # this line the only remaining answer is "a model was picky", which on a
+    # night with no verdict is simply untrue.
+    if final_stats and final_stats.get("chosen", 0) < cap:
+        return "final_diversity_bound"
     return "model_thin"
 
 

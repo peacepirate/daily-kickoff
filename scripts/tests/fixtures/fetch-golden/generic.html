@@ -1,0 +1,24 @@
+<!-- Shape of a plain blog index: fetch_html looks for article/li elements whose
+     class matches post|news|article|entry|card|item, then the first heading and
+     the first link inside each. -->
+<html><body>
+<div id="content">
+  <article class="post">
+    <h2><a href="/2026/08/platform-review">What a platform review should actually cover</a></h2>
+    <p>Three questions that separate a useful review from a status meeting.</p>
+  </article>
+  <article class="post">
+    <h2><a href="https://elsewhere.example/absolute-link">An absolute link on another host</a></h2>
+    <p>Relative and absolute hrefs resolve differently; both are frozen here.</p>
+  </article>
+  <article class="post">
+    <!-- Heading with no link: the container URL is used instead. -->
+    <h3>A heading with no anchor</h3>
+    <p>Still an item, dated recent.</p>
+  </article>
+  <article class="post">
+    <h2><a href="/2026/08/verbose">A post with a very long first paragraph</a></h2>
+    <p>This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push the summary past a truncation boundary. This sentence exists only to push </p>
+  </article>
+</div>
+</body></html>

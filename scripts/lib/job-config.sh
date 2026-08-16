@@ -680,6 +680,81 @@ assert_feed_toolchain() {  # DIR
   fi
 }
 
+# D1 — a malformed edition must not outlive the night that produced it.
+#
+# Astro validates the WHOLE editions collection on every build, so one bad file
+# fails tonight and every night after it. Meanwhile `mark_feed_published` is
+# gated on publish_feed_site returning 0, so the ledger is never written and the
+# pool re-offers the same items nightly — the duplicate-publishing defect the
+# ledger fix closed, reached from a new direction. Verified by experiment: a
+# valid edition added the following night still fails, and the error still names
+# the older file.
+#
+# Three rules, each load-bearing:
+#
+#   1. Astro decides which file is at fault, not this function. It names the
+#      entry — `editions → 2026-08-13 data does not match collection schema` —
+#      so the date is read back out of its own verdict. Duplicating the schema
+#      here to pre-judge the file would create exactly the drift the schema is
+#      already duplicated across two languages to survive.
+#   2. Only an UNTRACKED edition is ever moved. A tracked one has already been
+#      committed and may have reached readers; moving it would delete published
+#      output to fix a build, which is the wrong trade in every case.
+#   3. The destination is outside src/content/, so the next build cannot see it,
+#      and gitignored, so it cannot be committed by accident.
+#
+# Returns 0 always. A quarantine failure must not mask the build failure that
+# caused it — the caller is already returning non-zero.
+quarantine_bad_edition() {  # DIR DATE VERIFY_LOG
+  local dir="$1" date="$2" vlog="$3"
+  local dest="$dir/quarantine" bad_dates d file rel moved=0
+
+  # Matched on the stable English phrase, never on the `→` between the
+  # collection and the entry: that arrow is three UTF-8 bytes and `grep` under
+  # launchd's LC_ALL is byte-oriented, so a dot-for-the-arrow pattern matches
+  # one byte of it and silently never fires. The phrase carries the date on the
+  # same line, which is all this needs.
+  #
+  # `|| true` because grep exits 1 on no match and this runs under pipefail.
+  bad_dates="$(grep -E 'does not match collection schema' "$vlog" 2>/dev/null \
+               | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort -u || true)"
+
+  if [ -z "$bad_dates" ]; then
+    log "       No edition was named by the schema validator, so nothing was quarantined."
+    log "       The failure is elsewhere in the build — links, budget, contrast or feed."
+    log "       Tonight's edition is at $dir/src/content/editions/$date.json, untouched."
+    return 0
+  fi
+
+  for d in $bad_dates; do
+    rel="src/content/editions/$d.json"
+    file="$dir/$rel"
+    [ -f "$file" ] || continue
+
+    if git -C "$dir" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+      log "       $d is malformed but ALREADY COMMITTED — refusing to move it."
+      log "       Published output is not deleted to make a build pass. Fix it by hand:"
+      log "         $file"
+      continue
+    fi
+
+    mkdir -p "$dest" || { log "       Could not create $dest — leaving $d in place."; continue; }
+    if mv "$file" "$dest/$d.json" 2>/dev/null; then
+      moved=$((moved + 1))
+      log "       Quarantined the malformed edition $d:"
+      log "         $dest/$d.json"
+    else
+      log "       Could not move $file — leaving it in place."
+    fi
+  done
+
+  if [ "$moved" -gt 0 ]; then
+    log "       Tomorrow's build is clean again. The edition is recoverable, not lost."
+    log "       Its items were NOT marked published, so they remain in the pool."
+  fi
+  return 0
+}
+
 # S10.1/S10.6 — verify, then scan what was built, then commit. In that order.
 #
 # `npm run verify` is the site's own chain minus the human review gate: config,
@@ -695,20 +770,38 @@ assert_feed_toolchain() {  # DIR
 # house voice's prose rendered as a reader will receive it. Fails closed, and
 # before the commit: a quarantined edition is recoverable, a pushed one is not.
 publish_feed_site() {  # DIR DATE
-  local dir="$1" date="$2" rc
+  local dir="$1" date="$2" rc vlog
   require_feed_site_dir "$dir" || return 1
   assert_feed_toolchain "$dir" || return 1
 
+  # Captured to its own file rather than appended straight to the run log,
+  # because quarantine_bad_edition has to read the validator's verdict back.
+  # Still copied into the run log afterwards, so the log is unchanged in content.
+  vlog="$(mktemp -t kickoff-feed-verify)" || return 1
+
   log "Verifying the feed site build ..."
-  ( cd "$dir" && npm run verify ) >>"${LOG_FILE:-/dev/null}" 2>&1 && rc=0 || rc=$?
+  ( cd "$dir" && npm run verify ) >"$vlog" 2>&1 && rc=0 || rc=$?
+  cat "$vlog" >>"${LOG_FILE:-/dev/null}" 2>/dev/null || true
+
   if [ "$rc" -ne 0 ]; then
     log "ERROR: the feed site failed to build (npm run verify exited $rc). Nothing committed."
-    log "       The edition is on disk at $dir/src/content/editions/$date.json and untouched."
+    quarantine_bad_edition "$dir" "$date" "$vlog"
+    rm -f "$vlog"
     return 1
   fi
+  rm -f "$vlog"
 
   if ! assert_no_blocked_tree "the built feed site" "$dir/dist"; then
     log "ERROR: refusing to commit the feed site. The build is on disk and untouched."
+    # A blocked name reaches dist/ from the edition rendered tonight, and the
+    # scan names no file. Tonight's is the only new content, so it is the only
+    # one implicated — and rule 2 still applies: committed editions are not moved.
+    local rel="src/content/editions/$date.json"
+    if [ -f "$dir/$rel" ] && ! git -C "$dir" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+      mkdir -p "$dir/quarantine" \
+        && mv "$dir/$rel" "$dir/quarantine/$date.json" 2>/dev/null \
+        && log "       Quarantined tonight's edition: $dir/quarantine/$date.json"
+    fi
     return 1
   fi
 
