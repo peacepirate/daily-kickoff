@@ -163,8 +163,10 @@ react = by_entity.get("github:facebook/react", {})
 chk("title is owner / repo, from the API's full_name", react.get("title"), "facebook / react")
 chk("url is the canonical repository page",
     react.get("url"), "https://github.com/facebook/react")
-chk("date is 'recent' — a repository is not an event with a publication date",
-    react.get("date"), "recent")
+chk("date is the day it trended, taken from the pinned clock",
+    react.get("date"), "2026-08-12")
+chk("every admitted item carries that date",
+    sorted({it.get("date") for it in items}), ["2026-08-12"])
 # Compared against the fixture's own value rather than a copy of it. A hardcoded
 # expectation here is a second source of truth for the same string, and it
 # breaks the moment a fixture is re-lengthened for an unrelated reason — which
@@ -205,6 +207,42 @@ chk("every entity matches the contract shape — no host, no trailing slash",
     [it["entity"] for it in items if not shape.match(it["entity"])], [])
 chk("every record is marked as a repository",
     sorted({it.get("substance") for it in items}), ["repo"])
+
+# ── the date must be a date, because ranking reads it ────────────────────────
+#
+# This is the assertion the field exists for, and it is written against
+# feed_select rather than against a string, because the string is not the
+# property. `rank_key` sorts on -_ordinal(date); `_ordinal` answers 0 for
+# anything unparseable, and 0 sorts BELOW every real date rather than above it.
+# A repository stamped with a sentinel therefore ranks under every article
+# sharing its tier and its first_seen — off the end of the 20-slot shortlist,
+# where no judge ever sees it and no test that reads only the fetcher's output
+# would notice.
+#
+# Asserting `date == "<some string>"` above cannot catch that. This can: it
+# ranks a repository against an article that is identical in every other
+# respect, and requires the tie to break on the id rather than on the date.
+
+print("── the date is load-bearing for ranking ──────────────────────────────────")
+
+_TIERS = {"GitHub Trending": 2, "Some Publication": 2}
+
+# The repository is given the LOWER id so that the two rows tie on every
+# component up to the id and the repository wins that tie. It can only lose if
+# its date has sunk it — which is precisely the failure, and which is why the
+# ids are not interchangeable here.
+def _rank_pair(repo_date):
+    """A repository and an article, alike but for source, date and id."""
+    repo = {"id": "0000", "source": "GitHub Trending", "first_seen": "2026-08-12",
+            "date": repo_date, "substance": "repo"}
+    art  = {"id": "ffff", "source": "Some Publication", "first_seen": "2026-08-12",
+            "date": "2026-08-12"}
+    return [r["id"] for r in _sel.rank([repo, art], _TIERS)]
+
+chk("a repository dated the day it trended ranks level with a same-day "
+    "article, tie broken on id", _rank_pair(react.get("date")), ["0000", "ffff"])
+chk("...and an unparseable date sinks it below that article — the regression "
+    "this guards", _rank_pair("recent"), ["ffff", "0000"])
 
 # ── the floors, one drop per floor ───────────────────────────────────────────
 #

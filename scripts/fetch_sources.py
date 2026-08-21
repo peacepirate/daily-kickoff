@@ -739,7 +739,17 @@ def fetch_github_repos(name: str, url: str, max_items: int) -> list[dict]:
         items.append({
             "title":   api_name.replace("/", " / "),
             "url":     f"https://github.com/{api_name}",
-            "date":    "recent",
+            # The day it trended. Not "recent": `feed_select.rank_key` sorts on
+            # -_ordinal(date), and `_ordinal` answers 0 for anything it cannot
+            # parse — which sorts BELOW every real date rather than above it. An
+            # unparseable date therefore ranks a repository under every article
+            # sharing its tier and its first_seen, past the 20-slot shortlist,
+            # and the judge never sees it.
+            #
+            # Set once and never refreshed: `feed_pool.ingest` skips a known id
+            # as dup_pool, so a repository that holds the board for days keeps
+            # the date it first trended and ages out on schedule.
+            "date":    NOW.date().isoformat(),
             "summary": summary,
             # Lowercased owner/repo, no host, no trailing slash. A contract with
             # the pool's cooldown check — vary the format and the same project
