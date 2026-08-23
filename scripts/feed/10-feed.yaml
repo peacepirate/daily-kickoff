@@ -247,6 +247,28 @@ sources:
       kind: github_repos
       url: "https://github.com/trending"
       max_items: 15
+      # Exposure to the judge, not admission to the page. The global
+      # SHORTLIST_PER_SOURCE of 2 is calibrated for a publisher, where two
+      # articles a day is a fair sample of what it filed. This source admits
+      # 1-3 repositories a night, so a cap of 2 is not a sample — it is most of
+      # the supply, chosen by the id hash that breaks a same-day rank tie.
+      # On 2026-08-22 that forwarded two repositories reading as marketing and
+      # cut the third, whose description named a protocol and a concrete
+      # alternative; the judge declined both it was shown.
+      #
+      # FINAL_PER_SOURCE still caps this source at ONE published card, and
+      # `veto` takes no override, so this widens what the model may choose from
+      # and cannot widen what reaches a reader.
+      #
+      # THREE, not four, and the difference is not a preference. Every
+      # repository shares one domain, so SHORTLIST_PER_DOMAIN = 3 binds before
+      # any source cap above 3 and a larger number here would be a config line
+      # that cannot take effect — measured on 2026-08-23, when 19 repositories
+      # were eligible and a declared 4 still yielded 3. Going higher means
+      # deciding about the domain cap, which §4 of the GitHub proposal records
+      # as arguable (github.com is a host, not a publication) and which is a
+      # separate decision from this one.
+      shortlist_per_source: 3
 
   tier3:
     # Engineering blogs. Vendor-adjacent, so capped at 2 each: useful for

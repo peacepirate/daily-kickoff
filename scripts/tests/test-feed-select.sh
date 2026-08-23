@@ -143,6 +143,56 @@ chk("one domain cannot fill the day", len(chosen), 2)
 chk("subdomains collapse onto the registrable domain", fs.domain_of("https://blog.a.com/x"), "a.com")
 chk("www is dropped", fs.domain_of("https://www.a.com/x"), "a.com")
 
+print("── a per-source shortlist cap widens EXPOSURE, never admission ───────────")
+# The global cap of 2 is calibrated for a publisher. GitHub Trending admits 1-3
+# repositories a night, so 2 is most of the supply rather than a sample of it,
+# and which 2 is decided by the id hash that breaks a same-day rank tie. The
+# override hands that choice back to the model.
+#
+# The assertions below are in two halves and the second is the important one.
+# The first shows the widening happens. The second shows it CANNOT reach a
+# reader: `veto` takes no override and caps every source at FINAL_PER_SOURCE, so
+# a config that says 4 still publishes 1. Delete the override plumbing and the
+# first half fails; thread the override into `veto` and the second half fails.
+
+wide = [row(i, source="GitHub Trending", host="github.com") for i in range(60, 68)]
+# Two noise sources with FOUR rows each, not eight sources with one. A source
+# that only ever has one row cannot demonstrate a cap of two, and asserting
+# against it would pass whatever the cap said.
+noise = [row(i, source=f"N{i % 2}", host=f"n{i}.com") for i in range(70, 78)]
+
+chosen, _ = fs.diversify(fs.rank(wide + noise, {}), 20,
+                         fs.SHORTLIST_PER_SOURCE, 9)
+chk("without an override the global cap holds",
+    sum(1 for r in chosen if r["source"] == "GitHub Trending"),
+    fs.SHORTLIST_PER_SOURCE)
+
+chosen, _ = fs.diversify(fs.rank(wide + noise, {}), 20,
+                         fs.SHORTLIST_PER_SOURCE, 9,
+                         {"GitHub Trending": 4})
+chk("an override raises that source's exposure to the model",
+    sum(1 for r in chosen if r["source"] == "GitHub Trending"), 4)
+chk("...and leaves every other source on the global cap",
+    max(sum(1 for r in chosen if r["source"] == n) for n in {r["source"] for r in noise}),
+    fs.SHORTLIST_PER_SOURCE)
+
+chk("an override for an absent source changes nothing",
+    len(fs.diversify(fs.rank(wide + noise, {}), 20, fs.SHORTLIST_PER_SOURCE, 9,
+                     {"Not A Source": 9})[0]),
+    len(fs.diversify(fs.rank(wide + noise, {}), 20,
+                     fs.SHORTLIST_PER_SOURCE, 9)[0]))
+
+# ── the guarantee ────────────────────────────────────────────────────────────
+# Four repositories reached the model. The model returned all four. One card.
+widened = [r for r in chosen if r["source"] == "GitHub Trending"]
+kept, dropped = fs.veto([r["id"] for r in widened], chosen)
+chk("the final veto caps the widened source at ONE card",
+    len(kept), fs.FINAL_PER_SOURCE)
+chk("...and says why the rest were dropped",
+    len(dropped["source_capped"]), 4 - fs.FINAL_PER_SOURCE)
+chk("...and the veto signature takes no per-source override at all",
+    "per_source_overrides" in fs.veto.__code__.co_varnames, False)
+
 print("── S6.6 the veto: code has the last word ─────────────────────────────────")
 offered = [row(i, source=f"S{i}", host=f"h{i}.com") for i in range(40, 52)]
 ids = [r["id"] for r in offered]
@@ -276,6 +326,31 @@ chk("every configured source has a tier", len(tiers) >= 30, True)
 chk("tiers are 1, 2 and 3", sorted(set(tiers.values())), [1, 2, 3])
 chk("an unconfigured source falls to the unknown tier",
     fs.tier_of({"source": "Nope"}, tiers), fs.UNKNOWN_TIER)
+
+# A shortlist override is a config line that changes what the model sees, so the
+# vocabulary is asserted here rather than trusted. Same pattern as the
+# `substance:` check in test-fetch-step.sh.
+caps = fs.source_shortlist_caps(cfg)
+chk("every declared shortlist cap names a source that exists",
+    sorted(set(caps) - set(tiers)), [])
+chk("every declared shortlist cap is a whole number of at least the global one",
+    [n for n, c in caps.items()
+     if not isinstance(c, int) or c < fs.SHORTLIST_PER_SOURCE], [])
+# A source may not take more than a quarter of the shortlist. Past that it is
+# not being given range, it is choosing the day — and the judge would be picking
+# from one board instead of from the web.
+chk("no declared cap exceeds a quarter of the shortlist",
+    [n for n, c in caps.items() if c > fs.SHORTLIST_SIZE // 4], [])
+# The domain cap is not overridable and binds first for any source whose rows
+# share one host — which is every source that has wanted this so far. A larger
+# number than SHORTLIST_PER_DOMAIN is not dangerous, it is INERT, and a config
+# line that silently does nothing is the failure this project keeps paying for.
+chk("no declared cap exceeds the shortlist domain cap, which would make it inert",
+    [n for n, c in caps.items() if c > fs.SHORTLIST_PER_DOMAIN], [])
+chk("a malformed declaration is ignored rather than obeyed",
+    fs.source_shortlist_caps.__doc__ is not None
+    and all(isinstance(c, int) and not isinstance(c, bool) for c in caps.values()),
+    True)
 
 print("── the titles-only exemption at selection ────────────────────────────────")
 

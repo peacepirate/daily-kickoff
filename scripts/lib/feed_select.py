@@ -139,6 +139,47 @@ def domain_of(url: str) -> str:
     return ".".join(parts[-2:]) if len(parts) > 2 else host
 
 
+# How many of one source's rows may reach the model, when the global
+# SHORTLIST_PER_SOURCE is the wrong number for that source. Declared per source
+# in the fetch config, for the same reason tiers are: editorial reach is written
+# down in one place rather than invented in a second one here.
+#
+# **This overrides EXPOSURE, never admission.** It is read by the shortlist pass
+# and by nothing else; `veto` takes no overrides and caps every source at
+# FINAL_PER_SOURCE, so raising this cannot raise how many cards a source
+# publishes. That separation is the whole safety argument — see the comment on
+# `veto` — and a test asserts it rather than this paragraph promising it.
+#
+# Why it exists: GitHub Trending yields ~1-3 admissible repositories a night and
+# the global cap of 2 forwarded a hash-ordered pair of them. `rank_key` breaks a
+# same-day tie on an id hash, which is right where the remaining judgement
+# belongs to the model and wrong when the model is only shown a coin flip. On
+# 2026-08-22 that cut the one repository of three whose description carried a
+# named alternative and a named protocol, and forwarded two that read as
+# marketing. Widening the window hands the choice back to the judge.
+def source_shortlist_caps(config_path) -> dict[str, int]:
+    """Map source name to its shortlist per-source cap, where one is declared.
+
+    Absent for almost every source, and that is the point: a source with no
+    declaration is not in this map at all, so `diversify` falls through to the
+    global constant rather than to a copy of it.
+    """
+    import yaml
+    cfg = yaml.safe_load(Path(config_path).read_text()) or {}
+    out: dict[str, int] = {}
+    for key in ("tier1", "tier2", "tier3"):
+        for src in (cfg.get("sources") or {}).get(key) or []:
+            name = (src or {}).get("name")
+            cap = (src or {}).get("shortlist_per_source")
+            # A malformed value is ignored rather than raised on, so a typo
+            # costs the widening and never the night. `bool` is excluded
+            # because it is an int in Python and `shortlist_per_source: true`
+            # would silently mean 1.
+            if name and isinstance(cap, int) and not isinstance(cap, bool) and cap >= 1:
+                out[name] = cap
+    return out
+
+
 # ── eligibility ──────────────────────────────────────────────────────────────
 
 # Every reason a candidate can fail, as a closed vocabulary. Counting rejections
@@ -246,13 +287,20 @@ def rank(rows: list[dict], tiers: dict[str, int]) -> list[dict]:
 # ── diversity ────────────────────────────────────────────────────────────────
 
 def diversify(ranked: list[dict], limit: int,
-              per_source: int, per_domain: int) -> tuple[list[dict], dict]:
+              per_source: int, per_domain: int,
+              per_source_overrides: dict[str, int] | None = None
+              ) -> tuple[list[dict], dict]:
     """Take from `ranked` in order, skipping anything that would breach a cap.
 
     Greedy over an already-total order, so the result is deterministic. Skipped
     items are not dropped from consideration by any later stage — they are just
     not in this set.
+
+    `per_source_overrides` raises or lowers the cap for named sources only.
+    Defaulting to None rather than to an empty dict keeps every existing caller
+    on the single global number.
     """
+    overrides = per_source_overrides or {}
     chosen: list[dict] = []
     by_source: dict[str, int] = {}
     by_domain: dict[str, int] = {}
@@ -262,7 +310,7 @@ def diversify(ranked: list[dict], limit: int,
             break
         src = row.get("source", "")
         dom = domain_of(row.get("url", ""))
-        if by_source.get(src, 0) >= per_source:
+        if by_source.get(src, 0) >= overrides.get(src, per_source):
             stats["source_capped"] += 1
             continue
         if by_domain.get(dom, 0) >= per_domain:
@@ -321,7 +369,8 @@ def near_duplicates(rows: list[dict], threshold: float = NEAR_DUP_JACCARD) -> li
 
 def shortlist(pool: list[dict], ledger: set, today: Date,
               tiers: dict[str, int],
-              size: int = SHORTLIST_SIZE) -> dict:
+              size: int = SHORTLIST_SIZE,
+              per_source_caps: dict[str, int] | None = None) -> dict:
     """Everything code decides, in one reproducible pass.
 
     Returns the candidates the model should judge, the ranked eligible set
@@ -330,7 +379,8 @@ def shortlist(pool: list[dict], ledger: set, today: Date,
     """
     rows, elig_stats = eligible(pool, today, ledger)
     ranked = rank(rows, tiers)
-    chosen, div_stats = diversify(ranked, size, SHORTLIST_PER_SOURCE, SHORTLIST_PER_DOMAIN)
+    chosen, div_stats = diversify(ranked, size, SHORTLIST_PER_SOURCE,
+                                  SHORTLIST_PER_DOMAIN, per_source_caps)
     return {
         "date": today.isoformat(),
         "shortlist": chosen,
@@ -358,6 +408,14 @@ def veto(returned_ids: list[str], shortlist_rows: list[dict],
                     concentration, re-checked at the strict caps. The shortlist
                     was diversified loosely so the model had range; that is not
                     a licence to hand back seven items from one publisher
+
+    **No per-source override reaches here, and that is deliberate.** The
+    shortlist accepts one so a source whose supply the global cap misjudges can
+    put more in front of the model; this function is the guarantee that doing so
+    cannot change what publishes. Every source is capped at `per_source` and the
+    config cannot say otherwise. Threading an override into this signature would
+    convert a structural bound into a config field — the trade §4 of the GitHub
+    proposal refused.
       over_cap      anything past the ceiling
 
     Order is preserved as the model returned it. Relevance ordering is its

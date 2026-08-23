@@ -365,7 +365,8 @@ def _house_pass(rows: list[dict], model: str | None,
 def _main(argv=None):
     import argparse, json, sys
     from feed_pool import read_jsonl, ledger_ids
-    from feed_select import shortlist, source_tiers, thin_reason, DAILY_CAP
+    from feed_select import (shortlist, source_tiers, source_shortlist_caps,
+                             thin_reason, DAILY_CAP)
 
     ap = argparse.ArgumentParser(description="Build one day's edition")
     ap.add_argument("--state", required=True)
@@ -397,7 +398,8 @@ def _main(argv=None):
     today = Date.fromisoformat(a.date)
     sel = shortlist(read_jsonl(state / "pool.jsonl"),
                     ledger_ids(read_jsonl(state / "ledger.jsonl")),
-                    today, source_tiers(a.config))
+                    today, source_tiers(a.config),
+                    per_source_caps=source_shortlist_caps(a.config))
 
     from feed_select import diversify, veto, FINAL_PER_SOURCE, FINAL_PER_DOMAIN
 
