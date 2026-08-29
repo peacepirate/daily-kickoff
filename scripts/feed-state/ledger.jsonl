@@ -235,3 +235,8 @@
 {"date": "2026-08-29", "id": "196ce3e75f48", "status": "expired", "url": "https://www.hrdive.com/news/workers-say-bosses-dont-work-as-hard/827800/"}
 {"date": "2026-08-29", "id": "16d3d6d49cdd", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/13/llmops-and-platform-engineering-who-should-own-the-ai-pipeline/"}
 {"date": "2026-08-29", "entity": "github:msitarzewski/agency-agents", "id": "0b6244279772", "status": "expired", "url": "https://github.com/msitarzewski/agency-agents"}
+{"id": "2962e3bec483", "published": "2026-08-29", "status": "published", "url": "https://thenewstack.io/jetbrains-told-everyone-to-patch-it-didnt-patch-itself/"}
+{"id": "cf15671dcb81", "published": "2026-08-29", "status": "published", "url": "https://www.infoq.com/news/2026/08/freetoken-local-inference/"}
+{"id": "dd17d0a1df6f", "published": "2026-08-29", "status": "published", "url": "https://www.infoq.com/articles/rightsizing-platform-engineering/"}
+{"id": "bcb688587fb4", "published": "2026-08-29", "status": "published", "url": "https://techcrunch.com/2026/08/27/hugging-face-is-selling-a-cute-399-open-source-duck-robot-microduck/"}
+{"entity": "github:abhigyanpatwari/gitnexus", "id": "3c90af76cbde", "published": "2026-08-29", "status": "published", "url": "https://github.com/abhigyanpatwari/GitNexus"}
