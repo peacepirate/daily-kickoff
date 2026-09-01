@@ -291,3 +291,7 @@
 {"date": "2026-09-01", "id": "3737d7d2ed45", "status": "expired", "url": "https://thenewstack.io/new-tenant-is-change/"}
 {"date": "2026-09-01", "entity": "github:tooljet/tooljet", "id": "067f046a6a82", "status": "expired", "url": "https://github.com/ToolJet/ToolJet"}
 {"date": "2026-09-01", "id": "015b3666d450", "status": "expired", "url": "https://www.theverge.com/entertainment/980502/roleplay-as-an-ai-chatbot"}
+{"id": "5609f73073da", "published": "2026-09-01", "status": "published", "url": "https://thenewstack.io/google-timesfm-3-multivariate-forecasting/"}
+{"id": "898eeb979a90", "published": "2026-09-01", "status": "published", "url": "https://www.therobotreport.com/skild-ai-unveils-s1-flagship-robot-foundation-model/"}
+{"id": "4626e26be997", "published": "2026-09-01", "status": "published", "url": "https://techcrunch.com/2026/08/26/ex-meta-scientists-want-to-bring-visual-ai-to-the-factory-floor/"}
+{"entity": "github:firecrawl/pdf-inspector", "id": "4fcf7dd2b25b", "published": "2026-09-01", "status": "published", "url": "https://github.com/firecrawl/pdf-inspector"}
