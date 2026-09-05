@@ -391,3 +391,37 @@
 {"id": "fe3054085899", "published": "2026-09-04", "status": "published", "url": "https://martinfowler.com/articles/exploring-gen-ai/an-accidental-blackboard.html"}
 {"id": "04cf94afb3e4", "published": "2026-09-04", "status": "published", "url": "https://stackoverflow.blog/2026/09/03/the-economics-of-agent-scale/"}
 {"id": "72594eaab00a", "published": "2026-09-04", "status": "published", "url": "https://thenewstack.io/openai-daybreak-frontline-defenders/"}
+{"date": "2026-09-05", "entity": "github:posthog/posthog", "id": "fbfdec28cfff", "status": "expired", "url": "https://github.com/PostHog/posthog"}
+{"date": "2026-09-05", "id": "e99040f09f34", "status": "expired", "url": "https://stackoverflow.blog/2026/08/21/get-rid-of-your-captcha-the-future-of-the-web-is-bots/"}
+{"date": "2026-09-05", "id": "dcbd99e2d2d1", "status": "expired", "url": "https://thenewstack.io/google-antigravity-ide-extensions/"}
+{"date": "2026-09-05", "id": "c55a8a1e9c71", "status": "expired", "url": "https://www.ciodive.com/news/Victorias-secret-tech-leadership/828443/"}
+{"date": "2026-09-05", "id": "c24bd9c368a1", "status": "expired", "url": "https://www.infoq.com/presentations/ebpf-ai-gateway-kubernetes-security/"}
+{"date": "2026-09-05", "id": "bdb698ec663c", "status": "expired", "url": "https://www.theverge.com/tech/983088/google-discover-ai-chatbot-feed"}
+{"date": "2026-09-05", "id": "b32e30ed9d4e", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/21/how-to-turn-slow-queries-into-actionable-reliability-metrics-with-opentelemetry/"}
+{"date": "2026-09-05", "id": "aebdc66c3f1d", "status": "expired", "url": "https://www.hrdive.com/news/irs-trump-account-regulations-2026/828401/"}
+{"date": "2026-09-05", "id": "a9f0044edd6f", "status": "expired", "url": "https://www.theverge.com/tech/982628/slack-code-vibe-coding-channels-launch"}
+{"date": "2026-09-05", "id": "a0560f7bde9f", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/20/announcing-h1-2027-kcds/"}
+{"date": "2026-09-05", "id": "9c56e71b78fd", "status": "expired", "url": "https://newsletter.getdx.com/p/can-predictable-delivery-be-measured"}
+{"date": "2026-09-05", "id": "97787ae814ea", "status": "expired", "url": "https://thenewstack.io/add-to-slack-agents/"}
+{"date": "2026-09-05", "id": "8625f311cd07", "status": "expired", "url": "https://www.microsoft.com/en-us/research/blog/broadening-access-to-skala-creates-a-faster-path-to-predictive-dft/"}
+{"date": "2026-09-05", "id": "86193e18c8a1", "status": "expired", "url": "https://blogs.nvidia.com/blog/geforce-now-thursday-firefox/"}
+{"date": "2026-09-05", "id": "807ef9c2e44d", "status": "expired", "url": "https://www.danielvaughn.dev/posts/huzzah/"}
+{"date": "2026-09-05", "id": "76d272414914", "status": "expired", "url": "https://www.mckinsey.com/industries/technology-media-and-telecommunications/our-insights/beyond-the-copilot-scaling-the-agentic-product-development-life-cycle"}
+{"date": "2026-09-05", "id": "709c694d6cfa", "status": "expired", "url": "https://www.therobotreport.com/amazon-plans-expand-prime-air-nearly-500-cities-by-end-2026/"}
+{"date": "2026-09-05", "id": "6e842a145f0b", "status": "expired", "url": "https://www.technologyreview.com/2026/08/20/1142571/ai-consciousness-debate-trap/"}
+{"date": "2026-09-05", "entity": "github:makeplane/plane", "id": "6bbd89da1a95", "status": "expired", "url": "https://github.com/makeplane/plane"}
+{"date": "2026-09-05", "id": "5ee85db9a39c", "status": "expired", "url": "https://blog.cloudflare.com/task-based-oauth-consent/"}
+{"date": "2026-09-05", "id": "558acdf95b3b", "status": "expired", "url": "https://www.wired.com/story/silicon-valley-doesnt-get-why-you-hate-ai/"}
+{"date": "2026-09-05", "id": "4e1b63a2e790", "status": "expired", "url": "https://www.theverge.com/podcast/982434/ai-math-openai-astra-existential-crisis"}
+{"date": "2026-09-05", "id": "41bb833c1730", "status": "expired", "url": "https://www.ciodive.com/news/advanced-analytics-database-architecture-skills/828435/"}
+{"date": "2026-09-05", "id": "3b6f80a3524a", "status": "expired", "url": "https://thenewstack.io/github-2-9b-monthly-commits/"}
+{"date": "2026-09-05", "id": "37055c71f562", "status": "expired", "url": "https://www.therobotreport.com/atdev-gives-update-journey-building-autonomous-wheelchairs/"}
+{"date": "2026-09-05", "id": "32e568cb0246", "status": "expired", "url": "https://www.zyte.com/blog/sowa-interview-theresia-tanzil/"}
+{"date": "2026-09-05", "id": "2d8bf5d1a1b2", "status": "expired", "url": "https://www.therobotreport.com/agtonomy-releases-new-autonomous-multi-point-turning-features/"}
+{"date": "2026-09-05", "id": "228322b780b7", "status": "expired", "url": "https://arize.com/blog/ai-coding-agent-privacy/"}
+{"date": "2026-09-05", "id": "192c69a79f8d", "status": "expired", "url": "https://www.theregister.com/saas/2026/08/20/slack-code-taps-into-collective-vibe-puts-ai-agents-into-the-group-chat/5290413"}
+{"date": "2026-09-05", "id": "180aff9fcf4c", "status": "expired", "url": "https://www.infoq.com/news/2026/08/ai-assisted-engineering/"}
+{"date": "2026-09-05", "id": "14c806675c3c", "status": "expired", "url": "https://www.hrdive.com/news/employees-struggle-to-find-time-for-upskilling/828304/"}
+{"date": "2026-09-05", "id": "0d5da4dfc0fe", "status": "expired", "url": "https://thenewstack.io/warp-software-factory-infrastructure/"}
+{"date": "2026-09-05", "id": "09917f6480de", "status": "expired", "url": "https://www.ciodive.com/news/only-1-in-5-organizations-are-prepared-to-move-toward-autonomous-ai-agents/828445/"}
+{"date": "2026-09-05", "id": "0146abc5f2f1", "status": "expired", "url": "https://www.hrdive.com/news/workers-say-their-retirement-age-has-moved-later/827853/"}
