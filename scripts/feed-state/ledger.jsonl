@@ -430,3 +430,38 @@
 {"id": "a3c0b48f7fd2", "published": "2026-09-05", "status": "published", "url": "https://thenewstack.io/claude-fable-upgrade-tested/"}
 {"id": "a269da9fc827", "published": "2026-09-05", "status": "published", "url": "https://stackoverflow.blog/2026/09/04/how-to-build-a-secure-by-default-ai-coding-agent/"}
 {"id": "49db9a6662d2", "published": "2026-09-05", "status": "published", "url": "https://martinfowler.com/fragments/2026-09-01.html"}
+{"date": "2026-09-06", "id": "fb1e61e522e5", "status": "expired", "url": "https://www.infoq.com/minibooks/architect-sociotechnical-craft/"}
+{"date": "2026-09-06", "id": "f5fcd5096bdf", "status": "expired", "url": "https://www.together.ai/blog/glm-5-3-vs-claude-fable-5-on-deepswe-cost-coding-and-routing"}
+{"date": "2026-09-06", "id": "f5708d98150b", "status": "expired", "url": "https://www.hrdive.com/news/feds-ax-contractor-affirmative-action-requirements-in-trio-of-final-rules/828542/"}
+{"date": "2026-09-06", "id": "f04108c7ad55", "status": "expired", "url": "https://www.infoq.com/news/2026/08/cloudflare-ai-enforcement/"}
+{"date": "2026-09-06", "entity": "github:aprilnea/openlogi", "id": "ee0cd95680ac", "status": "expired", "url": "https://github.com/AprilNEA/OpenLogi"}
+{"date": "2026-09-06", "entity": "github:affaan-m/ecc", "id": "edb3a6268757", "status": "expired", "url": "https://github.com/affaan-m/ECC"}
+{"date": "2026-09-06", "id": "e81dfe3616b2", "status": "expired", "url": "https://www.therobotreport.com/amazons-bhavana-chandrashekhar-speaks-robobusiness-women-in-robotics-lunch/"}
+{"date": "2026-09-06", "id": "e1b962a17419", "status": "expired", "url": "https://research.google/blog/how-mobility-gives-language-models-a-deeper-understanding-of-place/"}
+{"date": "2026-09-06", "id": "d504e9430e3f", "status": "expired", "url": "https://www.mckinsey.com/industries/financial-services/our-insights/earning-and-sustaining-trust-in-the-age-of-ai"}
+{"date": "2026-09-06", "id": "d01c9c7249b5", "status": "expired", "url": "https://techcrunch.com/2026/08/21/apple-is-reportedly-cutting-hundreds-of-jobs-from-siri-vision-pro-teams/"}
+{"date": "2026-09-06", "entity": "github:ruvnet/ruflo", "id": "c60b77ce50fb", "status": "expired", "url": "https://github.com/ruvnet/ruflo"}
+{"date": "2026-09-06", "id": "c1f616cb61f8", "status": "expired", "url": "https://blog.cloudflare.com/bot-preference-sync/"}
+{"date": "2026-09-06", "id": "aef1930699d9", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/983181/matti-haapoja-sam-kold-kolder-higgsfield-seedance-backlash"}
+{"date": "2026-09-06", "id": "ae5142e8755a", "status": "expired", "url": "https://www.wired.com/story/the-unlikely-place-at-the-center-of-chinas-ai-boom/"}
+{"date": "2026-09-06", "id": "a9818ae5fb56", "status": "expired", "url": "https://sloanreview.mit.edu/article/algorithms-trap-us-in-the-familiar-can-they-also-spark-breakthroughs/"}
+{"date": "2026-09-06", "id": "9d2c4949994b", "status": "expired", "url": "https://www.technologyreview.com/2026/08/18/1142188/ai-recursive-self-improvement/"}
+{"date": "2026-09-06", "id": "97cefcb46df2", "status": "expired", "url": "https://thenewstack.io/anthropic-browser-use-tool/"}
+{"date": "2026-09-06", "id": "92387e9b942f", "status": "expired", "url": "https://stackoverflow.blog/2026/08/21/dispatches-from-o-reilly-the-right-amount-of-spec-for-agentic-development/"}
+{"date": "2026-09-06", "id": "8b6e44a2e900", "status": "expired", "url": "https://thenewstack.io/anthropic-mythos-claude-security/"}
+{"date": "2026-09-06", "id": "7c3227e89061", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/983502/linkedin-ai-slop-button-one-million-people-message"}
+{"date": "2026-09-06", "id": "767b1876e97d", "status": "expired", "url": "https://www.together.ai/blog/glm-5-3-vs-gpt-5-6-sol-on-deepswe-cost-coding-and-routing"}
+{"date": "2026-09-06", "id": "7211564ca050", "status": "expired", "url": "https://www.hrdive.com/news/skilled-labor-demand-is-exploding-ai-is-both-a-cause-and-a-solution-nfpa/828486/"}
+{"date": "2026-09-06", "id": "713a8aac9370", "status": "expired", "url": "https://www.technologyreview.com/2026/08/20/1142070/unlocking-hidden-revenue-streams-with-market-models/"}
+{"date": "2026-09-06", "id": "6d68a2521c31", "status": "expired", "url": "https://www.infoq.com/news/2026/08/cloudflare-astro-ai-agents/"}
+{"date": "2026-09-06", "id": "6511d8d9d173", "status": "expired", "url": "https://platformengineering.org/blog/what-is-a-minimum-viable-platform-mvp"}
+{"date": "2026-09-06", "id": "630713370214", "status": "expired", "url": "https://research.google/blog/an-ai-tool-for-prioritizing-candidate-biomarkers-from-wearable-sensor-data/"}
+{"date": "2026-09-06", "id": "54f2c759538c", "status": "expired", "url": "https://www.zyte.com/blog/sowa-industry-fashion/"}
+{"date": "2026-09-06", "id": "4e309b75a92f", "status": "expired", "url": "https://www.therobotreport.com/how-software-defined-manufacturing-fits-into-real-factory-operations/"}
+{"date": "2026-09-06", "id": "39674a957197", "status": "expired", "url": "https://netflixtechblog.com/a-tale-of-two-flink-autoscalers-e9f6a1b1492b?source=rss----2615bd06b42e---4"}
+{"date": "2026-09-06", "id": "34f2fdc6badf", "status": "expired", "url": "https://www.therobotreport.com/schaeffler-plans-to-mass-manufacture-gearboxes-for-humanoids-in-2027/"}
+{"date": "2026-09-06", "id": "2f4a2bff308a", "status": "expired", "url": "https://www.ciodive.com/news/AI-pilot-deployment-barriers-BRG/828456/"}
+{"date": "2026-09-06", "id": "2cb513f015ae", "status": "expired", "url": "https://www.mckinsey.com/industries/public-sector/our-insights/advancing-american-healthcare-an-interview-with-seema-verma"}
+{"date": "2026-09-06", "id": "2c7c8b9e4ab7", "status": "expired", "url": "https://www.hrdive.com/news/amazon-worker-fired-shortly-after-disclosing-pregnancy-has-bias-claim/828533/"}
+{"date": "2026-09-06", "id": "2b14ee7f60ca", "status": "expired", "url": "https://thenewstack.io/nvidia-avo-arcagi3-benchmark/"}
+{"date": "2026-09-06", "id": "234c7c34d4dc", "status": "expired", "url": "https://sourcegraph.com/blog/claude-code-file-picker-symbol-ranking"}
