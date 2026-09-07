@@ -467,3 +467,10 @@
 {"date": "2026-09-06", "id": "234c7c34d4dc", "status": "expired", "url": "https://sourcegraph.com/blog/claude-code-file-picker-symbol-ranking"}
 {"id": "01a432b67b81", "published": "2026-09-06", "status": "published", "url": "https://www.infoq.com/news/2026/09/figma-security-agents/"}
 {"id": "eab89f776317", "published": "2026-09-06", "status": "published", "url": "https://thenewstack.io/openai-astra-harness-arc-agi-3/"}
+{"date": "2026-09-07", "entity": "github:multica-ai/andrej-karpathy-skills", "id": "ca6e9330cc1b", "status": "expired", "url": "https://github.com/multica-ai/andrej-karpathy-skills"}
+{"date": "2026-09-07", "entity": "github:n8n-io/n8n", "id": "c37165a31cd3", "status": "expired", "url": "https://github.com/n8n-io/n8n"}
+{"date": "2026-09-07", "id": "c252463b3baf", "status": "expired", "url": "https://www.infoq.com/presentations/doordash-llm-ai-moderation-platform/"}
+{"date": "2026-09-07", "id": "b4547203db7b", "status": "expired", "url": "https://www.therobotreport.com/robots-dont-run-themselves-workforce-powering-physical-ai/"}
+{"date": "2026-09-07", "id": "9b9226652db8", "status": "expired", "url": "https://thenewstack.io/open-mainframe-keystone-enterprise/"}
+{"date": "2026-09-07", "id": "3fb0208aa5ed", "status": "expired", "url": "https://www.therobotreport.com/technology-could-bring-robot-mowers-one-half-american-lawns/"}
+{"date": "2026-09-07", "entity": "github:anthropics/claude-code", "id": "13d96f6971ff", "status": "expired", "url": "https://github.com/anthropics/claude-code"}
