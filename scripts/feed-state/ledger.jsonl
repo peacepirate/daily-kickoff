@@ -474,3 +474,8 @@
 {"date": "2026-09-07", "id": "9b9226652db8", "status": "expired", "url": "https://thenewstack.io/open-mainframe-keystone-enterprise/"}
 {"date": "2026-09-07", "id": "3fb0208aa5ed", "status": "expired", "url": "https://www.therobotreport.com/technology-could-bring-robot-mowers-one-half-american-lawns/"}
 {"date": "2026-09-07", "entity": "github:anthropics/claude-code", "id": "13d96f6971ff", "status": "expired", "url": "https://github.com/anthropics/claude-code"}
+{"id": "f87bcc30ffa5", "published": "2026-09-07", "status": "published", "url": "https://www.zyte.com/blog/robots-txt-ai-crawlers/"}
+{"id": "8ac36f62dd81", "published": "2026-09-07", "status": "published", "url": "https://thenewstack.io/spacex-nvidia-orbital-ai/"}
+{"id": "1637cad8fb06", "published": "2026-09-07", "status": "published", "url": "https://martinfowler.com/bliki/ParacelsusMaxim.html"}
+{"id": "11b8606a8d30", "published": "2026-09-07", "status": "published", "url": "https://techcrunch.com/2026/08/30/the-u-s-is-building-barriers-around-drones-and-robots-china-still-has-scale/"}
+{"entity": "github:openwhispr/openwhispr", "id": "e46cce35e102", "published": "2026-09-07", "status": "published", "url": "https://github.com/OpenWhispr/openwhispr"}
