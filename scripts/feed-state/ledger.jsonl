@@ -524,3 +524,6 @@
 {"date": "2026-09-09", "id": "0412605995b4", "status": "expired", "url": "https://thenewstack.io/ai-agent-security-boundaries/"}
 {"date": "2026-09-09", "id": "02506f895a30", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/25/stop-trying-to-learn-all-of-kubernetes-at-once/"}
 {"date": "2026-09-09", "id": "0149cc88b149", "status": "expired", "url": "https://github.blog/engineering/user-experience/your-alt-text-passes-automated-checks-that-doesnt-mean-its-any-good/"}
+{"id": "e316e15f02aa", "published": "2026-09-09", "status": "published", "url": "https://thenewstack.io/anthropic-claude-max-lawsuit/"}
+{"id": "73d164d48488", "published": "2026-09-09", "status": "published", "url": "https://martinfowler.com/fragments/2026-09-08.html"}
+{"id": "73687de5e2b6", "published": "2026-09-09", "status": "published", "url": "https://stackoverflow.blog/2026/09/08/scaling-your-money-safely-with-ai/"}
