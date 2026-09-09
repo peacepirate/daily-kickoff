@@ -493,3 +493,34 @@
 {"date": "2026-09-08", "id": "830711aca517", "status": "expired", "url": "https://www.infoq.com/news/2026/08/google-heir-homomorphic-llm/"}
 {"date": "2026-09-08", "id": "6d33b521fd60", "status": "expired", "url": "https://www.theregister.com/software/2026/08/24/canonical-backs-quest-to-translate-mountains-of-c-into-safe-rust-with-ai/5290959"}
 {"entity": "github:bytedance/deer-flow", "id": "16389f324952", "published": "2026-09-08", "status": "published", "url": "https://github.com/bytedance/deer-flow"}
+{"date": "2026-09-09", "id": "f6c5d06e15c0", "status": "expired", "url": "https://www.ciodive.com/news/verizon-google-cloud-partner-enterprise-AI/828648/"}
+{"date": "2026-09-09", "id": "f2faa8e88161", "status": "expired", "url": "https://thenewstack.io/jetbrains-junie-local-agent/"}
+{"date": "2026-09-09", "entity": "github:agricidaniel/claude-obsidian", "id": "dc9094c98723", "status": "expired", "url": "https://github.com/AgriciDaniel/claude-obsidian"}
+{"date": "2026-09-09", "id": "da00f500db38", "status": "expired", "url": "https://www.hrdive.com/news/efaa-covers-bias-claims-emerge-during-arbitration/828608/"}
+{"date": "2026-09-09", "id": "d8ce93197ab4", "status": "expired", "url": "https://www.technologyreview.com/2026/08/25/1141907/dispatch-shanghai-humanoid-robot-carnival/"}
+{"date": "2026-09-09", "id": "c8a90cb64d50", "status": "expired", "url": "https://www.ciodive.com/news/women-in-AI-linkedin-underrepresented/828633/"}
+{"date": "2026-09-09", "id": "c1e31a3255ae", "status": "expired", "url": "https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai"}
+{"date": "2026-09-09", "id": "bc03a0c77f50", "status": "expired", "url": "https://engineering.fb.com/2026/08/24/networking-traffic/metaroce-rdma-transport-ai-ethernet/"}
+{"date": "2026-09-09", "id": "adc4a58c92e5", "status": "expired", "url": "https://blog.cloudflare.com/cloudflare-blog-uses-emdash/"}
+{"date": "2026-09-09", "id": "a7fa4a35247a", "status": "expired", "url": "https://www.hrdive.com/news/united-airlines-criminal-negligence-case-pilot-harassment-flight-attendant/828508/"}
+{"date": "2026-09-09", "id": "a32f21b83a93", "status": "expired", "url": "https://lobste.rs/s/0typpq/i_cannot_survive_from_burnout"}
+{"date": "2026-09-09", "id": "a119c529ee9f", "status": "expired", "url": "https://www.therobotreport.com/xpeng-motors-humanoid-robot-unit-dogotix-raises-900m/"}
+{"date": "2026-09-09", "id": "9d66d779c059", "status": "expired", "url": "https://www.technologyreview.com/2026/08/24/1142630/ai-school-classroom-policies/"}
+{"date": "2026-09-09", "id": "9d2119dbb764", "status": "expired", "url": "https://www.wired.com/story/applying-for-a-job-is-too-damn-easy/"}
+{"date": "2026-09-09", "id": "902b995011bd", "status": "expired", "url": "https://www.hrdive.com/news/feds-propose-new-h-1b-fee-cap-subject-visas/828647/"}
+{"date": "2026-09-09", "id": "8870e60555eb", "status": "expired", "url": "https://blogs.nvidia.com/blog/nvlink-fusion-xpu-ai-factory/"}
+{"date": "2026-09-09", "entity": "github:madslorentzen/ai-job-search", "id": "7af184c03e7a", "status": "expired", "url": "https://github.com/MadsLorentzen/ai-job-search"}
+{"date": "2026-09-09", "id": "7aadc05d024a", "status": "expired", "url": "https://engineering.fb.com/2026/08/24/networking-traffic/mtia-300-meta-training-chip-built-in-nics/"}
+{"date": "2026-09-09", "id": "65ccbc67ea70", "status": "expired", "url": "https://sloanreview.mit.edu/article/ask-sanyin-how-do-i-communicate-that-ive-grown-and-changed/"}
+{"date": "2026-09-09", "id": "5f1962937ad5", "status": "expired", "url": "https://www.infoq.com/news/2026/08/duckdb-v2-distributed/"}
+{"date": "2026-09-09", "id": "4e07def61d37", "status": "expired", "url": "https://www.infoq.com/news/2026/08/microsoft-ai-governance/"}
+{"date": "2026-09-09", "id": "49d87b7b351a", "status": "expired", "url": "https://arize.com/blog/quantifying-skill-changes-arize-ax/"}
+{"date": "2026-09-09", "id": "3c2ea9ab1ca5", "status": "expired", "url": "https://thenewstack.io/anthropic-openai-playground-comparison/"}
+{"date": "2026-09-09", "id": "2ba73a6a3092", "status": "expired", "url": "https://www.zyte.com/blog/webfetch-is-lossy-by-design-give-your-coding-agent-a-better-fetch-in-one-command/"}
+{"date": "2026-09-09", "id": "23ded48fb3c8", "status": "expired", "url": "https://www.ciodive.com/news/data-center-spending-drives-semiconductor-growth-gartner/828635/"}
+{"date": "2026-09-09", "id": "1aec00cfdfe0", "status": "expired", "url": "https://stackoverflow.blog/2026/08/24/responsible-ai-adoption-needs-developer-workflow-design/"}
+{"date": "2026-09-09", "id": "19af374b78b3", "status": "expired", "url": "https://blogs.nvidia.com/blog/vera-rubin-lpx-spectrum-x-nvlink-fusion/"}
+{"date": "2026-09-09", "id": "119c58edd7b2", "status": "expired", "url": "https://www.therobotreport.com/the-next-big-ai-play-isnt-apps-or-humanoids-its-machines-with-brains-and-brawn/"}
+{"date": "2026-09-09", "id": "0412605995b4", "status": "expired", "url": "https://thenewstack.io/ai-agent-security-boundaries/"}
+{"date": "2026-09-09", "id": "02506f895a30", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/25/stop-trying-to-learn-all-of-kubernetes-at-once/"}
+{"date": "2026-09-09", "id": "0149cc88b149", "status": "expired", "url": "https://github.blog/engineering/user-experience/your-alt-text-passes-automated-checks-that-doesnt-mean-its-any-good/"}
