@@ -613,3 +613,7 @@
 {"date": "2026-09-12", "id": "0f2eaf584099", "status": "expired", "url": "https://thenewstack.io/replit-model-routing-default/"}
 {"date": "2026-09-12", "id": "0b6ec4660b97", "status": "expired", "url": "https://blogs.nvidia.com/blog/geforce-now-thursday-gamescom-2026/"}
 {"date": "2026-09-12", "id": "0086be78f5d5", "status": "expired", "url": "https://arize.com/blog/phoenix-mcp-sql-code-mode/"}
+{"id": "4bb7ed73f911", "published": "2026-09-12", "status": "published", "url": "https://www.theverge.com/ai-artificial-intelligence/994337/anthropic-ceo-slow-down-ai-development"}
+{"id": "c8916773f6cf", "published": "2026-09-12", "status": "published", "url": "https://thenewstack.io/anthropic-claude-cyber-alignment/"}
+{"id": "31a96358c246", "published": "2026-09-12", "status": "published", "url": "https://stackoverflow.blog/2026/09/03/security-control-and-accessibility-si-2026-6/"}
+{"entity": "github:snailsploit/claude-red", "id": "260a41dc6495", "published": "2026-09-12", "status": "published", "url": "https://github.com/SnailSploit/Claude-Red"}
