@@ -582,3 +582,34 @@
 {"id": "826ab2020618", "published": "2026-09-11", "status": "published", "url": "https://blog.pragmaticengineer.com/the-pulse-tech-companies-move-to-open-ai-models/"}
 {"id": "8d926b83d0c7", "published": "2026-09-11", "status": "published", "url": "https://thenewstack.io/aws-pizza-bot-agent-inbox/"}
 {"id": "87afd4053f40", "published": "2026-09-11", "status": "published", "url": "https://www.infoq.com/news/2026/09/observability-ai-agents/"}
+{"date": "2026-09-12", "id": "fcd94ad38fc6", "status": "expired", "url": "https://blog.getzep.com/why-we-built-a-graph-database-service-for-agent-memory/"}
+{"date": "2026-09-12", "id": "f229faaf950f", "status": "expired", "url": "https://www.ciodive.com/news/enterprises-bet-agents-software-productivity/829016/"}
+{"date": "2026-09-12", "id": "ebeb5c2bf6e0", "status": "expired", "url": "https://www.infoq.com/news/2026/08/meta-hccl/"}
+{"date": "2026-09-12", "id": "e056252ba19a", "status": "expired", "url": "https://www.theverge.com/tech/985567/google-gemini-notebook-expert-sources-books"}
+{"date": "2026-09-12", "id": "df5e28658d13", "status": "expired", "url": "https://www.hrdive.com/news/dol-guidance-tobacco-surcharge-wellness-program/828995/"}
+{"date": "2026-09-12", "id": "dba6979b3ca7", "status": "expired", "url": "https://www.wired.com/story/a-judge-has-blocked-the-pentagons-attempt-to-blacklist-anthropic/"}
+{"date": "2026-09-12", "id": "d3be7802bd74", "status": "expired", "url": "https://github.com/zedeus/nitter"}
+{"date": "2026-09-12", "id": "c710d4135d31", "status": "expired", "url": "https://thenewstack.io/nvidia-hugging-face-acquisition-neutrality/"}
+{"date": "2026-09-12", "id": "c5b24f7b8489", "status": "expired", "url": "https://research.google/blog/planetary-prediction-engine-automating-global-models-via-earth-ai/"}
+{"date": "2026-09-12", "id": "bd14a38b7d5a", "status": "expired", "url": "https://blog.cloudflare.com/dns-cache-memory-optimization-1111/"}
+{"date": "2026-09-12", "id": "badc36c89956", "status": "expired", "url": "https://www.hrdive.com/news/employers-inflection-point-health-costs-double-digit-increases/828965/"}
+{"date": "2026-09-12", "id": "acb317b0f690", "status": "expired", "url": "https://www.wired.com/story/ai-agents-hacking-systems-could-push-the-us-and-china-to-cooperate/"}
+{"date": "2026-09-12", "id": "a442c30b3257", "status": "expired", "url": "https://www.therobotreport.com/nsf-invests-90m-three-new-technology-centers-including-one-focused-robotics/"}
+{"date": "2026-09-12", "id": "9f7fd52557b5", "status": "expired", "url": "https://www.theregister.com/software/2026/08/27/salesforce-boasts-50-of-bookings-were-from-customers-refilling-the-tank-they-consume-flex-credits-they-want-more/5292927"}
+{"date": "2026-09-12", "id": "99c07b5e58f4", "status": "expired", "url": "https://www.theverge.com/podcast/985332/openai-greg-brockman-sam-altman-leader-executive-exodus"}
+{"date": "2026-09-12", "id": "97ba5599d69a", "status": "expired", "url": "https://www.ciodive.com/news/employees-overstate-ai-skills-report/828895/"}
+{"date": "2026-09-12", "id": "92832207d3d2", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/985597/jensen-huang-says-nvidia-achieved-senseless-agi"}
+{"date": "2026-09-12", "entity": "github:thedotmack/claude-mem", "id": "853c63f738f0", "status": "expired", "url": "https://github.com/thedotmack/claude-mem"}
+{"date": "2026-09-12", "id": "81c5fce17d22", "status": "expired", "url": "https://sloanreview.mit.edu/article/spot-new-tech-skills-emerging-from-the-workforce/"}
+{"date": "2026-09-12", "id": "803bd3a6811f", "status": "expired", "url": "https://www.therobotreport.com/carbon-robotics-partners-with-imerit-to-power-instant-in-field-ai-customization/"}
+{"date": "2026-09-12", "entity": "github:calesthio/openmontage", "id": "6d3bd03b4998", "status": "expired", "url": "https://github.com/calesthio/OpenMontage"}
+{"date": "2026-09-12", "id": "66d1ddc58948", "status": "expired", "url": "https://blogs.nvidia.com/blog/vera-cpu-delivery/"}
+{"date": "2026-09-12", "id": "669e084c2d63", "status": "expired", "url": "https://www.ciodive.com/news/nvidia-warns-supply-bottlenecks-2028/828987/"}
+{"date": "2026-09-12", "id": "62108a915031", "status": "expired", "url": "https://arize.com/blog/how-signal-found-two-hidden-retry-loops-in-alyx/"}
+{"date": "2026-09-12", "id": "4e21bd828320", "status": "expired", "url": "https://www.wired.com/story/a-georgia-cop-used-flock-to-track-2-other-cops-his-ex-and-her-friend/"}
+{"date": "2026-09-12", "id": "339f7e874f47", "status": "expired", "url": "https://thenewstack.io/google-double-blind-evaluation/"}
+{"date": "2026-09-12", "id": "26c8bc05b2a6", "status": "expired", "url": "https://www.therobotreport.com/teradyne-robotics-sues-another-chinese-cobot-maker/"}
+{"date": "2026-09-12", "id": "252191727538", "status": "expired", "url": "https://www.hrdive.com/news/healthcare-costs-per-employee-could-exceed-19k-next-year/828971/"}
+{"date": "2026-09-12", "id": "0f2eaf584099", "status": "expired", "url": "https://thenewstack.io/replit-model-routing-default/"}
+{"date": "2026-09-12", "id": "0b6ec4660b97", "status": "expired", "url": "https://blogs.nvidia.com/blog/geforce-now-thursday-gamescom-2026/"}
+{"date": "2026-09-12", "id": "0086be78f5d5", "status": "expired", "url": "https://arize.com/blog/phoenix-mcp-sql-code-mode/"}
