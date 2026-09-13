@@ -617,3 +617,35 @@
 {"id": "c8916773f6cf", "published": "2026-09-12", "status": "published", "url": "https://thenewstack.io/anthropic-claude-cyber-alignment/"}
 {"id": "31a96358c246", "published": "2026-09-12", "status": "published", "url": "https://stackoverflow.blog/2026/09/03/security-control-and-accessibility-si-2026-6/"}
 {"entity": "github:snailsploit/claude-red", "id": "260a41dc6495", "published": "2026-09-12", "status": "published", "url": "https://github.com/SnailSploit/Claude-Red"}
+{"date": "2026-09-13", "id": "fa89676c2ca9", "status": "expired", "url": "https://sourcegraph.com/blog/a-smarter-way-to-run-code-migrations-with-less-llm-context"}
+{"date": "2026-09-13", "entity": "github:tashfeenahmed/freellmapi", "id": "f9d54d6e0514", "status": "expired", "url": "https://github.com/tashfeenahmed/freellmapi"}
+{"date": "2026-09-13", "id": "ee7b8fe42d48", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/28/your-kubernetes-platform-is-ready-for-containers-is-it-ready-for-ai/"}
+{"date": "2026-09-13", "id": "eb011ad202c8", "status": "expired", "url": "https://spectrum.ieee.org/ollobot-ai-companion-robot"}
+{"date": "2026-09-13", "id": "e975da086f78", "status": "expired", "url": "https://netflixtechblog.com/maps-netflixs-multimodal-asset-personalization-at-scale-32f96320785e?source=rss----2615bd06b42e---4"}
+{"date": "2026-09-13", "id": "c79a926f3798", "status": "expired", "url": "https://sloanreview.mit.edu/article/develop-your-teams-social-capital-not-just-their-skills/"}
+{"date": "2026-09-13", "id": "c2f2ca6d82e8", "status": "expired", "url": "https://spectrum.ieee.org/video-friday-microduck-robot"}
+{"date": "2026-09-13", "id": "bb65a928e7d5", "status": "expired", "url": "https://thenewstack.io/qwen38-flash-previews-qwen4/"}
+{"date": "2026-09-13", "id": "bb408bbc0f3b", "status": "expired", "url": "https://www.therobotreport.com/deere-faces-headwinds-in-q3-update-and-announces-10m-reservoir-rd-partnership/"}
+{"date": "2026-09-13", "id": "b5f456afce24", "status": "expired", "url": "https://www.together.ai/blog/glm-5-3-vs-glm-5-3-flash-on-deepswe-cost-coding-and-routing"}
+{"date": "2026-09-13", "id": "af0db03fe496", "status": "expired", "url": "https://www.ciodive.com/news/AI-training-upskilling-voya-financial/828896/"}
+{"date": "2026-09-13", "id": "ab157b78408e", "status": "expired", "url": "https://www.mckinsey.com/industries/consumer-packaged-goods/our-insights/the-state-of-the-us-consumer"}
+{"date": "2026-09-13", "id": "924307c18d7d", "status": "expired", "url": "https://www.therobotreport.com/from-teach-repeat-to-selfpath-ai-next-robotics-leap/"}
+{"date": "2026-09-13", "id": "8c02565f6d28", "status": "expired", "url": "https://www.debian.org/vote/2026/vote_002#texte"}
+{"date": "2026-09-13", "id": "8b1ceabf6e0a", "status": "expired", "url": "https://www.wired.com/story/he-scraped-art-from-cara-for-ai-now-he-is-collaborating-on-a-tool-to-help-them/"}
+{"date": "2026-09-13", "id": "7785e8cf772a", "status": "expired", "url": "https://www.hrdive.com/news/white-hr-worker-gets-partial-win-in-reverse-bias-lawsuit-polling-firm/829078/"}
+{"date": "2026-09-13", "id": "7750fe415e7d", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/986176/data-center-pollution-epa-rule-change-air-permit"}
+{"date": "2026-09-13", "id": "6e75bc361de3", "status": "expired", "url": "https://www.wired.com/story/ai-has-human-doctors-asking-whats-left-for-us/"}
+{"date": "2026-09-13", "id": "67cbe6846d38", "status": "expired", "url": "https://www.cncf.io/blog/2026/08/28/scale-before-the-spike-predictive-autoscaling-for-gpu-workloads-on-kubernetes/"}
+{"date": "2026-09-13", "id": "5d3f10c4e65e", "status": "expired", "url": "https://www.hrdive.com/news/hr-pros-on-the-move-in-august-krispy-kreme-giant/829027/"}
+{"date": "2026-09-13", "id": "5c826c8acd60", "status": "expired", "url": "https://blog.cloudflare.com/botbase-for-operators/"}
+{"date": "2026-09-13", "id": "55ac364d0eed", "status": "expired", "url": "https://www.hrdive.com/news/employers-offer-loan-repayment-re-recruiting-to-attract-skilled-labor/829077/"}
+{"date": "2026-09-13", "id": "408b97503c6a", "status": "expired", "url": "https://thenewstack.io/bionic-shell-command-safety/"}
+{"date": "2026-09-13", "id": "39d1fd974f3f", "status": "expired", "url": "https://techcrunch.com/2026/08/28/chinese-automakers-are-following-teslas-bet-that-robots-are-the-next-big-profit-machine/"}
+{"date": "2026-09-13", "id": "2a7d7f49ed13", "status": "expired", "url": "https://www.therobotreport.com/locus-getting-grasp-one-robotics-biggest-challenges-manipulation/"}
+{"date": "2026-09-13", "id": "246fedd10063", "status": "expired", "url": "https://www.theregister.com/ai-and-ml/2026/08/28/microsofts-virtual-intern-teams-facilitator-will-be-late-for-the-meeting/5293045"}
+{"date": "2026-09-13", "id": "185bcaf2e60a", "status": "expired", "url": "https://www.mckinsey.com/capabilities/tech-and-ai/our-insights/the-new-management-playbook-for-ai-how-to-move-faster-and-create-more-value"}
+{"date": "2026-09-13", "id": "14be216c090c", "status": "expired", "url": "https://www.mckinsey.com/industries/retail/our-insights/pacsuns-gen-z-playbook-listen-learn-and-let-go"}
+{"date": "2026-09-13", "id": "120982bc1bc5", "status": "expired", "url": "https://www.wired.com/story/how-to-run-your-own-local-llm/"}
+{"date": "2026-09-13", "id": "0fea6862986c", "status": "expired", "url": "https://www.ciodive.com/news/trader-joes-names-new-chief-information-officer-prabash-coswatte/829091/"}
+{"date": "2026-09-13", "id": "0a9b74b79fa1", "status": "expired", "url": "https://www.therobotreport.com/exl-acquires-physical-ai-model-developer-imerit/"}
+{"date": "2026-09-13", "id": "015d0293fc54", "status": "expired", "url": "https://weaviate.io/blog/weaviate-1-39-release"}
