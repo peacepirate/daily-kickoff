@@ -705,3 +705,7 @@
 {"date": "2026-09-16", "id": "1a67cf9fc56a", "status": "expired", "url": "https://www.technologyreview.com/2026/08/31/1143180/hugging-face-hack-could-indicate-cultural-issues-at-openai/"}
 {"date": "2026-09-16", "id": "068dbb7cb087", "status": "expired", "url": "https://www.wired.com/story/insurance-claims-adjusters-really-hate-ai/"}
 {"date": "2026-09-16", "entity": "github:zhaoxuya520/reverse-skill", "id": "0396398dad51", "status": "expired", "url": "https://github.com/zhaoxuya520/reverse-skill"}
+{"id": "82532a7c4a61", "published": "2026-09-16", "status": "published", "url": "https://thenewstack.io/bolt-forge-training-data/"}
+{"id": "40b46d9d974f", "published": "2026-09-16", "status": "published", "url": "https://newsletter.getdx.com/p/how-okta-governs-ai-agents-at-enterprise"}
+{"id": "41b2ab0b4aae", "published": "2026-09-16", "status": "published", "url": "https://www.wired.com/story/china-isnt-buying-silicon-valley-call-for-ai-slowdown/"}
+{"entity": "github:danny-avila/librechat", "id": "bc0fb2ea1445", "published": "2026-09-16", "status": "published", "url": "https://github.com/danny-avila/LibreChat"}
