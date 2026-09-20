@@ -851,3 +851,7 @@
 {"date": "2026-09-20", "id": "09a044d7fb73", "status": "expired", "url": "https://techcrunch.com/2026/09/04/xdof-just-three-months-out-of-stealth-is-in-talks-for-a-series-b-at-a-1-2b-valuation/"}
 {"date": "2026-09-20", "id": "08dfe2944650", "status": "expired", "url": "https://www.cncf.io/blog/2026/09/04/kubernetes-isnt-new-but-ai-makes-it-scary-again/"}
 {"date": "2026-09-20", "id": "0811e94f0856", "status": "expired", "url": "https://www.therobotreport.com/how-fpgas-become-the-gatekeepers-of-physical-ai-security/"}
+{"id": "88c3649841d0", "published": "2026-09-20", "status": "published", "url": "https://thenewstack.io/vercel-hobby-deployment-retention/"}
+{"id": "26e75030f02f", "published": "2026-09-20", "status": "published", "url": "https://www.infoq.com/news/2026/09/google-adk-1-0-released/"}
+{"id": "14bead02482b", "published": "2026-09-20", "status": "published", "url": "https://www.wired.com/story/kernel-panic-ai-vulnerability-explosion/"}
+{"entity": "github:higgsfield-ai/higgsfield", "id": "14a0b84894fe", "published": "2026-09-20", "status": "published", "url": "https://github.com/higgsfield-ai/higgsfield"}
