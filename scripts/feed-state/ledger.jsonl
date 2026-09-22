@@ -869,3 +869,7 @@
 {"date": "2026-09-22", "id": "7352aad4bcfb", "status": "expired", "url": "https://www.therobotreport.com/pressure-sensors-can-help-improve-robotic-gripping-accuracy/"}
 {"date": "2026-09-22", "id": "6b7230af8880", "status": "expired", "url": "https://www.thoughtworks.com/insights/articles/thoughtworks-combines-ai-works-with-aws-transform-to-modernize-legacy-systems-for-the-ai-era"}
 {"date": "2026-09-22", "id": "15264b0f2d2a", "status": "expired", "url": "https://thenewstack.io/enterprise-rag-permission-assembly/"}
+{"id": "77d8e62c76d4", "published": "2026-09-22", "status": "published", "url": "https://thenewstack.io/aws-strands-harness-agent/"}
+{"id": "a0a3ee36f76c", "published": "2026-09-22", "status": "published", "url": "https://www.wired.com/story/a-tool-for-tracking-ai-integrated-malware-uncovered-an-autonomous-command-system/"}
+{"id": "cc691d1c302a", "published": "2026-09-22", "status": "published", "url": "https://www.zyte.com/blog/stopping-a-crawl-when-fields-stop-looking-real/"}
+{"entity": "github:mvt-project/mvt", "id": "8314ef7303d7", "published": "2026-09-22", "status": "published", "url": "https://github.com/mvt-project/mvt"}
