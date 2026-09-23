@@ -873,3 +873,22 @@
 {"id": "a0a3ee36f76c", "published": "2026-09-22", "status": "published", "url": "https://www.wired.com/story/a-tool-for-tracking-ai-integrated-malware-uncovered-an-autonomous-command-system/"}
 {"id": "cc691d1c302a", "published": "2026-09-22", "status": "published", "url": "https://www.zyte.com/blog/stopping-a-crawl-when-fields-stop-looking-real/"}
 {"entity": "github:mvt-project/mvt", "id": "8314ef7303d7", "published": "2026-09-22", "status": "published", "url": "https://github.com/mvt-project/mvt"}
+{"date": "2026-09-23", "id": "fcf8b1988fd2", "status": "expired", "url": "https://thenewstack.io/openai-agent-research-bottleneck/"}
+{"date": "2026-09-23", "entity": "github:mksglu/context-mode", "id": "cfe6b1639c3c", "status": "expired", "url": "https://github.com/mksglu/context-mode"}
+{"date": "2026-09-23", "id": "c8fa5cdd9e32", "status": "expired", "url": "https://spectrum.ieee.org/blood-draw-robot-vitestro-aletta"}
+{"date": "2026-09-23", "entity": "github:the-swarm-corporation/autohedge", "id": "c1ca66b2cea1", "status": "expired", "url": "https://github.com/The-Swarm-Corporation/AutoHedge"}
+{"date": "2026-09-23", "id": "bdb6a38c5e12", "status": "expired", "url": "https://www.cncf.io/announcements/2026/09/07/cloud-native-computing-foundation-announces-karmada-graduation/"}
+{"date": "2026-09-23", "id": "bd8695205cbf", "status": "expired", "url": "https://www.infoq.com/presentations/ai-agent-testing-evaluation/"}
+{"date": "2026-09-23", "id": "af3503e693fc", "status": "expired", "url": "https://thenewstack.io/coding-agents-tool-choice/"}
+{"date": "2026-09-23", "id": "abc4b4e86be2", "status": "expired", "url": "https://www.ciodive.com/spons/stop-asking-where-your-data-lives-ask-if-it-can-move/829267/"}
+{"date": "2026-09-23", "id": "aa039de5495b", "status": "expired", "url": "https://www.therobotreport.com/massrobotics-shares-member-survey-results-around-fcc-restrictions/"}
+{"date": "2026-09-23", "id": "95b5ef09b9d1", "status": "expired", "url": "https://thenewstack.io/astra-reasoning-effort-cost/"}
+{"date": "2026-09-23", "id": "8e96d5df7a88", "status": "expired", "url": "https://thenewstack.io/openai-voluntary-slowdown-safety/"}
+{"date": "2026-09-23", "id": "788b7505aa53", "status": "expired", "url": "https://www.zyte.com/blog/the-page-your-agent-scrapes-is-now-an-attack-surface-is-it-ready-for-the-hostile-web/"}
+{"date": "2026-09-23", "id": "5440fcc2b118", "status": "expired", "url": "https://www.therobotreport.com/inbolt-ceo-to-discuss-physical-ais-deployment-problem-at-robobusiness/"}
+{"date": "2026-09-23", "id": "36f991319a28", "status": "expired", "url": "https://www.zyte.com/blog/running-playwright-at-scale-connecting-to-the-zyte-cdp-browser/"}
+{"date": "2026-09-23", "id": "30e8822f1ced", "status": "expired", "url": "https://lastweekin.ai/p/last-week-in-ai-343-gpt-6-openais"}
+{"date": "2026-09-23", "id": "28c3185ee388", "status": "expired", "url": "https://www.mckinsey.com/industries/infrastructure/our-insights/smart-rail-infrastructure-laying-the-digital-tracks-for-resilient-networks"}
+{"date": "2026-09-23", "id": "10cd24fbb89d", "status": "expired", "url": "https://www.wired.com/story/whispering-complaints-into-your-phone-may-be-the-future-of-customer-feedback/"}
+{"date": "2026-09-23", "id": "0b94bc02b2f7", "status": "expired", "url": "https://www.therobotreport.com/agility-robotics-reports-18m-revenue-ahead-of-humanoid-spac/"}
+{"date": "2026-09-23", "entity": "github:jo-inc/camofox-browser", "id": "05a714c23543", "status": "expired", "url": "https://github.com/jo-inc/camofox-browser"}
