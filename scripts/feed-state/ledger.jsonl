@@ -1061,3 +1061,20 @@
 {"id": "18b7fe91fb7d", "published": "2026-09-28", "status": "published", "url": "https://www.infoq.com/news/2026/09/aurora-dsql-foreign-keys/"}
 {"id": "1663aa5fc1c0", "published": "2026-09-28", "status": "published", "url": "https://thenewstack.io/nvidia-openshell-sentry-agents/"}
 {"id": "021170096651", "published": "2026-09-28", "status": "published", "url": "https://www.zyte.com/blog/sowa-barrier-captcha/"}
+{"date": "2026-09-29", "id": "ff1e45ee9e58", "status": "expired", "url": "https://www.infoq.com/podcasts/train-developers-ai-routine-work/"}
+{"date": "2026-09-29", "id": "f30838b2244c", "status": "expired", "url": "https://www.infoq.com/news/2026/09/metr-hugging-face-hack-report/"}
+{"date": "2026-09-29", "id": "db556892ddc4", "status": "expired", "url": "https://www.mckinsey.com/au/our-insights/australias-next-century-of-plenty"}
+{"date": "2026-09-29", "id": "ce131d6820fe", "status": "expired", "url": "https://www.wired.com/story/sexually-explicit-deepfake-sites-target-100-plus-politicians-in-europe/"}
+{"date": "2026-09-29", "id": "cc2fcfab56d7", "status": "expired", "url": "https://www.hrdive.com/spons/the-future-of-talent-sourcing-is-more-than-clicks/830132/"}
+{"date": "2026-09-29", "entity": "github:rlaope/oh-my-hermes", "id": "be80ae1bec07", "status": "expired", "url": "https://github.com/rlaope/oh-my-hermes"}
+{"date": "2026-09-29", "id": "bc9b872ad074", "status": "expired", "url": "https://www.infoq.com/articles/durable-workflows-postgres/"}
+{"date": "2026-09-29", "entity": "github:panniantong/agent-reach", "id": "b6bb9341088f", "status": "expired", "url": "https://github.com/Panniantong/Agent-Reach"}
+{"date": "2026-09-29", "entity": "github:ruvnet/ruview", "id": "b303b1e41414", "status": "expired", "url": "https://github.com/ruvnet/RuView"}
+{"date": "2026-09-29", "id": "acbe0099aca7", "status": "expired", "url": "https://www.infoq.com/presentations/decision-models-agentic-ai/"}
+{"date": "2026-09-29", "id": "95d81b8e6cc9", "status": "expired", "url": "https://www.hrdive.com/spons/healthcare-was-built-around-specialties-patients-experience-it-as-one-jour/829367/"}
+{"date": "2026-09-29", "id": "871eac885e4d", "status": "expired", "url": "https://sloanreview.mit.edu/article/how-ai-creates-a-capability-mirage/"}
+{"date": "2026-09-29", "entity": "github:huggingface/transformers", "id": "53d940334a2a", "status": "expired", "url": "https://github.com/huggingface/transformers"}
+{"date": "2026-09-29", "id": "48554e95dd9f", "status": "expired", "url": "https://www.wired.com/story/chatbot-generated-fiction-i-like-my-big-rat-wife/"}
+{"date": "2026-09-29", "id": "395acc6e88d3", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/994441/trump-mike-johnson-ai-industry-overreacting"}
+{"date": "2026-09-29", "id": "1432867a169e", "status": "expired", "url": "https://www.ciodive.com/news/enterprises-grapple-microsoft-365-misconfigurations/830188/"}
+{"date": "2026-09-29", "id": "0810c2a564cb", "status": "expired", "url": "https://www.cncf.io/blog/2026/09/14/cilium-1-20-gateway-api-externalauth-tcproute-udproute-eni-ipam-for-ipv6-and-more/"}
