@@ -1296,3 +1296,5 @@
 {"date": "2026-10-06", "id": "3e89c323dc53", "status": "expired", "url": "https://thenewstack.io/nvidia-agent-debugging-safe/"}
 {"date": "2026-10-06", "id": "2d4e91f92471", "status": "expired", "url": "https://www.wired.com/story/donald-trump-versus-maga-on-data-centers/"}
 {"date": "2026-10-06", "id": "0ba91901b73e", "status": "expired", "url": "https://www.mckinsey.com/capabilities/tech-and-ai/our-insights/wired-the-ai-playbook-top-companies-use"}
+{"id": "84849e502f95", "published": "2026-10-06", "status": "published", "url": "https://thenewstack.io/openai-api-text-watermarking/"}
+{"id": "6bb5ce07efdd", "published": "2026-10-06", "status": "published", "url": "https://www.infoq.com/articles/platform-engineering-playbook-production-llms/"}
