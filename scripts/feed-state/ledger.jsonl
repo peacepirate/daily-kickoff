@@ -1496,3 +1496,8 @@
 {"date": "2026-10-12", "id": "7ff3ee2e6e56", "status": "expired", "url": "https://thenewstack.io/agentic-ai-kubernetes-management/"}
 {"date": "2026-10-12", "id": "7ec38b6fe0b0", "status": "expired", "url": "https://www.infoq.com/news/2026/09/docker-cloud-sandboxes/"}
 {"date": "2026-10-12", "id": "7c3addfe514d", "status": "expired", "url": "https://thenewstack.io/avoiding-vendor-lock-in/"}
+{"id": "1f073325dc39", "published": "2026-10-12", "status": "published", "url": "https://www.theverge.com/news/1009465/microsoft-maia-300-chip-improvements-rollout"}
+{"id": "484e40fa70aa", "published": "2026-10-12", "status": "published", "url": "https://thenewstack.io/kubernetes-node-swap-ai/"}
+{"id": "39244f6b8f75", "published": "2026-10-12", "status": "published", "url": "https://www.infoq.com/articles/liquid-clustering-lakehouse-layout/"}
+{"id": "be2d1efae14a", "published": "2026-10-12", "status": "published", "url": "https://www.zyte.com/blog/sowa-barrier-javascript/"}
+{"id": "b56c40f6ba69", "published": "2026-10-12", "status": "published", "url": "https://stackoverflow.blog/2026/10/08/production-grade-llms-and-agents-a-field-guide/"}
