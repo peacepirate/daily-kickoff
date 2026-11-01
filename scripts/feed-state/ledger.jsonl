@@ -2146,3 +2146,7 @@
 {"date": "2026-11-01", "id": "33d49d0197e6", "status": "expired", "url": "https://thenewstack.io/muse-wonder-claude-fable/"}
 {"date": "2026-11-01", "id": "20d94c798857", "status": "expired", "url": "https://thenewstack.io/surface-ultra-local-ai/"}
 {"date": "2026-11-01", "entity": "github:stablyai/orca", "id": "0a8884baa5f5", "status": "expired", "url": "https://github.com/stablyai/orca"}
+{"id": "1adfef6329d1", "published": "2026-11-01", "status": "published", "url": "https://www.infoq.com/news/2026/11/aws-capacity-sold-out/"}
+{"id": "34503272ebff", "published": "2026-11-01", "status": "published", "url": "https://thenewstack.io/shielding-the-patch-gap/"}
+{"id": "cfd9c022f552", "published": "2026-11-01", "status": "published", "url": "https://www.wired.com/story/kernel-panic-volta-autodoxer-ai-infostealer-malware/"}
+{"entity": "github:beenuar/aisoc", "id": "e510ab3edae1", "published": "2026-11-01", "status": "published", "url": "https://github.com/beenuar/AiSOC"}
