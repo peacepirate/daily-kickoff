@@ -2156,3 +2156,8 @@
 {"date": "2026-11-02", "id": "6a9edc7f2749", "status": "expired", "url": "https://thenewstack.io/live-streaming-engineering-lessons/"}
 {"date": "2026-11-02", "id": "2721d3e8b3eb", "status": "expired", "url": "https://www.therobotreport.com/adi-explains-the-race-to-make-ai-physical/"}
 {"date": "2026-11-02", "id": "0b81a58f5b3f", "status": "expired", "url": "https://www.theverge.com/tech/1013409/meta-removes-language-that-may-have-allowed-it-to-scrape-news-sites"}
+{"id": "b19c78825ce7", "published": "2026-11-02", "status": "published", "url": "https://thenewstack.io/gpt-6-1-terra-vs-gpt-6-astra/"}
+{"id": "3d804a393aff", "published": "2026-11-02", "status": "published", "url": "https://www.infoq.com/articles/agentic-ai-context-memory-knowledge/"}
+{"id": "6305e141035d", "published": "2026-11-02", "status": "published", "url": "https://www.wired.com/story/hundreds-of-mundane-ai-apps-are-hiding-abusive-deepfake-features/"}
+{"id": "34e9b8a1e3a7", "published": "2026-11-02", "status": "published", "url": "https://www.zyte.com/blog/sowa-complexity-cost/"}
+{"entity": "github:vercel-labs/agent-desktop", "id": "23746973c38c", "published": "2026-11-02", "status": "published", "url": "https://github.com/vercel-labs/agent-desktop"}
