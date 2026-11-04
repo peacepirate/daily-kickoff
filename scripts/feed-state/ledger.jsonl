@@ -2182,3 +2182,34 @@
 {"id": "7ca738fffd8a", "published": "2026-11-03", "status": "published", "url": "https://spectrum.ieee.org/video-friday-whole-body-manipulation"}
 {"id": "fce7655b5611", "published": "2026-11-03", "status": "published", "url": "https://www.infoq.com/news/2026/10/AI-environmentally-sustainable/"}
 {"id": "92c2eb5c9492", "published": "2026-11-03", "status": "published", "url": "https://platformengineering.org/blog/platform-engineering-tools-2026"}
+{"date": "2026-11-04", "id": "f4b3d479520d", "status": "expired", "url": "https://blog.cloudflare.com/typescript-rust-port/"}
+{"date": "2026-11-04", "id": "edff2445aa44", "status": "expired", "url": "https://www.theverge.com/tech/1014627/meta-muse-ai-sharing-ai-chats"}
+{"date": "2026-11-04", "entity": "github:sickn33/agentic-awesome-skills", "id": "e8a7d399fded", "status": "expired", "url": "https://github.com/sickn33/agentic-awesome-skills"}
+{"date": "2026-11-04", "id": "e08619ed2cad", "status": "expired", "url": "https://www.microsoft.com/en-us/research/podcast/called-to-serve-tech-research-and-positive-impact-with-chris-white/"}
+{"date": "2026-11-04", "id": "d01205b7a162", "status": "expired", "url": "https://www.hrdive.com/news/large-employers-are-hiring-part-time-workers-over-seasonal-ones-indeed/833437/"}
+{"date": "2026-11-04", "id": "cee48a44c814", "status": "expired", "url": "https://www.therobotreport.com/avenda-health-expands-unfold-ai-platform-support-intraoperative-prostate-cancer-care/"}
+{"date": "2026-11-04", "id": "c97ed45fce6d", "status": "expired", "url": "https://www.ciodive.com/news/alaska-airlines-taps-cvs-health-exec-new-tech-role/833493/"}
+{"date": "2026-11-04", "id": "c467833b475c", "status": "expired", "url": "https://www.infoq.com/presentations/scale-llm-agents-production-ray/"}
+{"date": "2026-11-04", "entity": "github:graphify-labs/graphify", "id": "c290a2acf859", "status": "expired", "url": "https://github.com/Graphify-Labs/graphify"}
+{"date": "2026-11-04", "id": "bde7b98dd59b", "status": "expired", "url": "https://www.wired.com/story/an-ai-agent-joined-a-listserv-of-top-internet-researchers-the-reply-all-chaos-is-still-unfolding/"}
+{"date": "2026-11-04", "id": "b8e553eae5a2", "status": "expired", "url": "https://thenewstack.io/open-model-benchmarks-production/"}
+{"date": "2026-11-04", "id": "b63f3d92cb81", "status": "expired", "url": "https://www.hrdive.com/news/dol-rescinds-potentially-misread-tip-rule-opinion-letters-flsa/833524/"}
+{"date": "2026-11-04", "id": "addf98efb8d1", "status": "expired", "url": "https://www.therobotreport.com/robobusiness-rebrands-as-robotics-summit-expo-west/"}
+{"date": "2026-11-04", "id": "a3aa0a660b5b", "status": "expired", "url": "https://www.technologyreview.com/2026/10/20/1146937/the-new-economics-of-enterprise-ai/"}
+{"date": "2026-11-04", "id": "a2d65710e20f", "status": "expired", "url": "https://www.technologyreview.com/2026/10/20/1145916/dispatch-visit-to-samsung-massive-new-semiconductor-hub/"}
+{"date": "2026-11-04", "id": "a2252c51fc2d", "status": "expired", "url": "https://www.ciodive.com/news/kraft-group-CIO-AI-trust/833529/"}
+{"date": "2026-11-04", "id": "9a73f4d6937a", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/1014976/sam-altman-ann-altman-lawsuit-dismissed"}
+{"date": "2026-11-04", "id": "9854cc575096", "status": "expired", "url": "https://blogs.nvidia.com/blog/spain-startups-barcelona-supercomputing-center/"}
+{"date": "2026-11-04", "id": "925e6a635cad", "status": "expired", "url": "https://www.theverge.com/tech/1014999/google-gemini-ai-cars-android-auto"}
+{"date": "2026-11-04", "id": "8c33973d7794", "status": "expired", "url": "https://www.therobotreport.com/reservoir-launches-new-agricultural-robotics-incubator-for-washington-growers/"}
+{"date": "2026-11-04", "id": "7c027e15f66c", "status": "expired", "url": "https://thenewstack.io/elevenlabs-voice-agent-tradeoffs/"}
+{"date": "2026-11-04", "id": "7a091aa12d54", "status": "expired", "url": "https://www.theverge.com/entertainment/1014284/spotify-ai-slop-spam-songs-removed"}
+{"date": "2026-11-04", "id": "7486ef2a5f50", "status": "expired", "url": "https://devinterrupted.substack.com/p/multiplayer-ai-will-revolutionize"}
+{"date": "2026-11-04", "id": "72f1535559b7", "status": "expired", "url": "https://www.ciodive.com/news/ai-billing-spikes-threaten-businesses-operational-strain/833397/"}
+{"date": "2026-11-04", "id": "71337cf68638", "status": "expired", "url": "https://www.technologyreview.com/2026/10/20/1145423/ai-adoption-by-industry-shows-what-other-sectors-can-learn/"}
+{"date": "2026-11-04", "id": "6932c720df06", "status": "expired", "url": "https://www.hrdive.com/news/nearly-half-of-employers-say-ai-will-make-college-degrees-more-important/833497/"}
+{"date": "2026-11-04", "id": "4e5d982348e3", "status": "expired", "url": "https://www.wired.com/story/french-government-calls-emergency-meetings-with-platforms-over-protests/"}
+{"date": "2026-11-04", "entity": "github:wshobson/agents", "id": "31661aae5fd3", "status": "expired", "url": "https://github.com/wshobson/agents"}
+{"date": "2026-11-04", "id": "2c98ce490bd8", "status": "expired", "url": "https://blog.cloudflare.com/emudhra-certificate-compromise/"}
+{"date": "2026-11-04", "id": "14423eb5946b", "status": "expired", "url": "https://techcrunch.com/2026/10/20/ex-nvidia-turned-vc-amulya-vishwanath-physical-ai-is-in-its-lego-era/"}
+{"date": "2026-11-04", "id": "06aef208d640", "status": "expired", "url": "https://www.therobotreport.com/2027-trr50-robotics-innovation-awards-open-nominations/"}
