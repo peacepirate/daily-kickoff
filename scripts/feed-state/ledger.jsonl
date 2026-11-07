@@ -2294,3 +2294,9 @@
 {"date": "2026-11-07", "id": "32b3170e2410", "status": "expired", "url": "https://www.theverge.com/tech/1017082/meta-terms-update-ai-training-concerns"}
 {"date": "2026-11-07", "id": "2c1c1d0b09d0", "status": "expired", "url": "https://blogs.nvidia.com/blog/minerva-platform-infrastructure/"}
 {"date": "2026-11-07", "id": "237e6e3b60f1", "status": "expired", "url": "https://www.wired.com/story/aged-intelligence-society-interview/"}
+{"id": "201cc1c0f295", "published": "2026-11-07", "status": "published", "url": "https://www.infoq.com/news/2026/11/postgresql-vector-search/"}
+{"id": "a4ea48653f59", "published": "2026-11-07", "status": "published", "url": "https://platformengineering.org/blog/beyond-sha-pinning-why-immutability-isnt-provenance-in-github-actions"}
+{"id": "224c3d5c5f30", "published": "2026-11-07", "status": "published", "url": "https://www.wired.com/story/free-chinese-ai-models-are-getting-scary-good-at-hacking/"}
+{"id": "a21da5184368", "published": "2026-11-07", "status": "published", "url": "https://thenewstack.io/microsoft-copilot-harness-foundry/"}
+{"id": "b8b50a1cf05a", "published": "2026-11-07", "status": "published", "url": "https://www.infoq.com/news/2026/11/culture-kubernetes-bank/"}
+{"entity": "github:ranxianglei/billion-context", "id": "44bf92228a9e", "published": "2026-11-07", "status": "published", "url": "https://github.com/ranxianglei/billion-context"}
