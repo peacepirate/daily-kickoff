@@ -2486,3 +2486,8 @@
 {"date": "2026-11-14", "entity": "github:donchitos/claude-code-game-studios", "id": "14444dc7b4ec", "status": "expired", "url": "https://github.com/Donchitos/Claude-Code-Game-Studios"}
 {"date": "2026-11-14", "id": "10d60c2c0f3c", "status": "expired", "url": "https://stackoverflow.blog/2026/10/29/the-reports-of-stack-overflow-s-death-are-greatly-exaggerated/"}
 {"date": "2026-11-14", "id": "0ea9f9a21dd3", "status": "expired", "url": "https://www.infoq.com/news/2026/10/bug0-agent-testing-cached-replay/"}
+{"id": "4815b0b06c43", "published": "2026-11-14", "status": "published", "url": "https://www.theverge.com/podcast/1032866/jensen-huang-nvidia-china-trump-vergecast"}
+{"id": "5718625decde", "published": "2026-11-14", "status": "published", "url": "https://www.ciodive.com/news/microsoft-outage-enterprise-resiliancy/874695/"}
+{"id": "fafad86ae8f6", "published": "2026-11-14", "status": "published", "url": "https://www.infoq.com/news/2026/11/mongodb-compatible-documentdb/"}
+{"id": "fda5d245bef1", "published": "2026-11-14", "status": "published", "url": "https://stackoverflow.blog/2026/11/13/your-coding-agent-shouldn-t-grade-its-own-homework/"}
+{"id": "2d1ab4693576", "published": "2026-11-14", "status": "published", "url": "https://www.infoq.com/presentations/opentelemetry-queue-observability/"}
