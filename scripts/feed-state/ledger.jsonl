@@ -2525,3 +2525,7 @@
 {"date": "2026-11-15", "id": "05a1378ae455", "status": "expired", "url": "https://www.theverge.com/ai-artificial-intelligence/1023820/sam-altman-ram-shortage-cloud-servers"}
 {"date": "2026-11-15", "id": "0482324588c1", "status": "expired", "url": "https://blog.cloudflare.com/private-origins-public-to-private/"}
 {"date": "2026-11-15", "id": "03c7cbf31ca1", "status": "expired", "url": "https://www.hrdive.com/news/workers-are-habit-hugging-despite-new-training/873252/"}
+{"id": "539c58c90610", "published": "2026-11-15", "status": "published", "url": "https://www.infoq.com/news/2026/11/claude-code-review/"}
+{"id": "93df787a9fba", "published": "2026-11-15", "status": "published", "url": "https://www.infoq.com/news/2026/11/tech-debt-learning-doing/"}
+{"id": "7f554d543072", "published": "2026-11-15", "status": "published", "url": "https://www.wired.com/story/beware-the-new-ai-fueled-ransomware-boom/"}
+{"entity": "github:tencent/loopforge", "id": "438083b2e386", "published": "2026-11-15", "status": "published", "url": "https://github.com/Tencent/LoopForge"}
