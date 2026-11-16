@@ -2529,3 +2529,10 @@
 {"id": "93df787a9fba", "published": "2026-11-15", "status": "published", "url": "https://www.infoq.com/news/2026/11/tech-debt-learning-doing/"}
 {"id": "7f554d543072", "published": "2026-11-15", "status": "published", "url": "https://www.wired.com/story/beware-the-new-ai-fueled-ransomware-boom/"}
 {"entity": "github:tencent/loopforge", "id": "438083b2e386", "published": "2026-11-15", "status": "published", "url": "https://github.com/Tencent/LoopForge"}
+{"date": "2026-11-16", "id": "ae611ce6a3c5", "status": "expired", "url": "https://thenewstack.io/opensearch-foundation-aws-elasticsearch/"}
+{"date": "2026-11-16", "id": "9cc601c88b93", "status": "expired", "url": "https://www.wired.com/story/chatbots-are-leading-hikers-astray-with-dangerous-consequences/"}
+{"date": "2026-11-16", "id": "95235900cc34", "status": "expired", "url": "https://www.theverge.com/gadgets/1013375/muse-charm-gadgets-preview-waveshare-esp32-claude-vibe-code"}
+{"date": "2026-11-16", "id": "855baf0c010c", "status": "expired", "url": "https://thenewstack.io/tracking-ai-tool-recommendations/"}
+{"date": "2026-11-16", "id": "63d754960f66", "status": "expired", "url": "https://www.therobotreport.com/unusual-robotic-animals-can-prove-their-utility/"}
+{"date": "2026-11-16", "id": "1bfd12e2cf3a", "status": "expired", "url": "https://thenewstack.io/docusign-contract-ai-agents/"}
+{"date": "2026-11-16", "entity": "github:anomalyco/hex", "id": "18c9f57686a4", "status": "expired", "url": "https://github.com/anomalyco/hex"}
